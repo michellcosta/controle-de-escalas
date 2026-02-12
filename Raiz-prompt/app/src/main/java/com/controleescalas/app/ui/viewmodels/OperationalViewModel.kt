@@ -404,39 +404,78 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     }
     
     fun callDriverToParking(motorista: OndaItem) {
-        println("🚗 OperationalViewModel.callDriverToParking: Chamado para motorista ${motorista.nome}")
-        println("   📋 Motorista ID: ${motorista.motoristaId}")
-        println("   🏢 Base ID: $currentBaseId")
-        println("   📍 Estado a ser definido: IR_ESTACIONAMENTO")
-        println("   💬 Mensagem: Vá para o ESTACIONAMENTO e aguarde")
-        
         viewModelScope.launch {
             try {
-                println("💾 OperationalViewModel.callDriverToParking: Chamando updateStatusMotorista...")
-                val success = motoristaRepository.updateStatusMotorista(
-                    motoristaId = motorista.motoristaId,
-                    baseId = currentBaseId,
-                    estado = "IR_ESTACIONAMENTO",
-                    mensagem = "Vá para o ESTACIONAMENTO e aguarde"
+                // ✅ USAR API PYTHON para enviar notificação push
+                // Isso garante que a notificação funcione mesmo com o app fechado
+                val title = "🅿️ Chamada para Estacionamento"
+                val body = "Vá para o ESTACIONAMENTO e aguarde"
+                
+                val data = mapOf(
+                    "tipo" to "chamada_estacionamento",
+                    "estado" to "IR_ESTACIONAMENTO"
                 )
                 
-                println("📊 OperationalViewModel.callDriverToParking: Resultado do updateStatusMotorista: $success")
+                // Chamar API Python para enviar notificação push
+                val (success, error) = notificationApiService.notifyMotorista(
+                    baseId = currentBaseId,
+                    motoristaId = motorista.motoristaId,
+                    title = title,
+                    body = body,
+                    data = data
+                )
                 
                 if (success) {
-                    // Enviar notificação local
-                    notificationService.sendMotoristaEstacionamentoNotification(
-                        motoristaNome = motorista.nome
+                    val updateSuccess = motoristaRepository.updateStatusMotorista(
+                        motoristaId = motorista.motoristaId,
+                        baseId = currentBaseId,
+                        estado = "IR_ESTACIONAMENTO",
+                        mensagem = "Vá para o ESTACIONAMENTO e aguarde"
                     )
-                    println("✅ OperationalViewModel.callDriverToParking: Status atualizado com sucesso e notificação enviada")
-                    _message.value = "${motorista.nome} chamado para estacionamento"
+                    if (updateSuccess) {
+                        Log.d("OperationalViewModel", "✅ Motorista chamado para estacionamento via API Python: ${motorista.nome}")
+                        _message.value = "${motorista.nome} chamado para estacionamento"
+                    } else {
+                        Log.w("OperationalViewModel", "⚠️ Notificação enviada, mas falhou ao atualizar status no Firestore")
+                        _message.value = "${motorista.nome} chamado para estacionamento"
+                    }
                 } else {
-                    println("❌ OperationalViewModel.callDriverToParking: Falha ao atualizar status")
-                    _error.value = "Erro ao chamar motorista"
+                    Log.w("OperationalViewModel", "⚠️ API Python falhou, usando fallback: $error")
+                    try {
+                        val fallbackSuccess = motoristaRepository.updateStatusMotorista(
+                            motoristaId = motorista.motoristaId,
+                            baseId = currentBaseId,
+                            estado = "IR_ESTACIONAMENTO",
+                            mensagem = "Vá para o ESTACIONAMENTO e aguarde"
+                        )
+                        if (fallbackSuccess) {
+                            _message.value = "${motorista.nome} chamado para estacionamento (sem notificação push)"
+                            Log.w("OperationalViewModel", "⚠️ Usado fallback: atualização direta sem notificação push")
+                        } else {
+                            _error.value = "Erro ao chamar motorista"
+                        }
+                    } catch (fallbackError: Exception) {
+                        _error.value = "Erro ao chamar motorista: ${error ?: fallbackError.message}"
+                    }
                 }
             } catch (e: Exception) {
-                println("❌ OperationalViewModel.callDriverToParking: Exceção ao chamar motorista: ${e.message}")
-                e.printStackTrace()
-                _error.value = "Erro ao chamar motorista: ${e.message}"
+                Log.e("OperationalViewModel", "❌ Erro ao chamar motorista para estacionamento: ${e.message}", e)
+                try {
+                    val fallbackSuccess = motoristaRepository.updateStatusMotorista(
+                        motoristaId = motorista.motoristaId,
+                        baseId = currentBaseId,
+                        estado = "IR_ESTACIONAMENTO",
+                        mensagem = "Vá para o ESTACIONAMENTO e aguarde"
+                    )
+                    if (fallbackSuccess) {
+                        _message.value = "${motorista.nome} chamado para estacionamento (sem notificação push)"
+                        Log.w("OperationalViewModel", "⚠️ Usado fallback: atualização direta sem notificação push")
+                    } else {
+                        _error.value = "Erro ao chamar motorista"
+                    }
+                } catch (fallbackError: Exception) {
+                    _error.value = "Erro ao chamar motorista: ${e.message}"
+                }
             }
         }
     }

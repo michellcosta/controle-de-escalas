@@ -102,7 +102,7 @@ class FCMSender:
                     "notification": {
                         "channelId": "controle_escalas_channel",
                         "sound": "default",
-                        "priority": "high",
+                        "notification_priority": "PRIORITY_HIGH",
                         "defaultSound": True,
                         "defaultVibrateTimings": True,
                         "defaultLightSettings": True,

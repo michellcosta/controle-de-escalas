@@ -19,12 +19,13 @@ object NotificationApiConfig {
      * 
      * ⚠️ ALTERE ESTA URL para a URL do seu servidor em produção!
      */
-    const val BASE_URL = "https://seu-backend.railway.app"  // ⬅️ ALTERE AQUI
+    const val BASE_URL = "https://controle-de-escalas.onrender.com"
     
     /**
      * Timeout em segundos para requisições HTTP
+     * Render free tier pode demorar ~50s para "acordar" após inatividade
      */
-    const val TIMEOUT_SECONDS = 10L
+    const val TIMEOUT_SECONDS = 45L
     
     /**
      * Endpoints da API
