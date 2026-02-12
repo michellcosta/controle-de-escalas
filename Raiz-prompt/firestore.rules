@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==== FUNÇÕES AUXILIARES ====
+    
+    // Verifica se o token do usuário tem o baseId correto
+    function isMemberOfBase(baseId) {
+      return request.auth != null && request.auth.token.baseId == baseId;
+    }
+
+    // Verifica se é admin ou ajudante daquela base específica
+    function isAdminOfBase(baseId) {
+      return isMemberOfBase(baseId) && 
+             (request.auth.token.papel == 'admin' || request.auth.token.papel == 'ajudante');
+    }
+
+    // Verifica se o usuário está acessando seus próprios dados
+    function isSameUser(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    function isSuperadmin() {
+      // FUTURO: checar custom claims / campo no perfil global se necessário
+      return false;
+    }
+
+    // ==== REGRAS ====
+
+    // ==== REGRAS (MODO GRATUITO / LOCAL) ====
+    // Como estamos usando Login Anônimo sem Custom Claims (para não usar Functions pagas),
+    // não podemos verificar 'baseId' ou 'papel' no token.
+    // A segurança depende do PIN validado pelo App.
+
+    // REGRA GLOBAL PARA COLLECTION GROUP "motoristas"
+    match /{path=**}/motoristas/{userId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Cada documento em /bases/{baseId} representa uma base
+    match /bases/{baseId} {
+      // Permitir criar/ler/escrever bases se estiver logado (anônimo)
+      allow read, write: if request.auth != null;
+
+      // SUBCOLECAO motoristas
+      match /motoristas/{userId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // SUBCOLECAO escalaHoje
+      match /escalaHoje/{turnoId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // SUBCOLECAO statusMotoristas
+      match /statusMotoristas/{motoristaId} {
+        allow read, write: if request.auth != null;
+      }
+      
+      // SUBCOLECAO status_motoristas (permitir queries para migração)
+      match /status_motoristas/{motoristaId} {
+        allow read, write, list: if request.auth != null;
+      }
+      
+      // SUBCOLECAO configuracao
+      match /configuracao/{docId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // SUBCOLECAO escalas (NOVO)
+      match /escalas/{escalaId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // SUBCOLECAO quinzenas (NOVO)
+      match /quinzenas/{quinzenaId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // SUBCOLECAO disponibilidades (NOVO)
+      match /disponibilidades/{disponibilidadeId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // SUBCOLECAO devolucoes (NOVO)
+      match /devolucoes/{devolucaoId} {
+        // Qualquer usuário autenticado pode criar devoluções
+        // A validação do motoristaId e baseId é feita no código do app
+        allow create: if request.auth != null 
+                      && request.resource.data.baseId == baseId;
+        
+        // Qualquer usuário autenticado pode ler devoluções
+        // A filtragem por motorista é feita no código do app
+        allow read: if request.auth != null;
+        
+        // Motoristas podem excluir apenas suas próprias devoluções
+        // A validação é feita no código do app
+        allow delete: if request.auth != null;
+        
+        // Não permitir update (devoluções são imutáveis após criação)
+        allow update: if false;
+      }
+    }
+    
+    // ==== COLECAO RAIZ: disponibilidades ====
+    // Disponibilidades são armazenadas na raiz: disponibilidades/{baseId}_{data}
+    // Motoristas precisam ler para ver suas solicitações
+    match /disponibilidades/{disponibilidadeId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // Admin cria, motoristas atualizam suas respostas
+    }
+    
+    // ==== COLECAO RAIZ: quinzenas ====
+    // Quinzenas são armazenadas na raiz: quinzenas/{baseId}_{motoristaId}_{mes}_{ano}
+    // Motoristas precisam ler e escrever suas próprias quinzenas
+    match /quinzenas/{quinzenaId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ==== COLECAO RAIZ: feedbacks ====
+    // Feedbacks são armazenados na raiz: feedbacks/{feedbackId}
+    // Admins podem criar e ler seus próprios feedbacks
+    // Super admins podem ler todos e atualizar (marcar como lido, curtir)
+    match /feedbacks/{feedbackId} {
+      // Permitir criar feedback se estiver logado (admin)
+      allow create: if request.auth != null;
+      
+      // Permitir ler se for o próprio admin que criou OU se for super admin
+      allow read: if request.auth != null;
+      
+      // Permitir atualizar apenas para super admin (marcar como lido, curtir)
+      // Na prática, qualquer usuário logado pode atualizar (será validado no código)
+      allow update: if request.auth != null;
+      
+      // Permitir deletar (admin pode deletar seus próprios, super admin pode deletar qualquer)
+      allow delete: if request.auth != null;
+    }
+    
+    // ==== COLECAO RAIZ: sistema ====
+    // Configurações do sistema (monetização, etc.)
+    match /sistema/{docId} {
+      // Apenas super admin pode ler/escrever
+      // Por enquanto, permitir para qualquer usuário logado (será validado no código)
+      allow read, write: if request.auth != null;
+    }
+  }
+}

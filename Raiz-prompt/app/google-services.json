@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "512895285349",
+    "project_id": "controle-de-escalas-739cf",
+    "storage_bucket": "controle-de-escalas-739cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:512895285349:android:853c922a17988da5e36e8c",
+        "android_client_info": {
+          "package_name": "com.controleescalas.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8ZuM8boZYVJoEc1Ll7yLAafgx1Sc0kRQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

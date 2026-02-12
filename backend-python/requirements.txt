@@ -1,0 +1,23 @@
+# Backend FCM - Dependências Python
+# Instalar com: pip install -r requirements.txt
+
+# Firebase Admin SDK para Python
+firebase-admin>=6.2.0
+
+# Google Auth para autenticação OAuth2
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+
+# Requests para chamadas HTTP
+requests>=2.31.0
+
+# Opcional: para melhor formatação de saída
+colorama>=0.4.6
+
+# Flask para API REST (opcional - apenas se usar api.py)
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Gunicorn para produção (servidor WSGI)
+gunicorn>=21.2.0

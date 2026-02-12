@@ -1,0 +1,50 @@
+# ===========================================
+# CONTROLE DE ESCALAS - .gitignore
+# ===========================================
+
+# Service Account e Credenciais (NUNCA fazer commit!)
+**/service-account*.json
+**/*-key.json
+**/*-credentials.json
+**/.env
+**/.env.local
+
+# Android / Gradle
+Raiz-prompt/.gradle/
+Raiz-prompt/build/
+Raiz-prompt/app/build/
+Raiz-prompt/local.properties
+Raiz-prompt/*.apk
+Raiz-prompt/.cxx/
+
+# Node (Firebase Functions)
+Raiz-prompt/functions/node_modules/
+Raiz-prompt/functions/.eslintcache
+Raiz-prompt/functions/lib/
+Raiz-prompt/server/node_modules/
+
+# Python
+backend-python/__pycache__/
+backend-python/venv/
+backend-python/env/
+backend-python/*.pyc
+backend-python/.Python
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# Logs e temporários
+*.log
+*.log.*
+*.tmp
+*.temp
+*.bak
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini

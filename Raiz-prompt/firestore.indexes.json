@@ -1,0 +1,47 @@
+{
+    "indexes": [
+        {
+            "collectionGroup": "motoristas",
+            "queryScope": "COLLECTION_GROUP",
+            "fields": [
+                {
+                    "fieldPath": "telefone",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "ativo",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "feedbacks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "adminId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "data",
+                    "order": "DESCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "devolucoes",
+            "queryScope": "COLLECTION_GROUP",
+            "fields": [
+                {
+                    "fieldPath": "motoristaId",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "timestamp",
+                    "order": "DESCENDING"
+                }
+            ]
+        }
+    ],
+    "fieldOverrides": []
+}
