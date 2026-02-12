@@ -41,18 +41,25 @@ class ControleEscalasMessagingService : FirebaseMessagingService() {
      * Lidar com mensagens de dados
      */
     private fun handleDataMessage(data: Map<String, String>) {
-        val type = data["type"] ?: return
+        // Suportar "tipo" (API Python) e "type" (legado)
+        val type = data["tipo"] ?: data["type"] ?: return
         val title = data["title"] ?: "Controle de Escalas"
         val message = data["message"] ?: ""
         
         when (type) {
-            "chamada_motorista" -> {
+            "chamada", "chamada_motorista" -> {
                 val motoristaNome = data["motorista_nome"] ?: "Motorista"
                 val vaga = data["vaga"] ?: ""
                 val rota = data["rota"] ?: ""
-                
                 NotificationService(this).sendMotoristaChamadaNotification(
                     motoristaNome, vaga, rota
+                )
+            }
+            "chamada_estacionamento" -> {
+                NotificationService(this).sendLocalNotification(
+                    title = "🅿️ Chamada para Estacionamento",
+                    message = "Vá para o ESTACIONAMENTO e aguarde",
+                    type = NotificationService.TYPE_CHAMADA_MOTORISTA
                 )
             }
             "status_update" -> {

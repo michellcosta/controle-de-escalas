@@ -110,11 +110,13 @@ def notify_motorista():
             }), 400
         
         # Buscar token do motorista
+        print(f"📖 Buscando token para motorista {motorista_id} na base {base_id}...")
         token_info = reader.get_motorista_token(base_id, motorista_id)
         
         if not token_info:
+            print(f"❌ Motorista {motorista_id} não encontrado ou sem FCM token no Firestore")
             return jsonify({
-                "error": f"Motorista {motorista_id} não encontrado ou sem FCM token"
+                "error": f"Motorista {motorista_id} não encontrado ou sem FCM token. O motorista precisa fazer login no app para receber notificações."
             }), 404
         
         # Enviar notificação
@@ -126,6 +128,7 @@ def notify_motorista():
         )
         
         if success:
+            print(f"✅ Notificação enviada via FCM para {token_info.get('nome', motorista_id)}")
             return jsonify({
                 "success": True,
                 "message": f"Notificação enviada para {token_info.get('nome', motorista_id)}",
