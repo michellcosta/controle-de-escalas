@@ -29,7 +29,10 @@ import androidx.compose.material.icons.filled.Check
 import java.util.Calendar
 import androidx.lifecycle.viewmodel.compose.viewModel
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +49,8 @@ import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
 import com.controleescalas.app.ui.viewmodels.QuinzenaViewModel
 import com.controleescalas.app.ui.viewmodels.DriverViewModel
+import com.controleescalas.app.data.DeviceUtils
+import com.controleescalas.app.data.NotificationSettingsManager
 import com.controleescalas.app.data.repositories.EscalaRepository
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -85,6 +90,18 @@ fun DriverAppScaffold(
     val viewModel: DriverViewModel = viewModel()
     val motoristaNome by viewModel.motoristaNome.collectAsState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Prompt automático para Xiaomi (notificações com app fechado)
+    var showXiaomiPrompt by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (DeviceUtils.isXiaomiFamily()) {
+            val settingsManager = NotificationSettingsManager(context)
+            if (!settingsManager.wasXiaomiPromptShown()) {
+                showXiaomiPrompt = true
+            }
+        }
+    }
     
     // Estado para controlar o diálogo explicativo de background location
     var showBackgroundLocationDialog by remember { mutableStateOf(false) }
@@ -287,11 +304,12 @@ fun DriverAppScaffold(
             DriverBottomNavigationBar(navController = navController)
         }
     ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = DriverNavItem.Home.route,
-            modifier = Modifier.padding(paddingValues)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = DriverNavItem.Home.route,
+                modifier = Modifier.padding(paddingValues)
+            ) {
             composable(DriverNavItem.Home.route) {
                 DriverHomeContent(
                     motoristaId = motoristaId,
@@ -316,6 +334,7 @@ fun DriverAppScaffold(
                 var showSobreApp by remember { mutableStateOf(false) }
                 var showAjuda by remember { mutableStateOf(false) }
                 var showTermos by remember { mutableStateOf(false) }
+                var showNotificacoes by remember { mutableStateOf(false) }
                 
                 DriverConfigScreen(
                     baseId = baseId,
@@ -329,6 +348,7 @@ fun DriverAppScaffold(
                     onDevolucaoClick = {
                         navController.navigate("driver_devolucao")
                     },
+                    onNotificacoesClick = { showNotificacoes = true },
                     onSobreAppClick = { showSobreApp = true },
                     onAjudaClick = { showAjuda = true },
                     onTermosClick = { showTermos = true },
@@ -344,6 +364,9 @@ fun DriverAppScaffold(
                 }
                 if (showTermos) {
                     TermosDialog(onDismiss = { showTermos = false })
+                }
+                if (showNotificacoes) {
+                    NotificacoesDialog(onDismiss = { showNotificacoes = false })
                 }
             }
             
@@ -427,8 +450,21 @@ fun DriverAppScaffold(
                 )
             }
         }
+            
+            if (showXiaomiPrompt) {
+                NotificacoesDialog(
+                    onDismiss = {
+                        coroutineScope.launch {
+                            NotificationSettingsManager(context).setXiaomiPromptShown()
+                        }
+                        showXiaomiPrompt = false
+                    }
+                )
+            }
+        }
     }
 }
+
 
 /**
  * Itens de navegação para motoristas
@@ -1279,6 +1315,67 @@ fun SobreAppDialog(onDismiss: () -> Unit) {
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("Fechar", color = NeonGreen)
+            }
+        },
+        containerColor = DarkSurface,
+        titleContentColor = TextWhite,
+        textContentColor = TextGray
+    )
+}
+
+/**
+ * Diálogo com instruções para notificações em Xiaomi/Huawei
+ */
+@Composable
+fun NotificacoesDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Notificações não aparecem?",
+                color = TextWhite,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "Em Xiaomi, Redmi, Huawei e similares, o celular pode bloquear notificações quando o app está fechado.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextGray
+                )
+                Text(
+                    "Para receber chamadas com o app fechado:\n\n" +
+                    "1. Configurações → Apps → Controle de Escalas\n" +
+                    "2. Economia de bateria → \"Sem restrições\"\n" +
+                    "3. Permissões → Inicialização automática → Ative\n" +
+                    "4. Notificações → Libere todas",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextGray
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+            ) {
+                Text("Abrir configurações do app")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar", color = TextGray)
             }
         },
         containerColor = DarkSurface,

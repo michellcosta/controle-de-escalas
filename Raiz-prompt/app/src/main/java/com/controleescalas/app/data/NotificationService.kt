@@ -51,6 +51,14 @@ class NotificationService(private val context: Context) {
     }
 
     /**
+     * Chamar no startup do app para garantir que o canal exista antes de qualquer FCM.
+     * Necessário para notificações quando o app está fechado (Huawei, etc).
+     */
+    fun createNotificationChannelAtStartup() {
+        createNotificationChannel()
+    }
+    
+    /**
      * Criar canal de notificação
      */
     private fun createNotificationChannel() {

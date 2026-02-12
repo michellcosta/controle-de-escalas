@@ -32,6 +32,9 @@ class MainApp : Application() {
         // Inicializar Firebase
         FirebaseApp.initializeApp(this)
         
+        // Criar canal de notificação logo no início (necessário para FCM com app fechado)
+        com.controleescalas.app.data.NotificationService(this).createNotificationChannelAtStartup()
+        
         // Agendar reset diário
         agendarResetDiario()
         

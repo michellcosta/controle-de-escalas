@@ -45,10 +45,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Canal padrão para notificações FCM (usado quando app está fechado) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="controle_escalas_channel" />
+        
         <!-- Firebase Messaging Service -->
         <service
             android:name=".ControleEscalasMessagingService"
-            android:exported="false">
+            android:exported="false"
+            android:directBootAware="true">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>

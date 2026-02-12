@@ -22,9 +22,20 @@ class NotificationSettingsManager(private val context: Context) {
         private val NOTIFICATION_STATUS_UPDATE_KEY = booleanPreferencesKey("notif_status_update")
         private val NOTIFICATION_ESCALA_UPDATE_KEY = booleanPreferencesKey("notif_escala_update")
         private val NOTIFICATION_GENERIC_KEY = booleanPreferencesKey("notif_generic")
+        private val XIAOMI_PROMPT_SHOWN_KEY = booleanPreferencesKey("xiaomi_notification_prompt_shown")
         
         // Valores padrão (todas habilitadas por padrão)
         private const val DEFAULT_ENABLED = true
+    }
+    
+    suspend fun wasXiaomiPromptShown(): Boolean {
+        return context.notificationSettingsDataStore.data.first()[XIAOMI_PROMPT_SHOWN_KEY] ?: false
+    }
+    
+    suspend fun setXiaomiPromptShown() {
+        context.notificationSettingsDataStore.edit { preferences ->
+            preferences[XIAOMI_PROMPT_SHOWN_KEY] = true
+        }
     }
     
     // Flow para notificação de conclusão de motorista
@@ -32,9 +43,9 @@ class NotificationSettingsManager(private val context: Context) {
         preferences[NOTIFICATION_MOTORISTA_CONCLUIDO_KEY] ?: DEFAULT_ENABLED
     }
     
-    // Flow para notificação de chamada de motorista (desabilitada por padrão)
+    // Flow para notificação de chamada de motorista (habilitada por padrão - crítico!)
     val notificacaoChamadaMotorista: Flow<Boolean> = context.notificationSettingsDataStore.data.map { preferences ->
-        preferences[NOTIFICATION_CHAMADA_MOTORISTA_KEY] ?: false
+        preferences[NOTIFICATION_CHAMADA_MOTORISTA_KEY] ?: DEFAULT_ENABLED
     }
     
     // Flow para notificação de atualização de status
@@ -105,7 +116,7 @@ class NotificationSettingsManager(private val context: Context) {
     }
     
     suspend fun isNotificacaoChamadaMotoristaEnabled(): Boolean {
-        return context.notificationSettingsDataStore.data.first()[NOTIFICATION_CHAMADA_MOTORISTA_KEY] ?: false
+        return context.notificationSettingsDataStore.data.first()[NOTIFICATION_CHAMADA_MOTORISTA_KEY] ?: DEFAULT_ENABLED
     }
     
     suspend fun isNotificacaoStatusUpdateEnabled(): Boolean {

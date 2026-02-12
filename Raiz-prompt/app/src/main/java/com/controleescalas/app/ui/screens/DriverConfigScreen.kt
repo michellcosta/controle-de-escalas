@@ -24,6 +24,7 @@ fun DriverConfigScreen(
     onIdentificacaoClick: () -> Unit,
     onQuinzenaClick: () -> Unit,
     onDevolucaoClick: () -> Unit,
+    onNotificacoesClick: () -> Unit = {},
     onSobreAppClick: () -> Unit,
     onAjudaClick: () -> Unit,
     onTermosClick: () -> Unit,
@@ -79,6 +80,21 @@ fun DriverConfigScreen(
                 Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Devolução", style = MaterialTheme.typography.bodyMedium)
+            }
+            
+            HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+            
+            // Notificações (Xiaomi/Huawei)
+            SectionHeader(title = "Notificações")
+            
+            OutlinedButton(
+                onClick = onNotificacoesClick,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+            ) {
+                Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Notificações não aparecem?", style = MaterialTheme.typography.bodyMedium)
             }
             
             HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
