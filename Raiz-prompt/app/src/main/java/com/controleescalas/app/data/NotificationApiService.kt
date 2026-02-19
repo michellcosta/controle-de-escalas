@@ -91,6 +91,65 @@ class NotificationApiService {
     }
     
     /**
+     * Solicita localização do motorista (admin/assistente).
+     * Chama o backend Python em vez de Cloud Functions.
+     */
+    suspend fun requestDriverLocation(baseId: String, motoristaId: String, idToken: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.LOCATION_REQUEST}"
+            val jsonBody = org.json.JSONObject().apply {
+                put("baseId", baseId)
+                put("motoristaId", motoristaId)
+            }
+            val requestBody = jsonBody.toString().toRequestBody(jsonMediaType)
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer $idToken")
+                .build()
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
+            when {
+                response.isSuccessful -> Pair(true, null)
+                else -> Pair(false, "Erro ${response.code}: $responseBody")
+            }
+        } catch (e: Exception) {
+            Pair(false, "Erro: ${e.message}")
+        }
+    }
+
+    /**
+     * Envia coordenadas do motorista para o backend Python.
+     */
+    suspend fun receiveDriverLocation(baseId: String, motoristaId: String, lat: Double, lng: Double, idToken: String): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.LOCATION_RECEIVE}"
+            val jsonBody = org.json.JSONObject().apply {
+                put("baseId", baseId)
+                put("motoristaId", motoristaId)
+                put("lat", lat)
+                put("lng", lng)
+            }
+            val requestBody = jsonBody.toString().toRequestBody(jsonMediaType)
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer $idToken")
+                .build()
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
+            when {
+                response.isSuccessful -> Pair(true, null)
+                else -> Pair(false, "Erro ${response.code}: $responseBody")
+            }
+        } catch (e: Exception) {
+            Pair(false, "Erro: ${e.message}")
+        }
+    }
+
+    /**
      * Verifica se a API está funcionando (health check)
      */
     suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {

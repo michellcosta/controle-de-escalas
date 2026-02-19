@@ -1,14 +1,23 @@
 package com.controleescalas.app
 
-import android.app.NotificationManager
+import android.Manifest
+import android.content.pm.PackageManager
 import android.util.Log
+import androidx.core.content.ContextCompat
+import com.controleescalas.app.data.FirebaseManager
+import com.controleescalas.app.data.NotificationApiService
 import com.controleescalas.app.data.NotificationService
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 /**
  * Serviço para receber mensagens do Firebase Cloud Messaging
@@ -47,6 +56,11 @@ class ControleEscalasMessagingService : FirebaseMessagingService() {
         val message = data["message"] ?: ""
         
         when (type) {
+            "request_location" -> {
+                val baseId = data["baseId"] ?: return
+                val motoristaId = data["motoristaId"] ?: return
+                handleRequestLocation(baseId, motoristaId)
+            }
             "chamada", "chamada_motorista" -> {
                 val motoristaNome = data["motorista_nome"] ?: "Motorista"
                 val vaga = data["vaga"] ?: ""
@@ -77,6 +91,56 @@ class ControleEscalasMessagingService : FirebaseMessagingService() {
             }
             else -> {
                 NotificationService(this).sendLocalNotification(title, message)
+            }
+        }
+    }
+
+    /**
+     * Push silenciosa: admin pediu localização. Obter GPS e enviar ao backend.
+     * Motorista não vê nada.
+     */
+    private fun handleRequestLocation(baseId: String, motoristaId: String) {
+        CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            try {
+                if (ContextCompat.checkSelfPermission(
+                        this@ControleEscalasMessagingService,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.e(TAG, "Sem permissão de localização para request_location")
+                    return@launch
+                }
+                val fusedClient: FusedLocationProviderClient =
+                    LocationServices.getFusedLocationProviderClient(applicationContext)
+                val cts = CancellationTokenSource()
+                val location = fusedClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token).await()
+                if (location == null) {
+                    Log.e(TAG, "Não foi possível obter localização para request_location")
+                    return@launch
+                }
+                val lat = location.latitude
+                val lng = location.longitude
+                Log.d(TAG, "📍 Localização obtida para request_location: $lat, $lng")
+                val user = FirebaseManager.auth.currentUser
+                if (user == null) {
+                    Log.e(TAG, "Usuário não autenticado para enviar localização")
+                    return@launch
+                }
+                val tokenResult = user.getIdToken(true).await()
+                val idToken = tokenResult?.token
+                if (idToken == null) {
+                    Log.e(TAG, "Falha ao obter token para enviar localização")
+                    return@launch
+                }
+                val apiService = NotificationApiService()
+                val (success, error) = apiService.receiveDriverLocation(baseId, motoristaId, lat, lng, idToken)
+                if (success) {
+                    Log.d(TAG, "✅ Localização enviada ao backend com sucesso")
+                } else {
+                    Log.e(TAG, "❌ Erro ao enviar localização: $error")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Erro em handleRequestLocation: ${e.message}", e)
             }
         }
     }

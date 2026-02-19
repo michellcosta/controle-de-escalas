@@ -13,11 +13,13 @@ Ou com gunicorn (produção):
 
 import os
 import json
+import requests as http_requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from firebase_admin import auth, firestore
 from firestore_reader import FirestoreReader
 from fcm_sender import FCMSender
-from typing import Optional
+from typing import Optional, Tuple
 
 app = Flask(__name__)
 CORS(app)  # Permitir requisições do app Android
@@ -250,6 +252,141 @@ def get_motorista_token():
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
 
+def _verify_firebase_token():
+    """Verifica Authorization: Bearer <idToken>. Retorna (uid, None) ou (None, error_tuple)."""
+    auth_header = request.headers.get('Authorization')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return None, ({"error": "Token de autenticação obrigatório"}, 401)
+    token = auth_header[7:].strip()
+    if not token:
+        return None, ({"error": "Token inválido"}, 401)
+    try:
+        decoded = auth.verify_id_token(token)
+        return decoded.get('uid'), None
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        return None, ({"error": "Token inválido ou expirado"}, 401)
+
+
+@app.route('/location/request', methods=['POST'])
+def location_request():
+    """
+    Admin/Assistente solicita localização e ETA de um motorista.
+    Envia push silenciosa para o app do motorista.
+    """
+    try:
+        initialize_services()
+        uid, err = _verify_firebase_token()
+        if err:
+            return jsonify(err[0]), err[1]
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Body JSON é obrigatório"}), 400
+        base_id = data.get('baseId')
+        motorista_id = data.get('motoristaId')
+        if not base_id or not motorista_id:
+            return jsonify({"error": "baseId e motoristaId são obrigatórios"}), 400
+        papel = reader.get_usuario_papel(base_id, uid)
+        if not papel or papel not in ('admin', 'superadmin', 'auxiliar', 'ajudante'):
+            return jsonify({"error": "Apenas admin/auxiliar podem solicitar localização"}), 403
+        token_info = reader.get_motorista_token(base_id, motorista_id)
+        if not token_info:
+            return jsonify({"error": "Motorista não encontrado ou sem FCM token"}), 404
+        motorista_nome = token_info.get('nome', 'Motorista')
+        reader.write_location_response(base_id, motorista_id, {
+            "status": "pending", "motoristaId": motorista_id, "motoristaNome": motorista_nome,
+            "solicitadoEm": firestore.SERVER_TIMESTAMP,
+        })
+        success, error = sender.send_silent_data_only(
+            token=token_info['fcmToken'],
+            data={"type": "request_location", "baseId": base_id, "motoristaId": motorista_id}
+        )
+        if not success:
+            return jsonify({"error": error or "Falha ao enviar push"}), 500
+        print(f"✅ Pedido de localização enviado para {motorista_nome}")
+        return jsonify({"ok": True, "status": "pending"}), 200
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        print(f"❌ Erro location/request: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/location/receive', methods=['POST'])
+def location_receive():
+    """
+    App do motorista envia coordenadas. Calcula rota via OpenRouteService.
+    """
+    try:
+        initialize_services()
+        uid, err = _verify_firebase_token()
+        if err:
+            return jsonify(err[0]), err[1]
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Body JSON é obrigatório"}), 400
+        base_id = data.get('baseId')
+        motorista_id = data.get('motoristaId')
+        lat = data.get('lat')
+        lng = data.get('lng')
+        if not base_id or not motorista_id:
+            return jsonify({"error": "baseId e motoristaId são obrigatórios"}), 400
+        if lat is None or lng is None:
+            return jsonify({"error": "lat e lng são obrigatórios"}), 400
+        try:
+            lat, lng = float(lat), float(lng)
+        except (TypeError, ValueError):
+            return jsonify({"error": "lat e lng devem ser números"}), 400
+        if uid != motorista_id:
+            return jsonify({"error": "Apenas o motorista pode enviar sua localização"}), 403
+        galpao = reader.get_galpao_coordenadas(base_id)
+        if not galpao:
+            reader.write_location_response(base_id, motorista_id, {
+                "status": "error", "error": "Galpão não configurado",
+                "atualizadoEm": firestore.SERVER_TIMESTAMP,
+            })
+            return jsonify({"ok": False, "error": "Galpão não configurado"}), 200
+        ors_key = os.getenv('ORS_API_KEY') or os.getenv('OPENROUTESERVICE_API_KEY')
+        if not ors_key:
+            reader.write_location_response(base_id, motorista_id, {
+                "status": "error", "error": "Serviço indisponível",
+                "atualizadoEm": firestore.SERVER_TIMESTAMP,
+            })
+            return jsonify({"ok": False, "error": "Serviço indisponível"}), 500
+        url = "https://api.openrouteservice.org/v2/directions/driving-car"
+        payload = {"coordinates": [[lng, lat], [galpao["lng"], galpao["lat"]]]}
+        resp = http_requests.post(url, json=payload, headers={"Authorization": ors_key, "Content-Type": "application/json"}, timeout=15)
+        if resp.status_code != 200:
+            reader.write_location_response(base_id, motorista_id, {
+                "status": "error", "error": "Erro ao calcular rota",
+                "atualizadoEm": firestore.SERVER_TIMESTAMP,
+            })
+            return jsonify({"ok": False, "error": "Erro ao calcular rota"}), 200
+        ors_data = resp.json()
+        route = (ors_data.get('routes') or [{}])[0]
+        summary = route.get('summary') or {}
+        distance_m = summary.get('distance', 0)
+        duration_s = summary.get('duration', 0)
+        eta_min = round(duration_s / 60)
+        distance_km = round((distance_m / 1000) * 10) / 10
+        motorista_doc = reader.db.collection('bases').document(base_id).collection('motoristas').document(motorista_id).get()
+        motorista_nome = (motorista_doc.to_dict() or {}).get('nome', 'Motorista')
+        reader.write_location_response(base_id, motorista_id, {
+            "status": "ready", "motoristaNome": motorista_nome,
+            "distanceKm": distance_km, "etaMinutes": eta_min,
+            "atualizadoEm": firestore.SERVER_TIMESTAMP,
+        })
+        print(f"✅ Localização: {motorista_nome} - {distance_km} km, ~{eta_min} min")
+        return jsonify({"ok": True, "distanceKm": distance_km, "etaMinutes": eta_min}), 200
+    except Exception as e:
+        print(f"❌ Erro location/receive: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 API FCM - Backend Python")
@@ -259,6 +396,8 @@ if __name__ == '__main__':
     print("   POST /notify/motorista          - Notificar motorista específico")
     print("   POST /notify/base               - Notificar todos da base")
     print("   GET  /motorista/token           - Verificar token de motorista")
+    print("   POST /location/request          - Pedir localização/ETA (admin)")
+    print("   POST /location/receive          - Receber coordenadas (motorista)")
     
     # Usar PORT da variável de ambiente (produção) ou 5000 (desenvolvimento)
     port = int(os.getenv('PORT', 5000))

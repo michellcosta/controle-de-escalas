@@ -225,6 +225,65 @@ class FCMSender:
         
         return {"sucessos": sucessos, "falhas": falhas}
 
+    def send_silent_data_only(self, token: str, data: Dict[str, str]) -> Tuple[bool, Optional[str]]:
+        """
+        Envia mensagem FCM APENAS com data (silenciosa) - sem notification.
+        Usado para pedido de localização: motorista não percebe, app processa em background.
+
+        Args:
+            token: Token FCM do dispositivo
+            data: Dados no formato {"chave": "valor"} - todos strings
+
+        Returns:
+            Tupla (sucesso: bool, mensagem_erro: Optional[str])
+        """
+        try:
+            access_token = self._get_access_token()
+
+            # FCM HTTP v1: mensagem data-only (sem notification)
+            message = {
+                "message": {
+                    "token": token,
+                    "data": {str(k): str(v) for k, v in data.items()},
+                    "android": {
+                        "priority": "high",
+                    },
+                    "apns": {
+                        "headers": {"apns-priority": "10"},
+                        "payload": {
+                            "aps": {
+                                "contentAvailable": True,
+                            }
+                        }
+                    }
+                }
+            }
+
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+
+            response = requests.post(
+                self.endpoint,
+                headers=headers,
+                json=message,
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                print(f"  ✅ Push silenciosa enviada com sucesso")
+                return True, None
+            else:
+                error_msg = f"Erro {response.status_code}: {response.text}"
+                print(f"  ❌ Falha ao enviar push silenciosa: {error_msg}")
+                return False, error_msg
+
+        except Exception as e:
+            error_msg = f"Exceção: {str(e)}"
+            print(f"  ❌ Erro: {error_msg}")
+            return False, error_msg
+
 
 if __name__ == "__main__":
     # Teste básico

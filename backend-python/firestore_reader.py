@@ -125,6 +125,39 @@ class FirestoreReader:
         print(f"📋 Bases encontradas: {len(base_ids)}")
         return base_ids
 
+    def get_galpao_coordenadas(self, base_id: str) -> Optional[Dict[str, float]]:
+        """
+        Busca coordenadas do galpão em configuracao/principal
+
+        Returns:
+            {"lat": float, "lng": float} ou None
+        """
+        config_ref = self.db.collection('bases').document(base_id).collection('configuracao').document('principal')
+        doc = config_ref.get()
+        if not doc.exists:
+            return None
+        data = doc.to_dict()
+        galpao = data.get('galpao') or {}
+        lat = galpao.get('lat')
+        lng = galpao.get('lng')
+        if lat is not None and lng is not None:
+            return {"lat": float(lat), "lng": float(lng)}
+        return None
+
+    def get_usuario_papel(self, base_id: str, user_id: str) -> Optional[str]:
+        """Retorna o papel do usuário (admin, auxiliar, etc) ou None"""
+        for col in ['usuarios', 'motoristas']:
+            ref = self.db.collection('bases').document(base_id).collection(col).document(user_id)
+            doc = ref.get()
+            if doc.exists:
+                return (doc.to_dict() or {}).get('papel')
+        return None
+
+    def write_location_response(self, base_id: str, motorista_id: str, data: dict, merge: bool = True):
+        """Grava documento em bases/{baseId}/location_responses/{motoristaId}"""
+        ref = self.db.collection('bases').document(base_id).collection('location_responses').document(motorista_id)
+        ref.set(data, merge=merge)
+
 
 if __name__ == "__main__":
     # Teste básico
