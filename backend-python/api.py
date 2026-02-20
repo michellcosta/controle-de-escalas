@@ -388,39 +388,45 @@ def location_receive():
 
 
 def _assistente_via_huggingface(text: str, image_b64: Optional[str]) -> Optional[str]:
-    """Usa Hugging Face Inference API (visão + texto ou só texto). Retorna None se falhar."""
+    """Usa Hugging Face Router API (OpenAI-compatible). Visão + texto ou só texto. Retorna None se falhar."""
     hf_token = os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_TOKEN')
     if not hf_token:
         return None
-    prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada linha no formato: Nome / Vaga / Rota, agrupando por ondas (1a onda, 2a onda, etc.) se houver."
-    url = f"https://api-inference.huggingface.co/models/{os.getenv('HF_VISION_MODEL', 'Salesforce/blip2-opt-2.7b') if image_b64 else os.getenv('HF_TEXT_MODEL', 'google/flan-t5-base')}"
+    url = "https://router.huggingface.co/v1/chat/completions"
     headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
+    model_vision = os.getenv('HF_VISION_MODEL', 'zai-org/GLM-4.5V')
+    model_text = os.getenv('HF_TEXT_MODEL', 'Qwen/Qwen2.5-7B-Instruct')
+    model = model_vision if image_b64 else model_text
+    prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada linha no formato: Nome / Vaga / Rota, agrupando por ondas (1a onda, 2a onda, etc.) se houver."
     try:
         if image_b64:
-            payload = {
-                "inputs": prompt,
-                "image": image_b64,
-                "parameters": {"max_new_tokens": 1024},
-                "options": {"wait_for_model": True},
-            }
+            content = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
+            ]
         else:
-            payload = {"inputs": f"Pergunta: {prompt}\nResposta:", "parameters": {"max_new_tokens": 256}}
-        resp = http_requests.post(url, json=payload, headers=headers, timeout=60)
+            content = prompt
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": content}],
+            "max_tokens": 1024 if image_b64 else 512,
+        }
+        resp = http_requests.post(url, json=payload, headers=headers, timeout=90)
         if not resp.ok:
             err = resp.text
             try:
                 j = resp.json()
-                err = j.get("error") or err
+                err = j.get("error", {}).get("message") or j.get("error") or err
             except Exception:
                 pass
             print(f"HF API error {resp.status_code}: {err}")
             return None
         out = resp.json()
-        if isinstance(out, list) and len(out) > 0:
-            return (out[0].get("generated_text") or out[0].get("answer") or str(out[0])).strip()
-        if isinstance(out, dict):
-            return (out.get("generated_text") or out.get("answer") or out.get("summary_text") or "").strip()
-        return str(out).strip() if out else None
+        choice = (out.get("choices") or [None])[0]
+        if not choice:
+            return None
+        msg = choice.get("message") or {}
+        return (msg.get("content") or "").strip()
     except Exception as e:
         print(f"HF request failed: {e}")
         return None
