@@ -145,13 +145,40 @@ class FirestoreReader:
         return None
 
     def get_usuario_papel(self, base_id: str, user_id: str) -> Optional[str]:
-        """Retorna o papel do usuário (admin, auxiliar, etc) ou None"""
+        """Retorna o papel do usuário (admin, auxiliar, superadmin, etc) na base ou None"""
         for col in ['usuarios', 'motoristas']:
             ref = self.db.collection('bases').document(base_id).collection(col).document(user_id)
             doc = ref.get()
             if doc.exists:
                 return (doc.to_dict() or {}).get('papel')
         return None
+
+    def get_usuario_papel_in_any_base(self, user_id: str) -> Optional[str]:
+        """Retorna o papel do usuário em qualquer base (ex.: superadmin que não está na base atual)."""
+        for base_id in self.get_all_bases():
+            papel = self.get_usuario_papel(base_id, user_id)
+            if papel:
+                return papel
+        return None
+
+    def get_superadmin_uids_from_config(self) -> List[str]:
+        """
+        Lê UIDs de superadmin do Firestore sistema/config (campo superadminUids, array).
+        Permite liberar superadmin sem variável de ambiente.
+        """
+        try:
+            ref = self.db.collection('sistema').document('config')
+            doc = ref.get()
+            if not doc.exists:
+                return []
+            data = doc.to_dict() or {}
+            uids = data.get('superadminUids') or data.get('superadmin_uids') or []
+            if isinstance(uids, list):
+                return [str(u).strip() for u in uids if u]
+            return []
+        except Exception as e:
+            print(f"get_superadmin_uids_from_config: {e}")
+            return []
 
     def write_location_response(self, base_id: str, motorista_id: str, data: dict, merge: bool = True):
         """Grava documento em bases/{baseId}/location_responses/{motoristaId}"""

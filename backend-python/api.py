@@ -252,6 +252,16 @@ def get_motorista_token():
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
 
+def _uid_is_superadmin(uid: str) -> bool:
+    """True se uid estiver em SUPERADMIN_UIDS (variável de ambiente, UIDs separados por vírgula)."""
+    raw = (os.getenv('SUPERADMIN_UIDS') or '').strip()
+    if not raw:
+        return False
+    # Suporta valores com ou sem aspas (ex.: "abc123" ou abc123 no Render)
+    allowed = [u.strip().strip('"\'') for u in raw.split(',') if u.strip()]
+    return uid in allowed
+
+
 def _verify_firebase_token():
     """Verifica Authorization: Bearer <idToken>. Retorna (uid, None) ou (None, error_tuple)."""
     auth_header = request.headers.get('Authorization')
@@ -287,8 +297,21 @@ def location_request():
         if not base_id or not motorista_id:
             return jsonify({"error": "baseId e motoristaId são obrigatórios"}), 400
         papel = reader.get_usuario_papel(base_id, uid)
+        if not papel:
+            papel = reader.get_usuario_papel_in_any_base(uid)
+        if not papel and _uid_is_superadmin(uid):
+            papel = 'superadmin'
+        if not papel and uid in (reader.get_superadmin_uids_from_config() or []):
+            papel = 'superadmin'
         if not papel or papel not in ('admin', 'superadmin', 'auxiliar', 'ajudante'):
-            return jsonify({"error": "Apenas admin/auxiliar podem solicitar localização"}), 403
+            uids_env = (os.getenv('SUPERADMIN_UIDS') or '').strip()
+            uid_suffix = uid[-6:] if len(uid) >= 6 else uid
+            print(f"location/request 403: uid_fim={uid_suffix} papel={papel} SUPERADMIN_UIDS_definido={bool(uids_env)}")
+            return jsonify({
+                "error": "Apenas admin, superadmin ou auxiliar podem solicitar localização",
+                "uid_suffix": uid_suffix,
+                "hint": "Adicione seu UID completo em SUPERADMIN_UIDS no Render (variável de ambiente). O UID desta sessão termina em: " + uid_suffix,
+            }), 403
         token_info = reader.get_motorista_token(base_id, motorista_id)
         if not token_info:
             return jsonify({"error": "Motorista não encontrado ou sem FCM token"}), 404
@@ -399,6 +422,12 @@ def _assistente_via_huggingface(text: str, image_b64: Optional[str]) -> Optional
     model = model_vision if image_b64 else model_text
     prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada linha no formato: Nome / Vaga / Rota, agrupando por ondas (1a onda, 2a onda, etc.) se houver."
     try:
+        system_instruction = (
+            "Você é o assistente do app Controle de Escalas. Responda APENAS sobre: escalas de motoristas, "
+            "vagas, rotas, ondas, localização/ETA de motoristas, e uso do próprio app. "
+            "Se o usuário perguntar sobre outro assunto (hora, notícias, assuntos gerais, etc.), "
+            "responda em uma frase que você só pode ajudar com dúvidas sobre escalas, motoristas e localização neste app."
+        )
         if image_b64:
             content = [
                 {"type": "text", "text": prompt},
@@ -408,7 +437,10 @@ def _assistente_via_huggingface(text: str, image_b64: Optional[str]) -> Optional
             content = prompt
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": content}],
+            "messages": [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": content},
+            ],
             "max_tokens": 1024 if image_b64 else 512,
         }
         resp = http_requests.post(url, json=payload, headers=headers, timeout=90)
