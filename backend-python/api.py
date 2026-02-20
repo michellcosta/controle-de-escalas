@@ -362,8 +362,15 @@ def location_receive():
             lat, lng = float(lat), float(lng)
         except (TypeError, ValueError):
             return jsonify({"error": "lat e lng devem ser números"}), 400
+        # Motorista envia sua própria localização; admin/superadmin pode enviar em nome do motorista (mesmo aparelho/teste)
         if uid != motorista_id:
-            return jsonify({"error": "Apenas o motorista pode enviar sua localização"}), 403
+            papel = reader.get_usuario_papel(base_id, uid) or reader.get_usuario_papel_in_any_base(uid)
+            if not papel and _uid_is_superadmin(uid):
+                papel = 'superadmin'
+            if not papel and uid in (reader.get_superadmin_uids_from_config() or []):
+                papel = 'superadmin'
+            if not papel or papel not in ('admin', 'superadmin', 'auxiliar', 'ajudante'):
+                return jsonify({"error": "Apenas o motorista pode enviar sua localização"}), 403
         galpao = reader.get_galpao_coordenadas(base_id)
         if not galpao:
             reader.write_location_response(base_id, motorista_id, {
