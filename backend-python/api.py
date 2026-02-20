@@ -431,9 +431,15 @@ def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_bas
     try:
         system_instruction = (
             "Você é o assistente do app Controle de Escalas. Responda APENAS sobre: escalas de motoristas, "
-            "vagas, rotas, ondas, localização/ETA de motoristas, e uso do próprio app. "
-            "Use os DADOS DA BASE abaixo para responder com números e nomes reais (ex.: quantos motoristas escalados, quem está na escala). "
-            "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app."
+            "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena e devoluções. "
+            "Nos DADOS DA BASE você recebe: por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
+            "tempo estimado ao galpão (ETA por motorista); disponibilidade (quem está disponível/indisponível/não respondeu por data); "
+            "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções recentes com id da devolução, quem devolveu (motorista), data, hora e quantidade. "
+            "Use esses dados para responder com números e nomes reais. "
+            "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app. "
+            "REGRA PARA ADICIONAR À ESCALA: Quando o usuário pedir para ADICIONAR/COLOCAR um motorista na escala (ex: 'coloque X na primeira onda, vaga 2, rota G9'), "
+            "ao final da sua resposta adicione EXATAMENTE uma linha no formato: ACTION_JSON:{\"type\":\"add_to_scale\",\"motoristaNome\":\"Nome igual ao da lista da base\",\"ondaIndex\":0,\"vaga\":\"02\",\"rota\":\"G9\",\"sacas\":4}. "
+            "ondaIndex: 0 = primeira onda, 1 = segunda, etc. vaga sempre 2 dígitos (01, 02). rota em maiúsculas. sacas número ou null. Só inclua ACTION_JSON quando o usuário pedir explicitamente para adicionar/colocar um motorista na escala."
         )
         if context_base and context_base.strip():
             system_instruction += "\n\nDADOS DA BASE (use para responder): " + context_base.strip()
@@ -508,7 +514,30 @@ def assistente_chat():
                 "error": "Assistente indisponível. Verifique HUGGINGFACE_TOKEN no servidor."
             }), 500
 
-        return jsonify({"text": result_text, "ok": True}), 200
+        # Extrair ação estruturada se o modelo retornou ACTION_JSON (ex.: adicionar motorista à escala)
+        action = None
+        import re
+        idx = result_text.find("ACTION_JSON:")
+        if idx >= 0:
+            start = result_text.find("{", idx)
+            if start >= 0:
+                depth = 0
+                end = start
+                for i, c in enumerate(result_text[start:], start):
+                    if c == "{": depth += 1
+                    elif c == "}": depth -= 1
+                    if depth == 0: end = i; break
+                if end >= start:
+                    try:
+                        action = json.loads(result_text[start:end + 1])
+                        result_text = (result_text[:idx].rstrip() + "\n" + result_text[end + 1:].lstrip()).strip()
+                    except Exception:
+                        pass
+
+        resp_data = {"text": result_text, "ok": True}
+        if action:
+            resp_data["action"] = action
+        return jsonify(resp_data), 200
 
     except Exception as e:
         print(f"❌ Erro assistente/chat: {e}")

@@ -208,7 +208,17 @@ class AuthRepository {
             
             println("✅ AuthRepository: Base $baseId está ativa, login permitido")
             
-            // 5. Salvar FCM token no Firestore (em background, sem bloquear login)
+            // 5. Gravar authUid no documento para o backend identificar papel (login anônimo usa UID ≠ ID do doc)
+            try {
+                val authUid = auth.currentUser?.uid
+                if (!authUid.isNullOrBlank()) {
+                    userDoc.reference.update(mapOf("authUid" to authUid)).await()
+                    println("📱 authUid gravado no documento para backend")
+                }
+            } catch (e: Exception) {
+                println("⚠️ Erro ao gravar authUid (não crítico): ${e.message}")
+            }
+            // 6. Salvar FCM token no Firestore (em background, sem bloquear login)
             try {
                 val notificationService = com.controleescalas.app.data.NotificationService(
                     com.controleescalas.app.MainApp.instance.applicationContext

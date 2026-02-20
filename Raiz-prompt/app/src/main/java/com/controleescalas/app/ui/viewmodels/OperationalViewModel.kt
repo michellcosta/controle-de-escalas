@@ -976,6 +976,93 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
+     * Adiciona motorista à onda por motoristaId e nome (usado na importação por foto e pelo assistente).
+     * @param sacas opcional (ex.: 4 sacas)
+     */
+    fun addMotoristaToOndaWithDetails(ondaIndex: Int, motoristaId: String, nome: String, vaga: String, rota: String, sacas: Int? = null) {
+        viewModelScope.launch {
+            try {
+                val turno = _turnoAtual.value
+                val currentEscala = when (turno) {
+                    "AM" -> _escalaAM.value
+                    "PM" -> _escalaPM.value
+                    else -> null
+                } ?: return@launch
+
+                val ondas = currentEscala.ondas.toMutableList()
+                if (ondaIndex !in ondas.indices) return@launch
+
+                val onda = ondas[ondaIndex]
+                val novoItem = OndaItem(
+                    motoristaId = motoristaId,
+                    nome = nome,
+                    horario = onda.horario,
+                    vaga = vaga,
+                    rota = rota,
+                    sacas = sacas,
+                    modalidade = "FROTA"
+                )
+                val itensAtualizados = (onda.itens + novoItem).sortedWith(
+                    compareBy { it.vaga.toIntOrNull() ?: Int.MAX_VALUE }
+                )
+                ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
+                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val updatedEscala = currentEscala.copy(ondas = ondas, data = hoje)
+
+                when (turno) {
+                    "AM" -> _escalaAM.value = updatedEscala
+                    "PM" -> _escalaPM.value = updatedEscala
+                }
+                updateOndasForCurrentTurno()
+                escalaRepository.saveEscala(currentBaseId, updatedEscala)
+
+                try {
+                    motoristaRepository.updateStatusMotorista(
+                        motoristaId = motoristaId,
+                        baseId = currentBaseId,
+                        estado = "A_CAMINHO",
+                        mensagem = "Você está escalado!",
+                        vagaAtual = vaga.takeIf { it.isNotBlank() },
+                        rotaAtual = rota.takeIf { it.isNotBlank() },
+                        inicioCarregamento = null,
+                        fimCarregamento = null
+                    )
+                } catch (_: Exception) {}
+                _message.value = "Motorista adicionado"
+            } catch (e: Exception) {
+                Log.e("OperationalViewModel", "Erro ao adicionar por foto: ${e.message}", e)
+                _error.value = "Erro: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Garante que existam pelo menos N ondas no turno (usado na importação por foto).
+     */
+    fun ensureOndasCount(turno: String, count: Int) {
+        viewModelScope.launch {
+            val currentEscala = when (turno) {
+                "AM" -> _escalaAM.value
+                "PM" -> _escalaPM.value
+                else -> return@launch
+            } ?: return@launch
+
+            var ondas = currentEscala.ondas.toMutableList()
+            while (ondas.size < count) {
+                val num = ondas.size + 1
+                ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+            }
+            val updatedEscala = currentEscala.copy(ondas = ondas)
+            when (turno) {
+                "AM" -> _escalaAM.value = updatedEscala
+                "PM" -> _escalaPM.value = updatedEscala
+            }
+            updateOndasForCurrentTurno()
+            escalaRepository.saveEscala(currentBaseId, updatedEscala)
+        }
+    }
+
+    /**
      * Remover motorista de uma onda
      */
     fun removeMotoristaFromOnda(ondaIndex: Int, motoristaId: String) {

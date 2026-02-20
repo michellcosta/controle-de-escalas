@@ -25,6 +25,9 @@ import java.util.Base64
 data class ChatMessage(val role: String, val text: String)
 // role: "user" ou "assistant"
 
+/** Callback para aplicar ação "adicionar à escala" vinda do assistente. */
+typealias OnAddToScaleAction = (motoristaId: String, nome: String, ondaIndex: Int, vaga: String, rota: String, sacas: Int?) -> Unit
+
 class AssistenteViewModel(application: Application) : AndroidViewModel(application) {
     private val locationRepo = LocationRequestRepository()
     private val motoristaRepo = MotoristaRepository()
@@ -37,16 +40,19 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
 
     /**
      * Extrai nome do motorista de frases como:
-     * "quanto tempo para joão chegar?", "tempo do michell", "quando o pedro chega"
+     * "quanto tempo para joão chegar?", "em quanto tempo o michell chega no galpão?", "quando o pedro chega"
      */
     private fun extractMotoristaNameFromQuery(text: String): String? {
         val lower = text.lowercase().trim()
         val patterns = listOf(
+            Regex("""em quanto tempo (?:o|a)?\s*(.+?)\s+chega""", RegexOption.IGNORE_CASE),
+            Regex("""quanto tempo (?:para|do|da|o|a)?\s*(.+?)\s+chega""", RegexOption.IGNORE_CASE),
             Regex("""quanto tempo (?:para|do|da)?\s+(.+?)\s+chegar""", RegexOption.IGNORE_CASE),
             Regex("""tempo (?:para|do|da)?\s+(.+?)\s+chegar""", RegexOption.IGNORE_CASE),
             Regex("""quando\s+(?:o|a)?\s*(.+?)\s+chega""", RegexOption.IGNORE_CASE),
             Regex("""(?:onde|localização)\s+(?:está|do|da)?\s*(.+?)(?:\s|$|[?.!])""", RegexOption.IGNORE_CASE),
-            Regex("""(.+?)\s+chega\s+quando""", RegexOption.IGNORE_CASE)
+            Regex("""(.+?)\s+chega\s+quando""", RegexOption.IGNORE_CASE),
+            Regex("""tempo (?:do|da|para)\s+(.+?)(?:\s|$|[?.!])""", RegexOption.IGNORE_CASE)
         )
         for (re in patterns) {
             val m = re.find(lower)
@@ -123,15 +129,38 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             }
 
             val api = NotificationApiService()
-            val (success, result) = api.chatWithAssistente(baseId, displayText, base64Image, idToken)
+            var chatResult = api.chatWithAssistente(baseId, displayText, base64Image, idToken)
+            if (!chatResult.success && chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error) {
+                runCatching { user.getIdToken(true).await() }.getOrNull()?.token?.let { freshToken ->
+                    chatResult = api.chatWithAssistente(baseId, displayText, base64Image, freshToken)
+                }
+            }
             _isLoading.value = false
-            if (success && result != null) {
-                _messages.value = _messages.value + ChatMessage("assistant", result)
+            if (chatResult.success && chatResult.text != null) {
+                _messages.value = _messages.value + ChatMessage("assistant", chatResult.text)
+                chatResult.action?.let { action -> applyAddToScaleAction(baseId, action) }
             } else {
-                _messages.value = _messages.value + ChatMessage(
-                    "assistant",
-                    result ?: "Não foi possível processar a imagem. Tente novamente."
-                )
+                val errorMsg = when {
+                    chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error ->
+                        "Sessão expirada. Faça logout e login novamente para continuar."
+                    else ->
+                        chatResult.error ?: "Não foi possível processar a imagem. Tente novamente."
+                }
+                _messages.value = _messages.value + ChatMessage("assistant", errorMsg)
+            }
+        }
+    }
+
+    /** Aplica ação add_to_scale: resolve nome do motorista e invoca callback. */
+    private var onAddToScaleAction: OnAddToScaleAction? = null
+    fun setOnAddToScaleAction(callback: OnAddToScaleAction?) { onAddToScaleAction = callback }
+
+    private fun applyAddToScaleAction(baseId: String, action: NotificationApiService.AddToScaleAction) {
+        viewModelScope.launch {
+            val found = findMotoristaByName(baseId, action.motoristaNome)
+            if (found != null) {
+                val (motoristaId, nome) = found
+                onAddToScaleAction?.invoke(motoristaId, nome, action.ondaIndex, action.vaga, action.rota, action.sacas)
             }
         }
     }
@@ -210,15 +239,24 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                     return@launch
                 }
                 val api = NotificationApiService()
-                val (success, result) = api.chatWithAssistente(baseId, text, null, idToken)
+                var chatResult = api.chatWithAssistente(baseId, text, null, idToken)
+                if (!chatResult.success && chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error) {
+                    runCatching { user.getIdToken(true).await() }.getOrNull()?.token?.let { fresh ->
+                        chatResult = api.chatWithAssistente(baseId, text, null, fresh)
+                    }
+                }
                 _isLoading.value = false
-                if (success && !result.isNullOrBlank()) {
-                    _messages.value = _messages.value + ChatMessage("assistant", result)
+                if (chatResult.success && !chatResult.text.isNullOrBlank()) {
+                    _messages.value = _messages.value + ChatMessage("assistant", chatResult.text)
+                    chatResult.action?.let { action -> applyAddToScaleAction(baseId, action) }
                 } else {
-                    _messages.value = _messages.value + ChatMessage(
-                        "assistant",
-                        result ?: "Não foi possível obter resposta. Tente novamente."
-                    )
+                    val errorMsg = when {
+                        chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error ->
+                            "Sessão expirada. Faça logout e login novamente para continuar."
+                        else ->
+                            chatResult.error ?: "Não foi possível obter resposta. Tente novamente."
+                    }
+                    _messages.value = _messages.value + ChatMessage("assistant", errorMsg)
                 }
             }
         }

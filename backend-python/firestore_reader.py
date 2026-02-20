@@ -145,12 +145,26 @@ class FirestoreReader:
         return None
 
     def get_usuario_papel(self, base_id: str, user_id: str) -> Optional[str]:
-        """Retorna o papel do usuário (admin, auxiliar, superadmin, etc) na base ou None"""
+        """Retorna o papel do usuário (admin, auxiliar, superadmin, etc) na base ou None.
+        Busca por ID do documento e, se não achar, por campo authUid (Firebase Auth UID)."""
         for col in ['usuarios', 'motoristas']:
             ref = self.db.collection('bases').document(base_id).collection(col).document(user_id)
             doc = ref.get()
             if doc.exists:
                 return (doc.to_dict() or {}).get('papel')
+            # Login anônimo: documento pode ter ID diferente do Auth UID; buscar por authUid
+            try:
+                q = (
+                    self.db.collection('bases')
+                    .document(base_id)
+                    .collection(col)
+                    .where('authUid', '==', user_id)
+                    .limit(1)
+                )
+                for d in q.stream():
+                    return (d.to_dict() or {}).get('papel')
+            except Exception:
+                pass
         return None
 
     def get_usuario_papel_in_any_base(self, user_id: str) -> Optional[str]:
@@ -182,8 +196,8 @@ class FirestoreReader:
 
     def get_contexto_base_para_assistente(self, base_id: str) -> str:
         """
-        Monta um resumo da base e da escala de hoje para o assistente responder com dados reais.
-        Retorna texto para injetar no prompt (ex.: quantos motoristas, quem está escalado, ondas).
+        Monta um resumo completo da base para o assistente: escala (onda, hora, AM/PM, rota, vaga, sacas),
+        tempo estimado (ETA), disponibilidade, quinzena e devoluções (id, quem devolveu).
         """
         from datetime import datetime
         try:
@@ -195,12 +209,20 @@ class FirestoreReader:
 
             motoristas_ref = base_ref.collection('motoristas')
             motoristas_docs = list(motoristas_ref.stream())
-            total_motoristas = len([d for d in motoristas_docs if (d.to_dict() or {}).get('papel') == 'motorista'])
+            motoristas_nomes = sorted(
+                (d.to_dict() or {}).get('nome', '').strip()
+                for d in motoristas_docs
+                if (d.to_dict() or {}).get('papel') == 'motorista' and (d.to_dict() or {}).get('ativo', True)
+            )
+            total_motoristas = len(motoristas_nomes)
             parts.append(f"Total de motoristas na base: {total_motoristas}.")
+            if motoristas_nomes:
+                parts.append("Motoristas que podem ser escalados (use estes nomes exatos): " + ", ".join(motoristas_nomes) + ".")
 
             hoje = datetime.utcnow().strftime('%Y-%m-%d')
             escalados_hoje = set()
-            ondas_hoje = []
+            # --- ESCALA DETALHADA: turno (AM/PM), onda, hora da onda, vaga, rota, sacas por motorista ---
+            escala_detalhes = []
             for turno in ('AM', 'PM'):
                 doc_id = f"{hoje}_{turno}"
                 escala_ref = base_ref.collection('escalas').document(doc_id)
@@ -209,22 +231,124 @@ class FirestoreReader:
                     continue
                 data = escala_doc.to_dict() or {}
                 ondas = data.get('ondas') or []
-                for onda in ondas:
+                for idx, onda in enumerate(ondas):
                     nome_onda = onda.get('nome') or f'Onda'
+                    horario_onda = (onda.get('horario') or '').strip()
                     itens = onda.get('itens') or []
                     for item in itens:
                         mid = (item.get('motoristaId') or '').strip()
                         nome = (item.get('nome') or '').strip()
+                        vaga = (item.get('vaga') or '').strip()
+                        rota = (item.get('rota') or '').strip()
+                        horario_item = (item.get('horario') or '').strip()
+                        sacas = item.get('sacas')
+                        sacas_str = str(sacas) if sacas is not None else "-"
                         if mid:
                             escalados_hoje.add((mid, nome))
-                    ondas_hoje.append(f"{turno} {nome_onda}: {len(itens)} motoristas")
+                        linha = f"  {turno} | {nome_onda} (hora onda: {horario_onda or '-'}) | {nome} | vaga {vaga or '-'} | rota {rota or '-'} | sacas {sacas_str}"
+                        if horario_item:
+                            linha += f" | horário motorista: {horario_item}"
+                        escala_detalhes.append(linha)
             total_escalados = len(escalados_hoje)
             parts.append(f"Escala de hoje ({hoje}): {total_escalados} motoristas escalados.")
-            if ondas_hoje:
-                parts.append("Ondas: " + "; ".join(ondas_hoje) + ".")
-            if total_escalados > 0 and total_escalados <= 30:
+            if escala_detalhes:
+                parts.append("Detalhe da escala (turno | onda e hora | motorista | vaga | rota | sacas):")
+                parts.extend(escala_detalhes[:50])
+                if len(escala_detalhes) > 50:
+                    parts.append(f"  ... e mais {len(escala_detalhes) - 50} itens.")
+            elif total_escalados > 0:
                 nomes = sorted(set(n for _, n in escalados_hoje if n))[:20]
                 parts.append("Nomes escalados hoje: " + ", ".join(nomes) + ("..." if total_escalados > 20 else "") + ".")
+
+            # --- TEMPO ESTIMADO (ETA): location_responses com status ready ---
+            try:
+                resp_ref = base_ref.collection('location_responses')
+                resp_docs = list(resp_ref.stream())
+                etas = []
+                for d in resp_docs:
+                    data = d.to_dict() or {}
+                    if data.get('status') != 'ready':
+                        continue
+                    nome = (data.get('motoristaNome') or '').strip()
+                    dist = data.get('distanceKm')
+                    eta_min = data.get('etaMinutes')
+                    if nome and eta_min is not None:
+                        dist_str = f"{dist:.1f} km" if dist is not None else "?"
+                        etas.append(f"{nome}: ~{eta_min} min ({dist_str})")
+                if etas:
+                    parts.append("Tempo estimado ao galpão (ETA): " + "; ".join(etas) + ".")
+            except Exception as e_eta:
+                print(f"get_contexto ETA: {e_eta}")
+
+            # --- DISPONIBILIDADE: solicitações recentes (hoje e amanhã) ---
+            try:
+                from datetime import timedelta
+                amanha = (datetime.utcnow() + timedelta(days=1)).strftime('%Y-%m-%d')
+                disp_ref = self.db.collection('disponibilidades')
+                disp_docs = disp_ref.where('baseId', '==', base_id).limit(30).stream()
+                disp_listas = []
+                for d in disp_docs:
+                    data_disp = d.to_dict() or {}
+                    data_str = (data_disp.get('data') or '').strip()
+                    if data_str not in (hoje, amanha):
+                        continue
+                    motoristas = data_disp.get('motoristas') or []
+                    resumos = []
+                    for m in motoristas:
+                        nome_m = (m.get('nome') or '').strip()
+                        disp = m.get('disponivel')
+                        if disp is True:
+                            resumos.append(f"{nome_m}: disponível")
+                        elif disp is False:
+                            resumos.append(f"{nome_m}: indisponível")
+                        else:
+                            resumos.append(f"{nome_m}: não respondeu")
+                    if resumos:
+                        disp_listas.append(f"Data {data_str}: " + "; ".join(resumos[:15]))
+                if disp_listas:
+                    parts.append("Disponibilidade (hoje/amanhã): " + " | ".join(disp_listas))
+            except Exception as e_disp:
+                print(f"get_contexto disponibilidade: {e_disp}")
+
+            # --- QUINZENA: dias trabalhados no mês atual (1ª e 2ª quinzena) ---
+            try:
+                now = datetime.utcnow()
+                mes, ano = now.month, now.year
+                quinzenas_ref = self.db.collection('quinzenas')
+                q_docs = quinzenas_ref.where('baseId', '==', base_id).where('mes', '==', mes).where('ano', '==', ano).limit(50).stream()
+                q_resumos = []
+                for d in q_docs:
+                    data_q = d.to_dict() or {}
+                    nome_q = (data_q.get('motoristaNome') or '').strip()
+                    p1 = data_q.get('primeiraQuinzena') or {}
+                    p2 = data_q.get('segundaQuinzena') or {}
+                    d1 = p1.get('diasTrabalhados') if isinstance(p1.get('diasTrabalhados'), (int, float)) else 0
+                    d2 = p2.get('diasTrabalhados') if isinstance(p2.get('diasTrabalhados'), (int, float)) else 0
+                    if nome_q:
+                        q_resumos.append(f"{nome_q}: 1ª quinzena {d1} dia(s), 2ª quinzena {d2} dia(s)")
+                if q_resumos:
+                    parts.append("Quinzena do mês (dias trabalhados): " + "; ".join(q_resumos[:25]))
+            except Exception as e_q:
+                print(f"get_contexto quinzena: {e_q}")
+
+            # --- DEVOLUÇÕES: id da devolução, quem devolveu (motoristaNome), data, hora ---
+            try:
+                dev_ref = base_ref.collection('devolucoes')
+                dev_docs = list(dev_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(25).stream())
+                dev_listas = []
+                for d in dev_docs:
+                    data_dev = d.to_dict() or {}
+                    dev_id = d.id
+                    quem = (data_dev.get('motoristaNome') or '').strip()
+                    data_str = data_dev.get('data', '')
+                    hora_str = data_dev.get('hora', '')
+                    qtd = len(data_dev.get('idsPacotes') or []) or data_dev.get('quantidade') or 0
+                    dev_listas.append(f"id={dev_id} | quem devolveu={quem} | data={data_str} | hora={hora_str} | pacotes={qtd}")
+                if dev_listas:
+                    parts.append("Devoluções recentes (id da devolução, quem devolveu, data, hora, quantidade): " + " | ".join(dev_listas))
+            except Exception as e_dev:
+                print(f"get_contexto devolucoes: {e_dev}")
+
             return " ".join(parts)
         except Exception as e:
             print(f"get_contexto_base_para_assistente: {e}")

@@ -12,7 +12,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -30,18 +32,23 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.AssistenteViewModel
 import com.controleescalas.app.ui.viewmodels.ChatMessage
+import com.controleescalas.app.ui.viewmodels.OnAddToScaleAction
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AssistenteScreen(
     baseId: String,
+    onBack: () -> Unit = {},
+    onAddToScaleAction: OnAddToScaleAction? = null,
     viewModel: AssistenteViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    LaunchedEffect(onAddToScaleAction) { viewModel.setOnAddToScaleAction(onAddToScaleAction) }
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     var inputText by remember { mutableStateOf("") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -52,9 +59,7 @@ fun AssistenteScreen(
     ) { success ->
         if (success) {
             lastPhotoPath.value?.let { path ->
-                val uri = Uri.parse("file://$path")
-                viewModel.sendMessageWithImage(baseId, inputText, uri)
-                inputText = ""
+                selectedImageUri = Uri.parse("file://$path")
             }
         }
     }
@@ -62,10 +67,7 @@ fun AssistenteScreen(
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let {
-            viewModel.sendMessageWithImage(baseId, inputText, it)
-            inputText = ""
-        }
+        if (uri != null) selectedImageUri = uri
     }
 
     fun launchCamera() {
@@ -86,6 +88,15 @@ fun AssistenteScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Assistente", color = TextWhite) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Voltar",
+                            tint = TextWhite
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
             )
         },
@@ -113,7 +124,7 @@ fun AssistenteScreen(
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            "Ex: \"Quanto tempo para João chegar?\" ou envie uma foto da escala",
+                            "Ex: \"Quanto tempo para João chegar?\" ou envie uma foto com o que deseja fazer",
                             color = TextGray.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -212,7 +223,50 @@ fun AssistenteScreen(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    if (selectedImageUri != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = NeonGreen.copy(alpha = 0.2f)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.AddPhotoAlternate,
+                                        contentDescription = null,
+                                        tint = NeonGreen,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Text(
+                                        "Imagem anexada",
+                                        color = TextWhite,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+                                IconButton(
+                                    onClick = { selectedImageUri = null },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remover imagem",
+                                        tint = TextGray,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -231,7 +285,10 @@ fun AssistenteScreen(
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     if (inputText.isEmpty()) {
                                         Text(
-                                            "Digite ou envie mídia...",
+                                            if (selectedImageUri != null)
+                                                "Digite o que deseja fazer com a imagem..."
+                                            else
+                                                "Digite ou envie mídia...",
                                             color = TextGray,
                                             style = MaterialTheme.typography.bodyLarge
                                         )
@@ -240,19 +297,26 @@ fun AssistenteScreen(
                                 }
                             }
                         )
+                        val canSend = !isLoading && (inputText.isNotBlank() || selectedImageUri != null)
                         IconButton(
                             onClick = {
-                                if (inputText.isNotBlank()) {
-                                    viewModel.sendMessage(inputText, baseId)
+                                selectedImageUri?.let { uri ->
+                                    viewModel.sendMessageWithImage(baseId, inputText.ifBlank { null }, uri)
+                                    selectedImageUri = null
                                     inputText = ""
+                                } ?: run {
+                                    if (inputText.isNotBlank()) {
+                                        viewModel.sendMessage(inputText, baseId)
+                                        inputText = ""
+                                    }
                                 }
                             },
-                            enabled = inputText.isNotBlank() && !isLoading
+                            enabled = canSend
                         ) {
                             Icon(
                                 Icons.Default.Send,
                                 contentDescription = "Enviar",
-                                tint = if (inputText.isNotBlank() && !isLoading) NeonGreen else TextGray
+                                tint = if (canSend) NeonGreen else TextGray
                             )
                         }
                     }

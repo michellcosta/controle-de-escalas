@@ -112,6 +112,14 @@ class NotificationApiService {
             val responseBody = response.body?.string()
             when {
                 response.isSuccessful -> Pair(true, null)
+                response.code == 403 && !responseBody.isNullOrBlank() -> {
+                    val msg = try {
+                        val json = org.json.JSONObject(responseBody)
+                        json.optString("hint").takeIf { it.isNotEmpty() }
+                            ?: json.optString("error", responseBody)
+                    } catch (_: Exception) { null }
+                    Pair(false, msg ?: "Erro 403: $responseBody")
+                }
                 else -> Pair(false, "Erro ${response.code}: $responseBody")
             }
         } catch (e: Exception) {
@@ -150,15 +158,36 @@ class NotificationApiService {
     }
 
     /**
+     * Resultado do chat com assistente (pode incluir ação para aplicar na escala).
+     */
+    data class ChatAssistenteResult(
+        val success: Boolean,
+        val text: String?,
+        val error: String?,
+        val action: AddToScaleAction?
+    )
+
+    /**
+     * Ação retornada pelo assistente para adicionar motorista à escala.
+     */
+    data class AddToScaleAction(
+        val motoristaNome: String,
+        val ondaIndex: Int,
+        val vaga: String,
+        val rota: String,
+        val sacas: Int?
+    )
+
+    /**
      * Chat com Assistente (Gemini) - texto e/ou imagem.
-     * @return Pair(sucesso, textoResposta ou mensagem de erro)
+     * @return ChatAssistenteResult com texto e opcionalmente action (add_to_scale).
      */
     suspend fun chatWithAssistente(
         baseId: String,
         text: String,
         base64Image: String?,
         idToken: String
-    ): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+    ): ChatAssistenteResult = withContext(Dispatchers.IO) {
         try {
             val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.ASSISTENTE_CHAT}"
             val jsonBody = JSONObject().apply {
@@ -178,12 +207,23 @@ class NotificationApiService {
                 response.isSuccessful -> {
                     val json = body?.let { JSONObject(it) }
                     val textRes = json?.optString("text") ?: json?.optString("response") ?: body ?: ""
-                    Pair(true, textRes)
+                    val action = json?.optJSONObject("action")?.let { a ->
+                        if (a.optString("type") == "add_to_scale") {
+                            AddToScaleAction(
+                                motoristaNome = a.optString("motoristaNome").trim().ifBlank { return@let null },
+                                ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
+                                vaga = a.optString("vaga").trim().ifBlank { "01" }.let { v -> if (v.length == 1) "0$v" else v },
+                                rota = a.optString("rota").trim().uppercase(),
+                                sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it > 0 } else null
+                            )
+                        } else null
+                    }
+                    ChatAssistenteResult(success = true, text = textRes, error = null, action = action)
                 }
-                else -> Pair(false, "Erro ${response.code}: $body")
+                else -> ChatAssistenteResult(success = false, text = null, error = "Erro ${response.code}: $body", action = null)
             }
         } catch (e: Exception) {
-            Pair(false, "Erro: ${e.message}")
+            ChatAssistenteResult(success = false, text = null, error = "Erro: ${e.message}", action = null)
         }
     }
 

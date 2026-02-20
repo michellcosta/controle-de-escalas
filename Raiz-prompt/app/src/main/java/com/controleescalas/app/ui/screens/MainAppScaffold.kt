@@ -28,6 +28,7 @@ import com.controleescalas.app.ui.theme.DarkSurface
 import com.controleescalas.app.ui.theme.NeonGreen
 import com.controleescalas.app.ui.theme.NeonOrange
 import com.controleescalas.app.ui.theme.TextGray
+import com.controleescalas.app.ui.viewmodels.OperationalViewModel
 import com.google.firebase.auth.FirebaseAuth
 import android.util.Log
 
@@ -98,7 +99,15 @@ fun MainAppScaffold(
             println("🔵 MainAppScaffold: NavHost criado, startDestination: ${BottomNavItem.Operation.route}")
             android.util.Log.e("DEBUG", "🔵 MainAppScaffold: NavHost criado")
             composable(BottomNavItem.Assistente.route) {
-                AssistenteScreen(baseId = baseId)
+                val operationEntry = navController.getBackStackEntry(BottomNavItem.Operation.route)
+                val operationalViewModel: OperationalViewModel = viewModel(operationEntry!!)
+                AssistenteScreen(
+                    baseId = baseId,
+                    onBack = { navController.popBackStack(BottomNavItem.Operation.route, false) },
+                    onAddToScaleAction = { motoristaId, nome, ondaIndex, vaga, rota, sacas ->
+                        operationalViewModel.addMotoristaToOndaWithDetails(ondaIndex, motoristaId, nome, vaga, rota, sacas)
+                    }
+                )
             }
             composable(BottomNavItem.Operation.route) {
                 // OperationalDashboardScreen mostra a aba de Operação/Ondas (Operações do Dia)
@@ -257,12 +266,19 @@ fun BottomNavigationBar(navController: NavHostController) {
                 label = { Text(item.label) },
                 selected = currentRoute == item.route,
                 onClick = {
-                    navController.navigate(item.route) {
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
+                    if (currentRoute == BottomNavItem.Assistente.route) {
+                        navController.popBackStack(BottomNavItem.Operation.route, false)
+                        if (item != BottomNavItem.Operation) {
+                            navController.navigate(item.route)
                         }
-                        launchSingleTop = true
-                        restoreState = true
+                    } else {
+                        navController.navigate(item.route) {
+                            popUpTo(navController.graph.startDestinationId) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
