@@ -8,7 +8,7 @@ Uso:
     python api.py
 
 Ou com gunicorn (produção):
-    gunicorn -w 4 -b 0.0.0.0:5000 api:app
+    gunicorn -w 1 --timeout 120 -b 0.0.0.0:5000 api:app
 """
 
 import os
@@ -418,25 +418,22 @@ def assistente_chat():
             return jsonify({"error": "GEMINI_API_KEY não configurada"}), 500
 
         import base64
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
 
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        client = genai.Client(api_key=gemini_key)
 
-        prompt_parts = []
+        contents = []
         if text:
-            prompt_parts.append(text)
+            contents.append(text)
         if image_b64:
             try:
-                import io
-                from PIL import Image
                 img_bytes = base64.b64decode(image_b64)
-                img = Image.open(io.BytesIO(img_bytes))
-                prompt_parts.append(img)
+                contents.append(types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"))
             except Exception as e:
                 return jsonify({"error": f"Imagem inválida: {e}"}), 400
 
-        if not prompt_parts:
+        if not contents:
             return jsonify({"error": "Envie texto ou imagem"}), 400
 
         system_instruction = (
@@ -446,12 +443,11 @@ def assistente_chat():
             "Seja objetivo e útil."
         )
 
-        model_with_system = genai.GenerativeModel(
-            'gemini-2.0-flash',
-            system_instruction=system_instruction
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=contents,
+            config=types.GenerateContentConfig(system_instruction=system_instruction),
         )
-
-        response = model_with_system.generate_content(prompt_parts)
         result_text = (response.text or "").strip()
 
         return jsonify({"text": result_text, "ok": True}), 200
@@ -482,7 +478,7 @@ if __name__ == '__main__':
     print(f"\n🌐 Iniciando servidor na porta {port}...")
     print(f"   Acesse: http://localhost:{port}/health")
     print("\n⚠️  Para produção, use gunicorn:")
-    print("   gunicorn -w 4 -b 0.0.0.0:$PORT api:app")
+    print("   gunicorn -w 1 --timeout 120 -b 0.0.0.0:$PORT api:app")
     print("=" * 60)
     
     app.run(host='0.0.0.0', port=port, debug=False)  # debug=False em produção
