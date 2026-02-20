@@ -387,10 +387,50 @@ def location_receive():
         return jsonify({"error": str(e)}), 500
 
 
+def _assistente_via_huggingface(text: str, image_b64: Optional[str]) -> Optional[str]:
+    """Usa Hugging Face Inference API (visão + texto ou só texto). Retorna None se falhar."""
+    hf_token = os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_TOKEN')
+    if not hf_token:
+        return None
+    prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada linha no formato: Nome / Vaga / Rota, agrupando por ondas (1a onda, 2a onda, etc.) se houver."
+    url = f"https://api-inference.huggingface.co/models/{os.getenv('HF_VISION_MODEL', 'Salesforce/blip2-opt-2.7b') if image_b64 else os.getenv('HF_TEXT_MODEL', 'google/flan-t5-base')}"
+    headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
+    try:
+        if image_b64:
+            payload = {
+                "inputs": prompt,
+                "image": image_b64,
+                "parameters": {"max_new_tokens": 1024},
+                "options": {"wait_for_model": True},
+            }
+        else:
+            payload = {"inputs": f"Pergunta: {prompt}\nResposta:", "parameters": {"max_new_tokens": 256}}
+        resp = http_requests.post(url, json=payload, headers=headers, timeout=60)
+        if not resp.ok:
+            err = resp.text
+            try:
+                j = resp.json()
+                err = j.get("error") or err
+            except Exception:
+                pass
+            print(f"HF API error {resp.status_code}: {err}")
+            return None
+        out = resp.json()
+        if isinstance(out, list) and len(out) > 0:
+            return (out[0].get("generated_text") or out[0].get("answer") or str(out[0])).strip()
+        if isinstance(out, dict):
+            return (out.get("generated_text") or out.get("answer") or out.get("summary_text") or "").strip()
+        return str(out).strip() if out else None
+    except Exception as e:
+        print(f"HF request failed: {e}")
+        return None
+
+
 @app.route('/assistente/chat', methods=['POST'])
 def assistente_chat():
     """
-    Chat com Assistente IA (Gemini). Aceita texto e/ou imagem.
+    Chat com Assistente IA. Aceita texto e/ou imagem.
+    Usa apenas Hugging Face (HUGGINGFACE_TOKEN ou HF_TOKEN).
     Body: { "baseId": "...", "text": "...", "imageBase64": "..." (opcional) }
     Header: Authorization: Bearer <Firebase ID Token>
     """
@@ -413,42 +453,12 @@ def assistente_chat():
         if not text and not image_b64:
             return jsonify({"error": "text ou imageBase64 é obrigatório"}), 400
 
-        gemini_key = os.getenv('GEMINI_API_KEY')
-        if not gemini_key:
-            return jsonify({"error": "GEMINI_API_KEY não configurada"}), 500
+        result_text = _assistente_via_huggingface(text, image_b64)
 
-        import base64
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=gemini_key)
-
-        contents = []
-        if text:
-            contents.append(text)
-        if image_b64:
-            try:
-                img_bytes = base64.b64decode(image_b64)
-                contents.append(types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg"))
-            except Exception as e:
-                return jsonify({"error": f"Imagem inválida: {e}"}), 400
-
-        if not contents:
-            return jsonify({"error": "Envie texto ou imagem"}), 400
-
-        system_instruction = (
-            "Você é um assistente de uma operação de galpão de cargas. "
-            "Ajude com escalas de motoristas, vagas, rotas e perguntas operacionais. "
-            "Se receber uma foto de escala (lista de nomes com vagas e rotas), extraia no formato: Nome / Vaga / Rota (um por linha). "
-            "Seja objetivo e útil."
-        )
-
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=contents,
-            config=types.GenerateContentConfig(system_instruction=system_instruction),
-        )
-        result_text = (response.text or "").strip()
+        if result_text is None or result_text == "":
+            return jsonify({
+                "error": "Assistente indisponível. Verifique HUGGINGFACE_TOKEN no servidor."
+            }), 500
 
         return jsonify({"text": result_text, "ok": True}), 200
 

@@ -22,5 +22,4 @@ flask-cors>=4.0.0
 # Gunicorn para produção (servidor WSGI)
 gunicorn>=21.2.0
 
-# Google Gen AI (Gemini) para Assistente (SDK atual)
-google-genai>=1.0.0
+# Assistente usa apenas Hugging Face (HUGGINGFACE_TOKEN)
