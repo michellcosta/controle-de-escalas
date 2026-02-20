@@ -180,6 +180,56 @@ class FirestoreReader:
             print(f"get_superadmin_uids_from_config: {e}")
             return []
 
+    def get_contexto_base_para_assistente(self, base_id: str) -> str:
+        """
+        Monta um resumo da base e da escala de hoje para o assistente responder com dados reais.
+        Retorna texto para injetar no prompt (ex.: quantos motoristas, quem está escalado, ondas).
+        """
+        from datetime import datetime
+        try:
+            parts = []
+            base_ref = self.db.collection('bases').document(base_id)
+            base_doc = base_ref.get()
+            nome_base = (base_doc.to_dict() or {}).get('nome', 'Base') if base_doc.exists else 'Base'
+            parts.append(f"Base atual: {nome_base} (id: {base_id}).")
+
+            motoristas_ref = base_ref.collection('motoristas')
+            motoristas_docs = list(motoristas_ref.stream())
+            total_motoristas = len([d for d in motoristas_docs if (d.to_dict() or {}).get('papel') == 'motorista'])
+            parts.append(f"Total de motoristas na base: {total_motoristas}.")
+
+            hoje = datetime.utcnow().strftime('%Y-%m-%d')
+            escalados_hoje = set()
+            ondas_hoje = []
+            for turno in ('AM', 'PM'):
+                doc_id = f"{hoje}_{turno}"
+                escala_ref = base_ref.collection('escalas').document(doc_id)
+                escala_doc = escala_ref.get()
+                if not escala_doc.exists:
+                    continue
+                data = escala_doc.to_dict() or {}
+                ondas = data.get('ondas') or []
+                for onda in ondas:
+                    nome_onda = onda.get('nome') or f'Onda'
+                    itens = onda.get('itens') or []
+                    for item in itens:
+                        mid = (item.get('motoristaId') or '').strip()
+                        nome = (item.get('nome') or '').strip()
+                        if mid:
+                            escalados_hoje.add((mid, nome))
+                    ondas_hoje.append(f"{turno} {nome_onda}: {len(itens)} motoristas")
+            total_escalados = len(escalados_hoje)
+            parts.append(f"Escala de hoje ({hoje}): {total_escalados} motoristas escalados.")
+            if ondas_hoje:
+                parts.append("Ondas: " + "; ".join(ondas_hoje) + ".")
+            if total_escalados > 0 and total_escalados <= 30:
+                nomes = sorted(set(n for _, n in escalados_hoje if n))[:20]
+                parts.append("Nomes escalados hoje: " + ", ".join(nomes) + ("..." if total_escalados > 20 else "") + ".")
+            return " ".join(parts)
+        except Exception as e:
+            print(f"get_contexto_base_para_assistente: {e}")
+            return ""
+
     def write_location_response(self, base_id: str, motorista_id: str, data: dict, merge: bool = True):
         """Grava documento em bases/{baseId}/location_responses/{motoristaId}"""
         ref = self.db.collection('bases').document(base_id).collection('location_responses').document(motorista_id)

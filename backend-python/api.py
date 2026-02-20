@@ -410,8 +410,8 @@ def location_receive():
         return jsonify({"error": str(e)}), 500
 
 
-def _assistente_via_huggingface(text: str, image_b64: Optional[str]) -> Optional[str]:
-    """Usa Hugging Face Router API (OpenAI-compatible). Visão + texto ou só texto. Retorna None se falhar."""
+def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_base: Optional[str] = None) -> Optional[str]:
+    """Usa Hugging Face Router API (OpenAI-compatible). Visão + texto ou só texto. context_base = dados reais da base para o modelo responder com informações do app."""
     hf_token = os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_TOKEN')
     if not hf_token:
         return None
@@ -425,9 +425,11 @@ def _assistente_via_huggingface(text: str, image_b64: Optional[str]) -> Optional
         system_instruction = (
             "Você é o assistente do app Controle de Escalas. Responda APENAS sobre: escalas de motoristas, "
             "vagas, rotas, ondas, localização/ETA de motoristas, e uso do próprio app. "
-            "Se o usuário perguntar sobre outro assunto (hora, notícias, assuntos gerais, etc.), "
-            "responda em uma frase que você só pode ajudar com dúvidas sobre escalas, motoristas e localização neste app."
+            "Use os DADOS DA BASE abaixo para responder com números e nomes reais (ex.: quantos motoristas escalados, quem está na escala). "
+            "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app."
         )
+        if context_base and context_base.strip():
+            system_instruction += "\n\nDADOS DA BASE (use para responder): " + context_base.strip()
         if image_b64:
             content = [
                 {"type": "text", "text": prompt},
@@ -491,7 +493,8 @@ def assistente_chat():
         if not text and not image_b64:
             return jsonify({"error": "text ou imageBase64 é obrigatório"}), 400
 
-        result_text = _assistente_via_huggingface(text, image_b64)
+        contexto_base = reader.get_contexto_base_para_assistente(base_id) if reader else ""
+        result_text = _assistente_via_huggingface(text, image_b64, context_base=contexto_base)
 
         if result_text is None or result_text == "":
             return jsonify({
