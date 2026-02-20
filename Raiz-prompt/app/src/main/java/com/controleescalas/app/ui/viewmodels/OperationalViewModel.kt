@@ -485,6 +485,27 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     }
     
     /**
+     * Atualiza vaga/rota/sacas de um motorista já escalado (por ID). Usado pelo assistente (update_in_scale).
+     * Só altera os campos informados (não nulos); mantém os atuais para os não informados.
+     */
+    fun updateMotoristaInOndaByDetails(ondaIndex: Int, motoristaId: String, novaVaga: String?, novaRota: String?, novasSacas: Int?) {
+        viewModelScope.launch {
+            val turno = _turnoAtual.value
+            val currentEscala = when (turno) {
+                "AM" -> _escalaAM.value
+                "PM" -> _escalaPM.value
+                else -> null
+            } ?: return@launch
+            val onda = currentEscala.ondas.getOrNull(ondaIndex) ?: return@launch
+            val item = onda.itens.find { it.motoristaId == motoristaId } ?: return@launch
+            val vaga = novaVaga?.takeIf { it.isNotBlank() } ?: item.vaga
+            val rota = novaRota?.takeIf { it.isNotBlank() } ?: item.rota
+            val sacas = novasSacas ?: item.sacas
+            updateDriverInOnda(ondaIndex, item, vaga, rota, sacas)
+        }
+    }
+
+    /**
      * Atualizar vaga, rota e sacas de um motorista em uma onda
      */
     fun updateDriverInOnda(ondaIndex: Int, motorista: OndaItem, novaVaga: String, novaRota: String, novasSacas: Int? = null) {
@@ -988,6 +1009,16 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     "PM" -> _escalaPM.value
                     else -> null
                 } ?: return@launch
+
+                // Se já está escalado em alguma onda, apenas atualizar vaga/rota/sacas (não duplicar)
+                for ((idx, o) in currentEscala.ondas.withIndex()) {
+                    val existing = o.itens.find { it.motoristaId == motoristaId }
+                    if (existing != null) {
+                        updateMotoristaInOndaByDetails(idx, motoristaId, vaga, rota, sacas)
+                        _message.value = "Dados do motorista atualizados"
+                        return@launch
+                    }
+                }
 
                 val ondas = currentEscala.ondas.toMutableList()
                 if (ondaIndex !in ondas.indices) return@launch

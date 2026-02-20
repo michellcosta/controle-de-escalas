@@ -220,6 +220,76 @@ fun SuperAdminBaseDetalhesScreen(
                     }
                 }
                 
+                // Aprovar/Rejeitar (apenas para bases pendentes)
+                if (base!!.statusAprovacao == "pendente") {
+                    SectionHeader(title = "Aprovação")
+                    GlassCard {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            val ok = baseRepository.aprovarBase(baseId, superAdminId)
+                                            if (ok) {
+                                                base = base!!.copy(statusAprovacao = "ativa")
+                                                historicoRepository.registrarAcao(
+                                                    AcaoHistorico(
+                                                        tipo = "aprovacao",
+                                                        baseId = baseId,
+                                                        baseNome = base!!.nome,
+                                                        superAdminId = superAdminId,
+                                                        descricao = "Transportadora '${base!!.nome}' aprovada",
+                                                        data = System.currentTimeMillis()
+                                                    )
+                                                )
+                                                message = "Transportadora aprovada!"
+                                            } else {
+                                                error = "Erro ao aprovar"
+                                            }
+                                        } catch (e: Exception) {
+                                            error = "Erro: ${e.message}"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                            ) {
+                                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Aprovar")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        try {
+                                            val ok = baseRepository.rejeitarBase(baseId, superAdminId)
+                                            if (ok) {
+                                                message = "Transportadora rejeitada"
+                                                onBack()
+                                            } else {
+                                                error = "Erro ao rejeitar"
+                                            }
+                                        } catch (e: Exception) {
+                                            error = "Erro: ${e.message}"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                            ) {
+                                Icon(Icons.Default.Cancel, null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Rejeitar")
+                            }
+                        }
+                    }
+                }
+                
                 // Ações
                 SectionHeader(title = "Ações")
                 GlassCard {
@@ -247,14 +317,16 @@ fun SuperAdminBaseDetalhesScreen(
                             Text("Gerenciar Plano")
                         }
                         
-                        OutlinedButton(
-                            onClick = { onNavigateToBase(baseId) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.Login, null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Entrar na Transportadora")
+                        if (base!!.statusAprovacao == "ativa") {
+                            OutlinedButton(
+                                onClick = { onNavigateToBase(baseId) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Login, null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Entrar na Transportadora")
+                            }
                         }
                     }
                 }

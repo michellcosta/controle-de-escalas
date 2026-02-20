@@ -28,6 +28,9 @@ data class ChatMessage(val role: String, val text: String)
 /** Callback para aplicar ação "adicionar à escala" vinda do assistente. */
 typealias OnAddToScaleAction = (motoristaId: String, nome: String, ondaIndex: Int, vaga: String, rota: String, sacas: Int?) -> Unit
 
+/** Callback para aplicar ação "atualizar na escala" (vaga/rota/sacas) quando o motorista já está escalado. */
+typealias OnUpdateInScaleAction = (motoristaId: String, ondaIndex: Int, vaga: String?, rota: String?, sacas: Int?) -> Unit
+
 class AssistenteViewModel(application: Application) : AndroidViewModel(application) {
     private val locationRepo = LocationRequestRepository()
     private val motoristaRepo = MotoristaRepository()
@@ -129,22 +132,27 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             }
 
             val api = NotificationApiService()
-            var chatResult = api.chatWithAssistente(baseId, displayText, base64Image, idToken)
-            if (!chatResult.success && chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error) {
+            val historyImg = _messages.value.map { it.role to it.text }
+            var chatResult = api.chatWithAssistente(baseId, displayText, base64Image, idToken, historyImg)
+            val firstError = chatResult.error
+            if (!chatResult.success && firstError != null && "401" in firstError && "Token" in firstError) {
                 runCatching { user.getIdToken(true).await() }.getOrNull()?.token?.let { freshToken ->
-                    chatResult = api.chatWithAssistente(baseId, displayText, base64Image, freshToken)
+                    chatResult = api.chatWithAssistente(baseId, displayText, base64Image, freshToken, historyImg)
                 }
             }
             _isLoading.value = false
-            if (chatResult.success && chatResult.text != null) {
-                _messages.value = _messages.value + ChatMessage("assistant", chatResult.text)
-                chatResult.action?.let { action -> applyAddToScaleAction(baseId, action) }
+            val text = chatResult.text
+            val error = chatResult.error
+            if (chatResult.success && text != null) {
+                _messages.value = _messages.value + ChatMessage("assistant", text)
+                chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
+                chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
             } else {
                 val errorMsg = when {
-                    chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error ->
+                    error != null && "401" in error && "Token" in error ->
                         "Sessão expirada. Faça logout e login novamente para continuar."
                     else ->
-                        chatResult.error ?: "Não foi possível processar a imagem. Tente novamente."
+                        error ?: "Não foi possível processar a imagem. Tente novamente."
                 }
                 _messages.value = _messages.value + ChatMessage("assistant", errorMsg)
             }
@@ -155,12 +163,26 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
     private var onAddToScaleAction: OnAddToScaleAction? = null
     fun setOnAddToScaleAction(callback: OnAddToScaleAction?) { onAddToScaleAction = callback }
 
+    /** Aplica ação update_in_scale: resolve nome do motorista e invoca callback (só atualiza, não adiciona). */
+    private var onUpdateInScaleAction: OnUpdateInScaleAction? = null
+    fun setOnUpdateInScaleAction(callback: OnUpdateInScaleAction?) { onUpdateInScaleAction = callback }
+
     private fun applyAddToScaleAction(baseId: String, action: NotificationApiService.AddToScaleAction) {
         viewModelScope.launch {
             val found = findMotoristaByName(baseId, action.motoristaNome)
             if (found != null) {
                 val (motoristaId, nome) = found
                 onAddToScaleAction?.invoke(motoristaId, nome, action.ondaIndex, action.vaga, action.rota, action.sacas)
+            }
+        }
+    }
+
+    private fun applyUpdateInScaleAction(baseId: String, action: NotificationApiService.UpdateInScaleAction) {
+        viewModelScope.launch {
+            val found = findMotoristaByName(baseId, action.motoristaNome)
+            if (found != null) {
+                val (motoristaId, _) = found
+                onUpdateInScaleAction?.invoke(motoristaId, action.ondaIndex, action.vaga, action.rota, action.sacas)
             }
         }
     }
@@ -211,10 +233,14 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                             _isLoading.value = false
                         },
                         onFailure = { e ->
-                            _messages.value = _messages.value + ChatMessage(
-                                "assistant",
-                                "Erro ao solicitar localização: ${e.message}"
-                            )
+                            val msg = e.message.orEmpty()
+                            val friendly = when {
+                                msg.contains("500") || msg.contains("404") || msg.contains("UNREGISTERED") || msg.contains("NOT_FOUND") ->
+                                    "Não foi possível obter o tempo de chegada do $motoristaNome. O app pode estar fechado no celular dele ou o dispositivo sem internet. Peça para ele abrir o app e tentar novamente."
+                                else ->
+                                    "Não foi possível consultar a localização de $motoristaNome. Tente novamente em instantes."
+                            }
+                            _messages.value = _messages.value + ChatMessage("assistant", friendly)
                             _isLoading.value = false
                         }
                     )
@@ -239,22 +265,27 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                     return@launch
                 }
                 val api = NotificationApiService()
-                var chatResult = api.chatWithAssistente(baseId, text, null, idToken)
-                if (!chatResult.success && chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error) {
+                val history = _messages.value.map { it.role to it.text }
+                var chatResult = api.chatWithAssistente(baseId, text, null, idToken, history)
+                val firstError = chatResult.error
+                if (!chatResult.success && firstError != null && "401" in firstError && "Token" in firstError) {
                     runCatching { user.getIdToken(true).await() }.getOrNull()?.token?.let { fresh ->
                         chatResult = api.chatWithAssistente(baseId, text, null, fresh)
                     }
                 }
                 _isLoading.value = false
-                if (chatResult.success && !chatResult.text.isNullOrBlank()) {
-                    _messages.value = _messages.value + ChatMessage("assistant", chatResult.text)
-                    chatResult.action?.let { action -> applyAddToScaleAction(baseId, action) }
+                val text = chatResult.text
+                val error = chatResult.error
+                if (chatResult.success && !text.isNullOrBlank()) {
+                    _messages.value = _messages.value + ChatMessage("assistant", text)
+                    chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
+                    chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
                 } else {
                     val errorMsg = when {
-                        chatResult.error != null && "401" in chatResult.error && "Token" in chatResult.error ->
+                        error != null && "401" in error && "Token" in error ->
                             "Sessão expirada. Faça logout e login novamente para continuar."
                         else ->
-                            chatResult.error ?: "Não foi possível obter resposta. Tente novamente."
+                            error ?: "Não foi possível obter resposta. Tente novamente."
                     }
                     _messages.value = _messages.value + ChatMessage("assistant", errorMsg)
                 }

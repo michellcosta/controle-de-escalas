@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.data.models.DashboardStats
+import com.controleescalas.app.data.models.FeedbackStatus
+import com.controleescalas.app.data.repositories.FeedbackRepository
 import com.controleescalas.app.data.repositories.StatsRepository
 import com.controleescalas.app.ui.components.*
 import com.controleescalas.app.ui.theme.*
@@ -28,23 +30,33 @@ fun SuperAdminDashboardScreen(
     superAdminId: String,
     onNavigateToTransportadoras: ((String?) -> Unit)? = null,
     onNavigateToUsuarios: (() -> Unit)? = null,
-    onNavigateToRelatorios: ((String?) -> Unit)? = null
+    onNavigateToRelatorios: ((String?) -> Unit)? = null,
+    onNavigateToFeedbacks: (() -> Unit)? = null,
+    onNavigateToConfiguracoes: (() -> Unit)? = null
 ) {
     val statsRepository = StatsRepository()
+    val feedbackRepository = FeedbackRepository()
     val scope = rememberCoroutineScope()
     
     var stats by remember { mutableStateOf<DashboardStats?>(null) }
+    var novosFeedbacksCount by remember { mutableStateOf(0) }
     var isLoading by remember { mutableStateOf(true) }
     
     LaunchedEffect(Unit) {
         scope.launch {
             stats = statsRepository.getDashboardStats()
+            try {
+                val feedbacks = feedbackRepository.getAllFeedbacks()
+                novosFeedbacksCount = feedbacks.count { it.status == FeedbackStatus.NOVO }
+            } catch (_: Exception) {}
             isLoading = false
         }
     }
     
     // Funções de navegação
     val navigateToTransportadoras = onNavigateToTransportadoras ?: {}
+    val navigateToFeedbacks = onNavigateToFeedbacks ?: {}
+    val navigateToConfiguracoes = onNavigateToConfiguracoes ?: {}
     val navigateToUsuarios = onNavigateToUsuarios ?: {}
     val navigateToRelatorios = onNavigateToRelatorios ?: {}
     
@@ -137,9 +149,7 @@ fun SuperAdminDashboardScreen(
                 if (dashboardStats.transportadorasPendentes > 0) {
                     GlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            navigateToTransportadoras("pendente")
-                        }
+                        onClick = { navigateToTransportadoras("pendente") }
                     ) {
                         Row(
                             modifier = Modifier
@@ -172,6 +182,95 @@ fun SuperAdminDashboardScreen(
                                 modifier = Modifier.size(32.dp)
                             )
                         }
+                    }
+                }
+                
+                // Card de novos feedbacks
+                if (novosFeedbacksCount > 0) {
+                    GlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { navigateToFeedbacks() }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Feedbacks Novos",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "$novosFeedbacksCount aguardando leitura",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextGray,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Icon(
+                                Icons.Default.Feedback,
+                                contentDescription = null,
+                                tint = NeonCyan,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                }
+                
+                // Atalho Configurações do Sistema
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { navigateToConfiguracoes() }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = NeonGreen,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Configurações do Sistema",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "Planos, monetização e exibição para clientes",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextGray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = TextGray,
+                            modifier = Modifier.size(24.dp)
+                        )
                     }
                 }
                 

@@ -114,6 +114,9 @@ dependencies {
     // ML Kit Barcode Scanning
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
     
+    // ML Kit Text Recognition (OCR para escala por foto)
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+    
     // ZXing for QR Code generation
     implementation("com.google.zxing:core:3.5.2")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
@@ -133,4 +136,7 @@ dependencies {
     
     // Image Cropper - usando uCrop (mais simples e confiável)
     implementation("com.github.yalantis:ucrop:2.2.8")
+    
+    // Google Play Billing para assinaturas
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
 }

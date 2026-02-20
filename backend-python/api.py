@@ -417,8 +417,8 @@ def location_receive():
         return jsonify({"error": str(e)}), 500
 
 
-def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_base: Optional[str] = None) -> Optional[str]:
-    """Usa Hugging Face Router API (OpenAI-compatible). Visão + texto ou só texto. context_base = dados reais da base para o modelo responder com informações do app."""
+def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None) -> Optional[str]:
+    """Usa Hugging Face Router API (OpenAI-compatible). Visão + texto ou só texto. context_base = dados reais da base. history = lista de {role, content} para manter contexto."""
     hf_token = os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_TOKEN')
     if not hf_token:
         return None
@@ -434,12 +434,15 @@ def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_bas
             "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena e devoluções. "
             "Nos DADOS DA BASE você recebe: por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
             "tempo estimado ao galpão (ETA por motorista); disponibilidade (quem está disponível/indisponível/não respondeu por data); "
-            "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções recentes com id da devolução, quem devolveu (motorista), data, hora e quantidade. "
+            "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções por motorista com data, hora, id da devolução, quantidade de pacotes e lista dos IDs dos pacotes. "
+            "Ao falar de devoluções: organize por motorista; para cada devolução informe data, hora, quantidade e, se o usuário pedir os IDs, liste os IDs dos pacotes de forma clara (em tópicos ou numerada). "
             "Use esses dados para responder com números e nomes reais. "
+            "Mantenha o contexto da conversa: se o usuário confirmar algo (ex: 'confirmado', 'sim'), interprete com base nas mensagens anteriores. "
             "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app. "
-            "REGRA PARA ADICIONAR À ESCALA: Quando o usuário pedir para ADICIONAR/COLOCAR um motorista na escala (ex: 'coloque X na primeira onda, vaga 2, rota G9'), "
-            "ao final da sua resposta adicione EXATAMENTE uma linha no formato: ACTION_JSON:{\"type\":\"add_to_scale\",\"motoristaNome\":\"Nome igual ao da lista da base\",\"ondaIndex\":0,\"vaga\":\"02\",\"rota\":\"G9\",\"sacas\":4}. "
-            "ondaIndex: 0 = primeira onda, 1 = segunda, etc. vaga sempre 2 dígitos (01, 02). rota em maiúsculas. sacas número ou null. Só inclua ACTION_JSON quando o usuário pedir explicitamente para adicionar/colocar um motorista na escala."
+            "REGRA ESCALA: (1) Quem já está escalado está na lista 'Detalhe da escala' / 'Motoristas já escalados'. NUNCA adicione o mesmo motorista de novo. "
+            "(2) Se o usuário pedir para TROCAR/ALTERAR/MUDAR vaga, rota ou sacas de alguém que JÁ ESTÁ escalado: use ACTION_JSON com type \"update_in_scale\" e preencha só o que mudou: {\"type\":\"update_in_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"02\" (opcional),\"rota\":\"G9\" (opcional),\"sacas\":4 (opcional ou null)}. ondaIndex = onda em que o motorista está (0 = primeira). "
+            "(3) Se o usuário pedir para ADICIONAR/COLOCAR um motorista que AINDA NÃO ESTÁ na escala: você PRECISA de rota (e opcionalmente sacas). Se o usuário só disser 'adicionar Brendon na vaga 1' sem rota, NÃO emita ACTION_JSON; pergunte: 'Qual a rota do Brendon? Tem sacas?' e espere a resposta. Quando tiver rota (e sacas se aplicável), aí sim emita: {\"type\":\"add_to_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"01\",\"rota\":\"G9\",\"sacas\":null ou número}. "
+            "(4) Só use add_to_scale para motoristas que NÃO aparecem na escala. Para quem já está escalado, use sempre update_in_scale. vaga sempre 2 dígitos (01, 02). rota em maiúsculas."
         )
         if context_base and context_base.strip():
             system_instruction += "\n\nDADOS DA BASE (use para responder): " + context_base.strip()
@@ -450,13 +453,19 @@ def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_bas
             ]
         else:
             content = prompt
+        messages = [{"role": "system", "content": system_instruction}]
+        for h in (history or []):
+            role = (h.get("role") or "user").strip().lower()
+            if role not in ("user", "assistant"):
+                continue
+            msg_content = (h.get("content") or h.get("text") or "").strip()
+            if msg_content:
+                messages.append({"role": role, "content": msg_content})
+        messages.append({"role": "user", "content": content})
         payload = {
             "model": model,
-            "messages": [
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": content},
-            ],
-            "max_tokens": 1024 if image_b64 else 512,
+            "messages": messages,
+            "max_tokens": 1024,
         }
         resp = http_requests.post(url, json=payload, headers=headers, timeout=90)
         if not resp.ok:
@@ -500,6 +509,11 @@ def assistente_chat():
         base_id = data.get('baseId')
         text = (data.get('text') or "").strip()
         image_b64 = data.get('imageBase64')
+        history = data.get('history')
+        if history is not None and not isinstance(history, list):
+            history = None
+        if history and len(history) > 20:
+            history = history[-20:]
 
         if not base_id:
             return jsonify({"error": "baseId é obrigatório"}), 400
@@ -507,7 +521,7 @@ def assistente_chat():
             return jsonify({"error": "text ou imageBase64 é obrigatório"}), 400
 
         contexto_base = reader.get_contexto_base_para_assistente(base_id) if reader else ""
-        result_text = _assistente_via_huggingface(text, image_b64, context_base=contexto_base)
+        result_text = _assistente_via_huggingface(text, image_b64, context_base=contexto_base, history=history)
 
         if result_text is None or result_text == "":
             return jsonify({

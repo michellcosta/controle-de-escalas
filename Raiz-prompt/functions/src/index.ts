@@ -670,6 +670,234 @@ export const notificarTodosMotoristasEscalados = functions.region("southamerica-
 
 /**
  * ========================================
+ * PEDIDO DE LOCALIZAÇÃO / ETA DO MOTORISTA
+ * ========================================
+ * Admin pergunta ao assistente: "Quanto tempo para o X chegar?"
+ * Fluxo: requestDriverLocation -> FCM silenciosa -> app obtém GPS ->
+ * receiveDriverLocation (callable pelo app) -> OpenRouteService -> grava resultado
+ */
+
+/**
+ * Enviar push SILENCIOSA (data-only) para o motorista pedir localização
+ * Não mostra notificação - motorista não percebe
+ */
+async function sendSilentLocationRequest(motoristaId: string, baseId: string) {
+  const motoristaRef = db.doc(`bases/${baseId}/motoristas/${motoristaId}`);
+  const motoristaSnap = await motoristaRef.get();
+
+  if (!motoristaSnap.exists) {
+    throw new Error(`Motorista ${motoristaId} não encontrado`);
+  }
+
+  const motorista: any = motoristaSnap.data();
+  const fcmToken = motorista.fcmToken;
+
+  if (!fcmToken) {
+    throw new Error(`Motorista ${motorista.nome || motoristaId} não tem FCM token`);
+  }
+
+  // Mensagem APENAS com data - SEM notification (silenciosa)
+  const message = {
+    data: {
+      type: "request_location",
+      baseId,
+      motoristaId,
+    },
+    token: fcmToken,
+    android: {
+      priority: "high" as const,
+      // Sem notification = não mostra nada ao usuário
+    },
+    apns: {
+      headers: { "apns-priority": "10" },
+      payload: {
+        aps: {
+          contentAvailable: true,
+          // Sem alert = silenciosa
+        },
+      },
+    },
+  };
+
+  await admin.messaging().send(message);
+  console.log(`📤 Push silenciosa de localização enviada para ${motorista.nome || motoristaId}`);
+}
+
+/**
+ * Callable: Admin/Assistente solicita localização e ETA de um motorista
+ */
+export const requestDriverLocation = functions.region("southamerica-east1")
+  .https.onCall(async (data, context) => {
+    const { baseId, motoristaId } = data || {};
+
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Login necessário");
+    }
+
+    if (!baseId || !motoristaId) {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "baseId e motoristaId são obrigatórios"
+      );
+    }
+
+    // Verificar permissão (admin/auxiliar)
+    const callerRef = db.doc(`bases/${baseId}/usuarios/${context.auth.uid}`);
+    let callerSnap = await callerRef.get();
+    if (!callerSnap.exists) {
+      callerSnap = await db.doc(`bases/${baseId}/motoristas/${context.auth.uid}`).get();
+    }
+    if (!callerSnap.exists) {
+      throw new functions.https.HttpsError("permission-denied", "Usuário não autorizado");
+    }
+    const caller: any = callerSnap.data();
+    const papel = caller.papel || "";
+    if (!["admin", "superadmin", "auxiliar", "ajudante"].includes(papel)) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Apenas admin/auxiliar podem solicitar localização"
+      );
+    }
+
+    // Criar doc de resposta como "pendente" - assistente escuta e exibe quando atualizar
+    const responseRef = db.doc(`bases/${baseId}/location_responses/${motoristaId}`);
+    await responseRef.set({
+      status: "pending",
+      motoristaId,
+      motoristaNome: (await db.doc(`bases/${baseId}/motoristas/${motoristaId}`).get()).data()?.nome || "",
+      solicitadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    await sendSilentLocationRequest(motoristaId, baseId);
+
+    return { ok: true, status: "pending" };
+  });
+
+/**
+ * Callable: App do motorista envia coordenadas (chamado após receber push)
+ * Calcula rota via OpenRouteService e grava apenas distância e ETA
+ */
+export const receiveDriverLocation = functions.region("southamerica-east1")
+  .https.onCall(async (data, context) => {
+    const { baseId, motoristaId, lat, lng } = data || {};
+
+    if (!context.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Login necessário");
+    }
+
+    // Só o próprio motorista pode enviar sua localização
+    if (context.auth.uid !== motoristaId) {
+      throw new functions.https.HttpsError("permission-denied", "Apenas o motorista pode enviar sua localização");
+    }
+
+    if (!baseId || !motoristaId || typeof lat !== "number" || typeof lng !== "number") {
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "baseId, motoristaId, lat e lng são obrigatórios"
+      );
+    }
+
+    const configRef = db.doc(`bases/${baseId}/configuracao/principal`);
+    const configSnap = await configRef.get();
+    if (!configSnap.exists) {
+      await db.doc(`bases/${baseId}/location_responses/${motoristaId}`).set({
+        status: "error",
+        error: "Galpão não configurado",
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { ok: false, error: "Galpão não configurado" };
+    }
+
+    const config: any = configSnap.data();
+    const galpao = config.galpao || {};
+    const galpaoLat = galpao.lat;
+    const galpaoLng = galpao.lng;
+
+    if (!galpaoLat || !galpaoLng) {
+      await db.doc(`bases/${baseId}/location_responses/${motoristaId}`).set({
+        status: "error",
+        error: "Coordenadas do galpão não configuradas",
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { ok: false, error: "Coordenadas do galpão não configuradas" };
+    }
+
+    const orsApiKey = process.env.ORS_API_KEY || functions.config().openrouteservice?.key;
+    if (!orsApiKey) {
+      console.error("ORS_API_KEY não configurada");
+      await db.doc(`bases/${baseId}/location_responses/${motoristaId}`).set({
+        status: "error",
+        error: "Serviço indisponível",
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { ok: false, error: "Serviço indisponível" };
+    }
+
+    try {
+      // OpenRouteService: coordinates são [lng, lat]
+      const url = `https://api.openrouteservice.org/v2/directions/driving-car`;
+      const body = {
+        coordinates: [
+          [lng, lat],
+          [galpaoLng, galpaoLat],
+        ],
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": orsApiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("OpenRouteService erro:", res.status, errText);
+        throw new Error(`ORS: ${res.status}`);
+      }
+
+      const orsResult: any = await res.json();
+      const route = orsResult.routes?.[0];
+      if (!route?.summary) {
+        throw new Error("Rota não encontrada");
+      }
+
+      const distanceMeters = route.summary.distance || 0;
+      const durationSeconds = route.summary.duration || 0;
+      const etaMinutes = Math.round(durationSeconds / 60);
+      const distanceKm = Math.round((distanceMeters / 1000) * 10) / 10;
+
+      const motoristaSnap = await db.doc(`bases/${baseId}/motoristas/${motoristaId}`).get();
+      const motoristaNome = motoristaSnap.data()?.nome || "Motorista";
+
+      await db.doc(`bases/${baseId}/location_responses/${motoristaId}`).set({
+        status: "ready",
+        motoristaId,
+        motoristaNome,
+        distanceMeters,
+        distanceKm,
+        etaMinutes,
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      console.log(`✅ Localização recebida: ${motoristaNome} - ${distanceKm} km, ~${etaMinutes} min`);
+
+      return { ok: true, distanceKm, etaMinutes };
+    } catch (e: any) {
+      console.error("Erro ao calcular rota:", e);
+      await db.doc(`bases/${baseId}/location_responses/${motoristaId}`).set({
+        status: "error",
+        error: "Erro ao calcular rota",
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return { ok: false, error: e.message };
+    }
+  });
+
+/**
+ * ========================================
  * DISPONIBILIDADE AUTOMÁTICA DIÁRIA
  * ========================================
  */

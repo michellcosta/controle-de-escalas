@@ -12,6 +12,8 @@ data class SistemaConfig(
     val dataAtivacaoManual: Long? = null,
     val ativadoPor: String? = null,
     val ultimaModificacao: Long = System.currentTimeMillis(),
+    /** Exibir botão "Planos e Assinatura" e banner de trial expirado. Ative quando configurar produtos no Play Console. */
+    val planosHabilitados: Boolean = false,
     // ✅ NOVO: Configurações adicionais
     val periodoTrialDias: Int = 30,
     val limiteMotoristasGratuito: Int = 5,

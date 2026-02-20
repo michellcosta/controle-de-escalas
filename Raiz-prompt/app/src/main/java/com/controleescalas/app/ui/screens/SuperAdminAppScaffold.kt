@@ -84,8 +84,9 @@ fun SuperAdminAppScaffold(
     
     var showMenu by remember { mutableStateOf(false) }
     
-    // Contador de feedbacks novos
+    // Contador de feedbacks novos e bases pendentes
     var novosFeedbacksCount by remember { mutableStateOf(0) }
+    var transportadorasPendentesCount by remember { mutableStateOf(0) }
     
     // IDs já notificados para evitar duplicatas
     var basesNotificadas by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -109,6 +110,11 @@ fun SuperAdminAppScaffold(
             val firestore = FirebaseManager.firestore
             val basesSnapshot = firestore.collection("bases").get().await()
             basesNotificadas = basesSnapshot.documents.map { it.id }.toSet()
+            
+            // Contar bases pendentes para badge
+            transportadorasPendentesCount = basesSnapshot.documents.count { doc ->
+                (doc.get("statusAprovacao") as? String) == "pendente"
+            }
         } catch (e: Exception) {
             println("⚠️ SuperAdminAppScaffold: Erro ao inicializar: ${e.message}")
         }
@@ -365,8 +371,25 @@ fun SuperAdminAppScaffold(
                     SuperAdminNavItem.Relatorios,
                     SuperAdminNavItem.Usuarios
                 ).forEach { item ->
+                    val showBadge = item == SuperAdminNavItem.Transportadoras && transportadorasPendentesCount > 0
                     NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(24.dp)) },
+                        icon = {
+                            Box {
+                                Icon(item.icon, contentDescription = item.label, modifier = Modifier.size(24.dp))
+                                if (showBadge) {
+                                    Badge(
+                                        modifier = Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-4).dp),
+                                        containerColor = NeonOrange,
+                                        contentColor = Color.White
+                                    ) {
+                                        Text(
+                                            text = transportadorasPendentesCount.toString().take(3),
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                }
+                            }
+                        },
                         label = { 
                             Text(
                                 text = item.shortLabel,
@@ -421,7 +444,9 @@ fun SuperAdminAppScaffold(
                             SuperAdminNavItem.Relatorios.route
                         }
                         navController.navigate(route)
-                    }
+                    },
+                    onNavigateToFeedbacks = { navController.navigate("superadmin_feedbacks") },
+                    onNavigateToConfiguracoes = { navController.navigate("superadmin_configuracoes") }
                 )
             }
             

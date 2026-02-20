@@ -49,8 +49,6 @@ import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
 import com.controleescalas.app.ui.viewmodels.QuinzenaViewModel
 import com.controleescalas.app.ui.viewmodels.DriverViewModel
-import com.controleescalas.app.data.DeviceUtils
-import com.controleescalas.app.data.NotificationSettingsManager
 import com.controleescalas.app.data.repositories.EscalaRepository
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -90,18 +88,6 @@ fun DriverAppScaffold(
     val viewModel: DriverViewModel = viewModel()
     val motoristaNome by viewModel.motoristaNome.collectAsState()
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    
-    // Prompt automático para Xiaomi (notificações com app fechado)
-    var showXiaomiPrompt by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (DeviceUtils.isXiaomiFamily()) {
-            val settingsManager = NotificationSettingsManager(context)
-            if (!settingsManager.wasXiaomiPromptShown()) {
-                showXiaomiPrompt = true
-            }
-        }
-    }
     
     // Estado para controlar o diálogo explicativo de background location
     var showBackgroundLocationDialog by remember { mutableStateOf(false) }
@@ -304,12 +290,11 @@ fun DriverAppScaffold(
             DriverBottomNavigationBar(navController = navController)
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            NavHost(
-                navController = navController,
-                startDestination = DriverNavItem.Home.route,
-                modifier = Modifier.padding(paddingValues)
-            ) {
+        NavHost(
+            navController = navController,
+            startDestination = DriverNavItem.Home.route,
+            modifier = Modifier.padding(paddingValues)
+        ) {
             composable(DriverNavItem.Home.route) {
                 DriverHomeContent(
                     motoristaId = motoristaId,
@@ -447,18 +432,6 @@ fun DriverAppScaffold(
                         navController.popBackStack()
                     },
                     viewModel = devolucaoViewModel
-                )
-            }
-        }
-            
-            if (showXiaomiPrompt) {
-                NotificacoesDialog(
-                    onDismiss = {
-                        coroutineScope.launch {
-                            NotificationSettingsManager(context).setXiaomiPromptShown()
-                        }
-                        showXiaomiPrompt = false
-                    }
                 )
             }
         }

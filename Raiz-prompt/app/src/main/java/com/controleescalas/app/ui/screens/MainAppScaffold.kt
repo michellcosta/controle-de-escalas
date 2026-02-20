@@ -106,6 +106,9 @@ fun MainAppScaffold(
                     onBack = { navController.popBackStack(BottomNavItem.Operation.route, false) },
                     onAddToScaleAction = { motoristaId, nome, ondaIndex, vaga, rota, sacas ->
                         operationalViewModel.addMotoristaToOndaWithDetails(ondaIndex, motoristaId, nome, vaga, rota, sacas)
+                    },
+                    onUpdateInScaleAction = { motoristaId, ondaIndex, vaga, rota, sacas ->
+                        operationalViewModel.updateMotoristaInOndaByDetails(ondaIndex, motoristaId, vaga, rota, sacas)
                     }
                 )
             }

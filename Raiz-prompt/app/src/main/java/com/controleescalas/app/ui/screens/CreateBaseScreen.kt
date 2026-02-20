@@ -55,13 +55,13 @@ fun CreateBaseScreen(
             telefoneAdmin.isNotBlank() &&
             pinAdmin.length == 6
     
-    // Estado para controlar o diálogo de aprovação pendente
-    var showApprovalDialog by remember { mutableStateOf(false) }
+    // Estado para controlar o diálogo de sucesso (trial ativado)
+    var showSuccessDialog by remember { mutableStateOf(false) }
     
     // Mostrar diálogo quando houver sucesso
     LaunchedEffect(successMessage) {
         if (successMessage == "SUCCESS") {
-            showApprovalDialog = true
+            showSuccessDialog = true
         }
     }
 
@@ -204,12 +204,12 @@ fun CreateBaseScreen(
             }
         }
         
-        // Diálogo de Aprovação Pendente
-        if (showApprovalDialog) {
+        // Diálogo de sucesso (trial 30 dias ativado)
+        if (showSuccessDialog) {
             AlertDialog(
                 onDismissRequest = { 
-                    showApprovalDialog = false
-                    onBackClick() // Voltar ao clicar fora ou no X
+                    showSuccessDialog = false
+                    onSuccessAcknowledged()
                 },
                 containerColor = DarkSurface,
                 title = {
@@ -224,7 +224,7 @@ fun CreateBaseScreen(
                             modifier = Modifier.size(32.dp)
                         )
                         Text(
-                            "Transportadora criada com sucesso!",
+                            "Transportadora criada!",
                             color = TextWhite,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleLarge
@@ -236,8 +236,8 @@ fun CreateBaseScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text(
-                            "⏳ Status: Pendente de Aprovação",
-                            color = NeonOrange,
+                            "🎉 30 dias grátis ativados",
+                            color = NeonGreen,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleMedium
                         )
@@ -245,23 +245,23 @@ fun CreateBaseScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(
-                            "Sua transportadora foi criada e está aguardando aprovação do administrador do sistema.",
+                            "Sua transportadora está pronta. Faça login com o telefone e PIN do admin para começar a usar.",
                             color = TextGray,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
                         Text(
-                            "Você será notificado quando ela estiver ativa e pronta para uso.",
+                            "Após o trial, escolha um plano para continuar.",
                             color = TextGray,
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 },
                 confirmButton = {
                     Button(
                         onClick = {
-                            showApprovalDialog = false
-                            onSuccessAcknowledged() // Navegar de volta
+                            showSuccessDialog = false
+                            onSuccessAcknowledged()
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = NeonGreen,

@@ -164,8 +164,12 @@ class NotificationApiService {
         val success: Boolean,
         val text: String?,
         val error: String?,
-        val action: AddToScaleAction?
-    )
+        val addToScaleAction: AddToScaleAction? = null,
+        val updateInScaleAction: UpdateInScaleAction? = null
+    ) {
+        /** Ação de adicionar (retrocompatibilidade). */
+        val action: AddToScaleAction? get() = addToScaleAction
+    }
 
     /**
      * Ação retornada pelo assistente para adicionar motorista à escala.
@@ -179,21 +183,43 @@ class NotificationApiService {
     )
 
     /**
-     * Chat com Assistente (Gemini) - texto e/ou imagem.
+     * Ação para atualizar vaga/rota/sacas de motorista já escalado (não adicionar de novo).
+     */
+    data class UpdateInScaleAction(
+        val motoristaNome: String,
+        val ondaIndex: Int,
+        val vaga: String?,
+        val rota: String?,
+        val sacas: Int?
+    )
+
+    /**
+     * Chat com Assistente - texto e/ou imagem, com histórico para manter contexto.
+     * @param history últimas mensagens [{role, content}] (ex.: user/assistant) para continuar a conversa.
      * @return ChatAssistenteResult com texto e opcionalmente action (add_to_scale).
      */
     suspend fun chatWithAssistente(
         baseId: String,
         text: String,
         base64Image: String?,
-        idToken: String
+        idToken: String,
+        history: List<Pair<String, String>> = emptyList()
     ): ChatAssistenteResult = withContext(Dispatchers.IO) {
         try {
             val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.ASSISTENTE_CHAT}"
+            val historyArray = org.json.JSONArray().apply {
+                history.takeLast(20).forEach { (role, content) ->
+                    put(org.json.JSONObject().apply {
+                        put("role", role)
+                        put("content", content)
+                    })
+                }
+            }
             val jsonBody = JSONObject().apply {
                 put("baseId", baseId)
                 put("text", text)
                 if (base64Image != null) put("imageBase64", base64Image)
+                if (historyArray.length() > 0) put("history", historyArray)
             }
             val request = Request.Builder()
                 .url(url)
@@ -207,10 +233,12 @@ class NotificationApiService {
                 response.isSuccessful -> {
                     val json = body?.let { JSONObject(it) }
                     val textRes = json?.optString("text") ?: json?.optString("response") ?: body ?: ""
-                    val action = json?.optJSONObject("action")?.let { a ->
+                    val actionObj = json?.optJSONObject("action")
+                    val addAction = actionObj?.let { a ->
                         if (a.optString("type") == "add_to_scale") {
+                            val nome = a.optString("motoristaNome").trim().ifBlank { return@let null } ?: return@let null
                             AddToScaleAction(
-                                motoristaNome = a.optString("motoristaNome").trim().ifBlank { return@let null },
+                                motoristaNome = nome,
                                 ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
                                 vaga = a.optString("vaga").trim().ifBlank { "01" }.let { v -> if (v.length == 1) "0$v" else v },
                                 rota = a.optString("rota").trim().uppercase(),
@@ -218,12 +246,24 @@ class NotificationApiService {
                             )
                         } else null
                     }
-                    ChatAssistenteResult(success = true, text = textRes, error = null, action = action)
+                    val updateAction = actionObj?.let { a ->
+                        if (a.optString("type") == "update_in_scale") {
+                            val nome = a.optString("motoristaNome").trim().ifBlank { return@let null } ?: return@let null
+                            UpdateInScaleAction(
+                                motoristaNome = nome,
+                                ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
+                                vaga = a.optString("vaga").trim().takeIf { it.isNotBlank() }?.let { v -> if (v.length == 1) "0$v" else v },
+                                rota = a.optString("rota").trim().uppercase().takeIf { it.isNotBlank() },
+                                sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it >= 0 } else null
+                            )
+                        } else null
+                    }
+                    ChatAssistenteResult(success = true, text = textRes, error = null, addToScaleAction = addAction, updateInScaleAction = updateAction)
                 }
-                else -> ChatAssistenteResult(success = false, text = null, error = "Erro ${response.code}: $body", action = null)
+                else -> ChatAssistenteResult(success = false, text = null, error = "Erro ${response.code}: $body")
             }
         } catch (e: Exception) {
-            ChatAssistenteResult(success = false, text = null, error = "Erro: ${e.message}", action = null)
+            ChatAssistenteResult(success = false, text = null, error = "Erro: ${e.message}")
         }
     }
 

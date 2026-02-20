@@ -5,6 +5,8 @@ import com.controleescalas.app.data.models.ModoAtivacao
 import com.controleescalas.app.data.models.SistemaConfig
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -35,6 +37,7 @@ class SistemaRepository {
             val config = if (doc.exists()) {
                 SistemaConfig(
                     monetizacaoAtiva = doc.getBoolean("monetizacaoAtiva") ?: false,
+                    planosHabilitados = doc.getBoolean("planosHabilitados") ?: false,
                     modoAtivacao = doc.getString("modoAtivacao")?.let {
                         try {
                             ModoAtivacao.valueOf(it)
@@ -71,6 +74,48 @@ class SistemaRepository {
         }
     }
     
+    /**
+     * Habilitar ou desabilitar exibição da tela de planos para clientes.
+     * Ative quando configurar produtos no Play Console.
+     */
+    suspend fun setPlanosHabilitados(habilitado: Boolean): Boolean {
+        return try {
+            val agora = System.currentTimeMillis()
+            sistemaRef.set(
+                mapOf(
+                    "planosHabilitados" to habilitado,
+                    "ultimaModificacao" to agora
+                ),
+                SetOptions.merge()
+            ).await()
+            invalidateCache()
+            println("✅ SistemaRepository: Planos habilitados = $habilitado")
+            true
+        } catch (e: Exception) {
+            println("❌ SistemaRepository: Erro ao setar planosHabilitados: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Registra o UID do superadmin em sistema/config (campo superadminUids).
+     * O backend usa essa lista para permitir solicitar localização no Assistente.
+     */
+    suspend fun registerSuperAdminUid(uid: String): Result<Unit> {
+        if (uid.isBlank()) return Result.failure(IllegalArgumentException("UID vazio"))
+        return try {
+            sistemaRef.set(
+                mapOf("superadminUids" to FieldValue.arrayUnion(uid)),
+                SetOptions.merge()
+            ).await()
+            println("✅ SistemaRepository: UID $uid registrado em sistema/config (superadminUids)")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            println("❌ SistemaRepository: Erro ao registrar superadmin UID: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
     /**
      * Invalidar cache de configuração
      */

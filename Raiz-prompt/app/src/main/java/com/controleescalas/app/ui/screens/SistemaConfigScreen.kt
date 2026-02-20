@@ -13,7 +13,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import com.controleescalas.app.data.models.ModoAtivacao
 import com.controleescalas.app.data.models.SistemaConfig
 import com.controleescalas.app.data.repositories.SistemaRepository
@@ -43,6 +47,7 @@ fun SistemaConfigScreen(
     var dataAgendada by remember { mutableStateOf<Date?>(null) }
     var mostrarSeletorData by remember { mutableStateOf(false) }
     var mostrarConfirmacaoAtivacao by remember { mutableStateOf(false) }
+    var registrandoUid by remember { mutableStateOf(false) }
     
     // Carregar configuração atual
     LaunchedEffect(Unit) {
@@ -150,8 +155,10 @@ fun SistemaConfigScreen(
             null
         }
     }
+    val snackbarHostState = remember { SnackbarHostState() }
     
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Configurações do Sistema", color = TextWhite) },
@@ -181,6 +188,7 @@ fun SistemaConfigScreen(
                 CircularProgressIndicator(color = NeonGreen)
             }
         } else {
+            val context = LocalContext.current
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -189,6 +197,75 @@ fun SistemaConfigScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // UID do Firebase (para configurar SUPERADMIN_UIDS no Render)
+                GlassCard {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SectionHeader(title = "Seu UID do Firebase")
+                        Text(
+                            "Para poder solicitar localização no Assistente:\n" +
+                                "1) Render: Environment → SUPERADMIN_UIDS = este UID (copie abaixo).\n" +
+                                "2) Ou no Firestore: coleção sistema, documento config, campo superadminUids (tipo array) com um item igual a este UID.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextGray,
+                            maxLines = 6
+                        )
+                        Text(
+                            superAdminId,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextWhite,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                    clipboard?.setPrimaryClip(ClipData.newPlainText("uid", superAdminId))
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("UID copiado! Cole no Render em SUPERADMIN_UIDS.")
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Copiar UID")
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    if (registrandoUid) return@OutlinedButton
+                                    registrandoUid = true
+                                    scope.launch {
+                                        sistemaRepository.registerSuperAdminUid(superAdminId)
+                                            .fold(
+                                                onSuccess = {
+                                                    snackbarHostState.showSnackbar("Seu UID foi registrado. Agora você pode solicitar localização no Assistente.")
+                                                },
+                                                onFailure = { e ->
+                                                    snackbarHostState.showSnackbar("Erro ao registrar: ${e.message}")
+                                                }
+                                            )
+                                        registrandoUid = false
+                                    }
+                                },
+                                enabled = !registrandoUid,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                            ) {
+                                if (registrandoUid) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), color = NeonGreen, strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Text(if (registrandoUid) "Registrando…" else "Registrar meu UID no sistema")
+                            }
+                        }
+                    }
+                }
                 // Status atual
                 GlassCard {
                     Column(
@@ -267,6 +344,56 @@ fun SistemaConfigScreen(
                         Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Ver Feedbacks dos Admins", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+
+                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+
+                // Planos e Assinatura (exibir para clientes)
+                SectionHeader(title = "Planos e Assinatura")
+
+                GlassCard {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Exibir para clientes",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = TextWhite
+                                )
+                                Text(
+                                    "Mostra o botão \"Planos e Assinatura\" em Configurações e o banner de trial expirado. Ative após configurar produtos no Play Console.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextGray
+                                )
+                            }
+                            Switch(
+                                checked = config?.planosHabilitados == true,
+                                onCheckedChange = { checked ->
+                                    scope.launch {
+                                        val repo = SistemaRepository()
+                                        val ok = repo.setPlanosHabilitados(checked)
+                                        if (ok) {
+                                            config = repo.getConfiguracao(forceRefresh = true)
+                                            message = if (checked) "Planos exibidos para clientes" else "Planos ocultos"
+                                        } else {
+                                            error = "Erro ao atualizar"
+                                        }
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = NeonGreen
+                                )
+                            )
+                        }
                     }
                 }
 

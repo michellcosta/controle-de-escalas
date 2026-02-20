@@ -16,18 +16,28 @@ class BaseRepository {
     private var cacheTimestamp: Long = 0
     private val CACHE_DURATION_MS = 10 * 60 * 1000L // 10 minutos
 
+    companion object {
+        private const val TRIAL_DIAS = 30
+    }
+
     /**
-     * Criar nova base
+     * Criar nova base (self-service: já ativa com trial de 30 dias)
      */
     suspend fun createBase(baseData: CreateBaseData): String? {
         return try {
             println("🏗️ BaseRepository: Criando base: ${baseData.nomeBase}")
             
+            val agora = System.currentTimeMillis()
+            val fimTrial = agora + (TRIAL_DIAS * 24 * 60 * 60 * 1000L)
+            
             val base = Base(
                 nome = baseData.nomeBase,
                 transportadora = baseData.nomeTransportadora,
                 corTema = baseData.corTema,
-                statusAprovacao = "pendente" // Nova base começa como pendente
+                statusAprovacao = "ativa", // Self-service: já ativa, sem aprovação
+                plano = "trial",
+                dataInicioTrial = agora,
+                dataFimTrial = fimTrial
             )
             
             val docRef = firestore.collection("bases").add(base).await()

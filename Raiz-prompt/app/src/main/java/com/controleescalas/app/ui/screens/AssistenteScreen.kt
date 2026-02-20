@@ -1,6 +1,11 @@
 package com.controleescalas.app.ui.screens
 
+import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -26,6 +31,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -33,7 +39,10 @@ import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.AssistenteViewModel
 import com.controleescalas.app.ui.viewmodels.ChatMessage
 import com.controleescalas.app.ui.viewmodels.OnAddToScaleAction
+import com.controleescalas.app.ui.viewmodels.OnUpdateInScaleAction
+import java.util.Locale
 import java.io.File
+import android.Manifest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,10 +50,12 @@ fun AssistenteScreen(
     baseId: String,
     onBack: () -> Unit = {},
     onAddToScaleAction: OnAddToScaleAction? = null,
+    onUpdateInScaleAction: OnUpdateInScaleAction? = null,
     viewModel: AssistenteViewModel = viewModel()
 ) {
     val context = LocalContext.current
     LaunchedEffect(onAddToScaleAction) { viewModel.setOnAddToScaleAction(onAddToScaleAction) }
+    LaunchedEffect(onUpdateInScaleAction) { viewModel.setOnUpdateInScaleAction(onUpdateInScaleAction) }
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     var inputText by remember { mutableStateOf("") }
@@ -53,6 +64,65 @@ fun AssistenteScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lastPhotoPath = remember { mutableStateOf<String?>(null) }
+    var isListening by remember { mutableStateOf(false) }
+
+    fun runRecognition() {
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) { isListening = true }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() { isListening = false }
+            override fun onError(error: Int) {
+                isListening = false
+                recognizer.destroy()
+                val msg = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH -> "Nenhuma fala reconhecida. Tente novamente."
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Tempo esgotado. Fale novamente."
+                    SpeechRecognizer.ERROR_AUDIO -> "Erro de áudio."
+                    SpeechRecognizer.ERROR_CLIENT -> "Erro no reconhecimento."
+                    else -> "Não foi possível ouvir. Tente novamente."
+                }
+                scope.launch { snackbarHostState.showSnackbar(message = msg, duration = SnackbarDuration.Short) }
+            }
+            override fun onResults(bundle: Bundle?) {
+                isListening = false
+                val results = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = results?.firstOrNull()?.trim()
+                if (!text.isNullOrBlank()) inputText = text
+                recognizer.destroy()
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val results = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                results?.firstOrNull()?.trim()?.takeIf { it.isNotBlank() }?.let { inputText = it }
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale("pt", "BR"))
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Fale sua mensagem")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        recognizer.startListening(intent)
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) runRecognition()
+        else scope.launch { snackbarHostState.showSnackbar(message = "Permissão de microfone necessária para falar.", duration = SnackbarDuration.Short) }
+    }
+
+    fun startSpeechRecognition() {
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED ->
+                audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            SpeechRecognizer.isRecognitionAvailable(context) -> runRecognition()
+            else -> scope.launch { snackbarHostState.showSnackbar(message = "Reconhecimento de voz não disponível neste dispositivo.", duration = SnackbarDuration.Short) }
+        }
+    }
 
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
@@ -206,20 +276,17 @@ fun AssistenteScreen(
                             )
                         }
                         IconButton(
-                            onClick = {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        "Áudio em breve",
-                                        duration = SnackbarDuration.Short
-                                    )
-                                }
-                            },
+                            onClick = { startSpeechRecognition() },
                             enabled = !isLoading
                         ) {
                             Icon(
                                 Icons.Default.Mic,
-                                contentDescription = "Microfone",
-                                tint = if (isLoading) TextGray else TextWhite
+                                contentDescription = if (isListening) "Ouvindo..." else "Falar",
+                                tint = when {
+                                    isLoading -> TextGray
+                                    isListening -> NeonGreen
+                                    else -> TextWhite
+                                }
                             )
                         }
                     }
@@ -334,6 +401,7 @@ private fun MessageBubble(msg: ChatMessage) {
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
     ) {
         Surface(
+            modifier = Modifier.widthIn(max = 320.dp),
             shape = RoundedCornerShape(
                 topStart = 16.dp,
                 topEnd = 16.dp,

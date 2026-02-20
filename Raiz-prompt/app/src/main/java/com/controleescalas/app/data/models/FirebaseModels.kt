@@ -34,6 +34,24 @@ data class Base(
         val fim = dataFimTrial ?: return false
         return agora >= inicio && agora <= fim
     }
+
+    /**
+     * Verifica se o trial expirou (era trial e passou da data)
+     */
+    fun trialExpirado(): Boolean {
+        if (plano != "trial") return false
+        val fim = dataFimTrial ?: return false
+        return System.currentTimeMillis() > fim
+    }
+
+    /**
+     * Dias restantes do trial (null se não estiver em trial)
+     */
+    fun diasRestantesTrial(): Int? {
+        if (plano != "trial" || dataFimTrial == null) return null
+        val restante = (dataFimTrial!! - System.currentTimeMillis()) / (24 * 60 * 60 * 1000)
+        return maxOf(0, restante.toInt())
+    }
 }
 
 data class Coordenadas(

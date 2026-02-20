@@ -42,6 +42,8 @@ fun AdminPanelScreen(
     onUserManagementClick: () -> Unit,
     onQuinzenaClick: () -> Unit,
     onDevolucaoClick: () -> Unit,
+    onPlanosClick: () -> Unit = {},
+    showPlanosButton: Boolean = false,
     onBaseApprovalClick: () -> Unit = {},
     onFeedbackClick: () -> Unit = {},
     onLogout: () -> Unit = {},
@@ -130,6 +132,19 @@ fun AdminPanelScreen(
                 Icon(Icons.Default.Inventory2, contentDescription = "Devolução", modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Devolução", style = MaterialTheme.typography.bodyMedium)
+            }
+            
+            // Botão Planos (visível apenas quando habilitado pelo Super Admin)
+            if (showPlanosButton) {
+                OutlinedButton(
+                    onClick = onPlanosClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                ) {
+                    Icon(Icons.Default.Star, contentDescription = "Planos", modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Planos e Assinatura", style = MaterialTheme.typography.bodyMedium)
+                }
             }
             
             // Botão Notificações

@@ -766,7 +766,10 @@ fun AppNavHost() {
         }
 
         composable(Routes.Assistente.route) {
-            AssistenteScreen(baseId = currentUserBaseId.value ?: "")
+            AssistenteScreen(
+                baseId = currentUserBaseId.value ?: "",
+                onBack = { navController.popBackStack() }
+            )
         }
 
         composable(Routes.LocationConfig.route) {

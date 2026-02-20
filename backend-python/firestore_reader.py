@@ -250,15 +250,16 @@ class FirestoreReader:
                             linha += f" | horário motorista: {horario_item}"
                         escala_detalhes.append(linha)
             total_escalados = len(escalados_hoje)
+            nomes_escalados = sorted(set(n for _, n in escalados_hoje if n))
             parts.append(f"Escala de hoje ({hoje}): {total_escalados} motoristas escalados.")
+            parts.append("Motoristas já escalados (NÃO adicionar de novo; para mudar vaga/rota/sacas use atualização): " + ", ".join(nomes_escalados[:40]) + ("..." if len(nomes_escalados) > 40 else "") + ".")
             if escala_detalhes:
                 parts.append("Detalhe da escala (turno | onda e hora | motorista | vaga | rota | sacas):")
                 parts.extend(escala_detalhes[:50])
                 if len(escala_detalhes) > 50:
                     parts.append(f"  ... e mais {len(escala_detalhes) - 50} itens.")
             elif total_escalados > 0:
-                nomes = sorted(set(n for _, n in escalados_hoje if n))[:20]
-                parts.append("Nomes escalados hoje: " + ", ".join(nomes) + ("..." if total_escalados > 20 else "") + ".")
+                parts.append("Nomes escalados hoje: " + ", ".join(nomes_escalados[:20]) + ("..." if total_escalados > 20 else "") + ".")
 
             # --- TEMPO ESTIMADO (ETA): location_responses com status ready ---
             try:
@@ -331,21 +332,49 @@ class FirestoreReader:
             except Exception as e_q:
                 print(f"get_contexto quinzena: {e_q}")
 
-            # --- DEVOLUÇÕES: id da devolução, quem devolveu (motoristaNome), data, hora ---
+            # --- DEVOLUÇÕES: organizado por motorista, com data, hora, id, quantidade e lista de IDs dos pacotes ---
             try:
                 dev_ref = base_ref.collection('devolucoes')
-                dev_docs = list(dev_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(25).stream())
-                dev_listas = []
-                for d in dev_docs:
-                    data_dev = d.to_dict() or {}
-                    dev_id = d.id
-                    quem = (data_dev.get('motoristaNome') or '').strip()
-                    data_str = data_dev.get('data', '')
-                    hora_str = data_dev.get('hora', '')
-                    qtd = len(data_dev.get('idsPacotes') or []) or data_dev.get('quantidade') or 0
-                    dev_listas.append(f"id={dev_id} | quem devolveu={quem} | data={data_str} | hora={hora_str} | pacotes={qtd}")
-                if dev_listas:
-                    parts.append("Devoluções recentes (id da devolução, quem devolveu, data, hora, quantidade): " + " | ".join(dev_listas))
+                dev_docs = list(dev_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(50).stream())
+                if dev_docs:
+                    by_motorista = {}
+                    for d in dev_docs:
+                        data_dev = d.to_dict() or {}
+                        dev_id = d.id
+                        quem = (data_dev.get('motoristaNome') or '').strip() or "Sem nome"
+                        data_str = (data_dev.get('data') or '').strip()
+                        hora_str = (data_dev.get('hora') or '').strip()
+                        ids_pacotes = data_dev.get('idsPacotes') or []
+                        if not isinstance(ids_pacotes, list):
+                            ids_pacotes = [str(ids_pacotes)] if ids_pacotes else []
+                        ids_pacotes = [str(x).strip() for x in ids_pacotes if x]
+                        qtd = len(ids_pacotes) if ids_pacotes else 0
+                        if qtd == 0:
+                            try:
+                                qtd = int(data_dev.get('quantidade') or 0)
+                            except (TypeError, ValueError):
+                                qtd = 0
+                        entry = {
+                            "data": data_str,
+                            "hora": hora_str,
+                            "id": dev_id,
+                            "qtd": qtd,
+                            "ids": ids_pacotes,
+                        }
+                        by_motorista.setdefault(quem, []).append(entry)
+                    dev_blocks = []
+                    for motorista, entradas in sorted(by_motorista.items(), key=lambda x: x[0]):
+                        linhas = [f"Motorista: {motorista}"]
+                        for e in entradas[:15]:
+                            data_hora = f"{e['data']} {e['hora']}".strip()
+                            ids_str = ", ".join(e["ids"][:20]) if e["ids"] else "(sem IDs)"
+                            if len(e["ids"]) > 20:
+                                ids_str += f" ... (+{len(e['ids']) - 20} mais)"
+                            linhas.append(f"  - {data_hora}: {e['qtd']} pacote(s). id={e['id']}. IDs dos pacotes: {ids_str}")
+                        dev_blocks.append("\n".join(linhas))
+                    if dev_blocks:
+                        parts.append("Devoluções (por motorista, com data, hora, id da devolução e IDs dos pacotes):")
+                        parts.append("\n".join(dev_blocks))
             except Exception as e_dev:
                 print(f"get_contexto devolucoes: {e_dev}")
 

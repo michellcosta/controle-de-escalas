@@ -123,6 +123,44 @@ class ScaleViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Adiciona motorista à onda com vaga e rota (usado na importação por foto)
+     */
+    fun addMotoristaToOndaWithDetails(ondaIndex: Int, motoristaId: String, nome: String, vaga: String, rota: String) {
+        val currentEscala = _escala.value ?: return
+        val ondas = currentEscala.ondas.toMutableList()
+        
+        if (ondaIndex in ondas.indices) {
+            val onda = ondas[ondaIndex]
+            val novoItem = OndaItem(
+                motoristaId = motoristaId,
+                nome = nome,
+                vaga = vaga,
+                rota = rota,
+                horario = onda.horario
+            )
+            ondas[ondaIndex] = onda.copy(itens = onda.itens + novoItem)
+            val updatedEscala = currentEscala.copy(ondas = ondas)
+            _escala.value = updatedEscala
+            escalasCache[currentEscala.turno] = updatedEscala
+        }
+    }
+
+    /**
+     * Garante que existam pelo menos N ondas no turno (cria se faltar)
+     */
+    fun ensureOndasCount(turno: String, count: Int) {
+        val currentEscala = _escala.value ?: return
+        if (currentEscala.turno != turno) return
+        var ondas = currentEscala.ondas.toMutableList()
+        while (ondas.size < count) {
+            val num = ondas.size + 1
+            ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+        }
+        _escala.value = currentEscala.copy(ondas = ondas)
+        escalasCache[turno] = currentEscala.copy(ondas = ondas)
+    }
+
     fun updateOndaItem(ondaIndex: Int, itemIndex: Int, novoHorario: String, novaRota: String, novaVaga: String) {
         val currentEscala = _escala.value ?: return
         val ondas = currentEscala.ondas.toMutableList()
