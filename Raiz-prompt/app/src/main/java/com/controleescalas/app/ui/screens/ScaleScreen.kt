@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
@@ -37,6 +38,7 @@ fun ScaleScreen(
     turnoSelecionado: String = "AM",
     baseId: String,
     onVoltar: () -> Unit,
+    onOpenAssistente: (() -> Unit)? = null,
     viewModel: ScaleViewModel = viewModel(),
     quinzenaViewModel: com.controleescalas.app.ui.viewmodels.QuinzenaViewModel = viewModel()
 ) {
@@ -77,6 +79,15 @@ fun ScaleScreen(
                     }
                 },
                 actions = {
+                    onOpenAssistente?.let { onAssistente ->
+                        IconButton(onClick = onAssistente) {
+                            Icon(
+                                Icons.Default.Chat,
+                                contentDescription = "Assistente",
+                                tint = TextWhite
+                            )
+                        }
+                    }
                     TextButton(onClick = { showSaveConfirmDialog = true }) {
                         Text("SALVAR", color = NeonGreen, fontWeight = FontWeight.Bold)
                     }

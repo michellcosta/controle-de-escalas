@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.horizontalScroll
@@ -109,6 +110,7 @@ fun validarRotaNoTurno(
 fun OperationalDashboardScreen(
     baseId: String,
     onNavigateToAdminPanel: () -> Unit = {},
+    onOpenAssistente: (() -> Unit)? = null,
     viewModel: OperationalViewModel = viewModel()
 ) {
     val turnoAtual by viewModel.turnoAtual.collectAsState()
@@ -251,6 +253,15 @@ fun OperationalDashboardScreen(
                     }
                 },
                 actions = {
+                    onOpenAssistente?.let { onAssistente ->
+                        IconButton(onClick = onAssistente) {
+                            Icon(
+                                Icons.Default.Chat,
+                                contentDescription = "Assistente",
+                                tint = TextWhite
+                            )
+                        }
+                    }
                     // Botão de compartilhar - apenas visível se houver escala válida
                     if (temEscalaValida) {
                         IconButton(onClick = { compartilharEscalaNoWhatsApp() }) {

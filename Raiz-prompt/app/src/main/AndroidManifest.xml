@@ -19,8 +19,10 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     
-    <!-- Permissão de câmera para scanner de QR Code/Código de Barras -->
+    <!-- Permissão de câmera para scanner de QR Code/Código de Barras e Assistente -->
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Permissão de microfone para Assistente (áudio) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     
     <!-- Permissões de foreground service -->
@@ -96,11 +98,6 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-        
-        <!-- Google Maps API Key -->
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyD8ZuM8boZYVJoEc1Ll7yLAafgx1Sc0kRQ" />
         
     </application>
     

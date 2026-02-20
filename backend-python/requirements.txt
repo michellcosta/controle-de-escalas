@@ -21,3 +21,8 @@ flask-cors>=4.0.0
 
 # Gunicorn para produção (servidor WSGI)
 gunicorn>=21.2.0
+
+# Google Generative AI (Gemini) para Assistente
+google-generativeai>=0.8.0
+# PIL para processar imagens no Gemini
+Pillow>=10.0.0

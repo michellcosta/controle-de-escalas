@@ -387,6 +387,81 @@ def location_receive():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/assistente/chat', methods=['POST'])
+def assistente_chat():
+    """
+    Chat com Assistente IA (Gemini). Aceita texto e/ou imagem.
+    Body: { "baseId": "...", "text": "...", "imageBase64": "..." (opcional) }
+    Header: Authorization: Bearer <Firebase ID Token>
+    """
+    try:
+        uid, err = _verify_firebase_token()
+        if err:
+            return jsonify(err[0]), err[1]
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Body JSON é obrigatório"}), 400
+
+        base_id = data.get('baseId')
+        text = (data.get('text') or "").strip()
+        image_b64 = data.get('imageBase64')
+
+        if not base_id:
+            return jsonify({"error": "baseId é obrigatório"}), 400
+        if not text and not image_b64:
+            return jsonify({"error": "text ou imageBase64 é obrigatório"}), 400
+
+        gemini_key = os.getenv('GEMINI_API_KEY')
+        if not gemini_key:
+            return jsonify({"error": "GEMINI_API_KEY não configurada"}), 500
+
+        import base64
+        import google.generativeai as genai
+
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+
+        prompt_parts = []
+        if text:
+            prompt_parts.append(text)
+        if image_b64:
+            try:
+                import io
+                from PIL import Image
+                img_bytes = base64.b64decode(image_b64)
+                img = Image.open(io.BytesIO(img_bytes))
+                prompt_parts.append(img)
+            except Exception as e:
+                return jsonify({"error": f"Imagem inválida: {e}"}), 400
+
+        if not prompt_parts:
+            return jsonify({"error": "Envie texto ou imagem"}), 400
+
+        system_instruction = (
+            "Você é um assistente de uma operação de galpão de cargas. "
+            "Ajude com escalas de motoristas, vagas, rotas e perguntas operacionais. "
+            "Se receber uma foto de escala (lista de nomes com vagas e rotas), extraia no formato: Nome / Vaga / Rota (um por linha). "
+            "Seja objetivo e útil."
+        )
+
+        model_with_system = genai.GenerativeModel(
+            'gemini-2.0-flash',
+            system_instruction=system_instruction
+        )
+
+        response = model_with_system.generate_content(prompt_parts)
+        result_text = (response.text or "").strip()
+
+        return jsonify({"text": result_text, "ok": True}), 200
+
+    except Exception as e:
+        print(f"❌ Erro assistente/chat: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 API FCM - Backend Python")
@@ -398,6 +473,7 @@ if __name__ == '__main__':
     print("   GET  /motorista/token           - Verificar token de motorista")
     print("   POST /location/request          - Pedir localização/ETA (admin)")
     print("   POST /location/receive          - Receber coordenadas (motorista)")
+    print("   POST /assistente/chat           - Chat com IA (texto + imagem)")
     
     # Usar PORT da variável de ambiente (produção) ou 5000 (desenvolvimento)
     port = int(os.getenv('PORT', 5000))

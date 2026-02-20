@@ -150,6 +150,44 @@ class NotificationApiService {
     }
 
     /**
+     * Chat com Assistente (Gemini) - texto e/ou imagem.
+     * @return Pair(sucesso, textoResposta ou mensagem de erro)
+     */
+    suspend fun chatWithAssistente(
+        baseId: String,
+        text: String,
+        base64Image: String?,
+        idToken: String
+    ): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.ASSISTENTE_CHAT}"
+            val jsonBody = JSONObject().apply {
+                put("baseId", baseId)
+                put("text", text)
+                if (base64Image != null) put("imageBase64", base64Image)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(jsonBody.toString().toRequestBody(jsonMediaType))
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer $idToken")
+                .build()
+            val response = client.newCall(request).execute()
+            val body = response.body?.string()
+            when {
+                response.isSuccessful -> {
+                    val json = body?.let { JSONObject(it) }
+                    val textRes = json?.optString("text") ?: json?.optString("response") ?: body ?: ""
+                    Pair(true, textRes)
+                }
+                else -> Pair(false, "Erro ${response.code}: $body")
+            }
+        } catch (e: Exception) {
+            Pair(false, "Erro: ${e.message}")
+        }
+    }
+
+    /**
      * Verifica se a API está funcionando (health check)
      */
     suspend fun checkHealth(): Boolean = withContext(Dispatchers.IO) {

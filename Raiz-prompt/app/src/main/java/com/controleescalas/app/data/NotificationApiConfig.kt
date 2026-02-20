@@ -35,5 +35,6 @@ object NotificationApiConfig {
         const val HEALTH = "/health"
         const val LOCATION_REQUEST = "/location/request"
         const val LOCATION_RECEIVE = "/location/receive"
+        const val ASSISTENTE_CHAT = "/assistente/chat"
     }
 }

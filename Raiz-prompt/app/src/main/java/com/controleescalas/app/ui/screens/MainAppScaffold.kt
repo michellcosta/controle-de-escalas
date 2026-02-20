@@ -1,16 +1,19 @@
 package com.controleescalas.app.ui.screens
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -19,8 +22,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.controleescalas.app.navigation.Routes
 import com.controleescalas.app.ui.navigation.BottomNavItem
+import com.controleescalas.app.data.repositories.BaseRepository
+import com.controleescalas.app.data.repositories.SistemaRepository
 import com.controleescalas.app.ui.theme.DarkSurface
 import com.controleescalas.app.ui.theme.NeonGreen
+import com.controleescalas.app.ui.theme.NeonOrange
 import com.controleescalas.app.ui.theme.TextGray
 import com.google.firebase.auth.FirebaseAuth
 import android.util.Log
@@ -33,23 +39,73 @@ fun MainAppScaffold(
     onNavigateToUserManagement: () -> Unit
 ) {
     val navController = rememberNavController()
+    var trialExpirado by remember { mutableStateOf(false) }
+    var planosHabilitados by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(baseId) {
+        if (baseId.isNotEmpty()) {
+            val base = BaseRepository().getBase(baseId)
+            trialExpirado = base?.trialExpirado() == true
+        }
+        val config = SistemaRepository().getConfiguracao()
+        planosHabilitados = config.planosHabilitados
+    }
     
     Scaffold(
         bottomBar = {
             BottomNavigationBar(navController = navController)
         }
     ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomNavItem.Operation.route,
-            modifier = Modifier.padding(paddingValues)
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Banner: Trial expirado - faça upgrade (apenas quando planos estão habilitados)
+            if (trialExpirado && planosHabilitados) {
+                Surface(
+                    color = NeonOrange.copy(alpha = 0.2f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.Star, contentDescription = null, tint = NeonOrange, modifier = Modifier.size(20.dp))
+                            Text(
+                                "Trial expirado. Escolha um plano para continuar.",
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        TextButton(onClick = { navController.navigate(Routes.Planos.route) }) {
+                            Text("Ver planos", color = NeonGreen)
+                        }
+                    }
+                }
+            }
+            NavHost(
+                navController = navController,
+                startDestination = BottomNavItem.Operation.route,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(paddingValues)
+            ) {
             // Log quando o NavHost é criado
             println("🔵 MainAppScaffold: NavHost criado, startDestination: ${BottomNavItem.Operation.route}")
             android.util.Log.e("DEBUG", "🔵 MainAppScaffold: NavHost criado")
+            composable(BottomNavItem.Assistente.route) {
+                AssistenteScreen(baseId = baseId)
+            }
             composable(BottomNavItem.Operation.route) {
-                // OperationalDashboardScreen mostra a aba de Operação/Ondas
-                OperationalDashboardScreen(baseId = baseId)
+                // OperationalDashboardScreen mostra a aba de Operação/Ondas (Operações do Dia)
+                OperationalDashboardScreen(
+                    baseId = baseId,
+                    onOpenAssistente = { navController.navigate(BottomNavItem.Assistente.route) }
+                )
             }
             composable(BottomNavItem.Availability.route) {
                 // Nova tela de Disponibilidade
@@ -67,8 +123,16 @@ fun MainAppScaffold(
                     onUserManagementClick = onNavigateToUserManagement,
                     onQuinzenaClick = { navController.navigate(Routes.QuinzenaList.route) },
                     onDevolucaoClick = { navController.navigate(Routes.AdminDevolucoes.route) },
+                    onPlanosClick = { navController.navigate(Routes.Planos.route) },
+                    showPlanosButton = planosHabilitados,
                     onFeedbackClick = { navController.navigate(Routes.AdminFeedback.route) },
                     onLogout = onLogout
+                )
+            }
+            composable(Routes.Planos.route) {
+                PlanosScreen(
+                    baseId = baseId,
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable("quinzena_list") {
@@ -98,7 +162,7 @@ fun MainAppScaffold(
                     onBack = { navController.popBackStack() }
                 )
             }
-            
+
             // Rotas de Devolução (Admin)
             composable(Routes.AdminDevolucoes.route) {
                 android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: AdminDevolucoes route composable REGISTERED - route: ${Routes.AdminDevolucoes.route}")
@@ -167,6 +231,7 @@ fun MainAppScaffold(
                     viewModel = devolucaoViewModel
                 )
             }
+        }
         }
     }
 }

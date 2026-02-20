@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import com.controleescalas.app.data.SessionManager
 import com.controleescalas.app.data.models.SavedSession
 import com.controleescalas.app.data.repositories.BaseRepository
+import com.controleescalas.app.data.repositories.SistemaRepository
 import com.controleescalas.app.ui.screens.*
 import com.controleescalas.app.ui.screens.DriverAppScaffold
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
@@ -55,6 +56,8 @@ sealed class Routes(val route: String) {
     object SuperAdminApp : Routes("superadmin_app") // ✅ NOVO: App dedicado do Super Admin
     object AdminDevolucoes : Routes("admin_devolucoes")
     object AdminDevolucaoDetalhes : Routes("admin_devolucao_detalhes")
+    object Planos : Routes("planos")
+    object Assistente : Routes("assistente")
 }
 
 @Composable
@@ -455,6 +458,11 @@ fun AppNavHost() {
         composable(Routes.AdminPanel.route) {
             val viewModel: AdminViewModel = viewModel()
             val isSuperAdmin = currentUserRole.value == "superadmin"
+            var planosHabilitados by remember { mutableStateOf(false) }
+            
+            LaunchedEffect(Unit) {
+                planosHabilitados = SistemaRepository().getConfiguracao().planosHabilitados
+            }
             
             println("🔵 AppNav: Renderizando AdminPanelScreen")
             println("🔵 AppNav: baseId = ${currentUserBaseId.value}")
@@ -484,6 +492,8 @@ fun AppNavHost() {
                         e.printStackTrace()
                     }
                 },
+                onPlanosClick = { navController.navigate(Routes.Planos.route) },
+                showPlanosButton = planosHabilitados,
                 onBaseApprovalClick = { navController.navigate(Routes.BaseApproval.route) },
                 onFeedbackClick = {
                     navController.navigate(Routes.AdminFeedback.route)
@@ -740,11 +750,23 @@ fun AppNavHost() {
             )
         }
 
+        composable(Routes.Planos.route) {
+            PlanosScreen(
+                baseId = currentUserBaseId.value ?: "",
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable(Routes.Scale.route) {
             ScaleScreen(
                 baseId = currentUserBaseId.value ?: "",
-                onVoltar = { navController.popBackStack() }
+                onVoltar = { navController.popBackStack() },
+                onOpenAssistente = { navController.navigate(Routes.Assistente.route) }
             )
+        }
+
+        composable(Routes.Assistente.route) {
+            AssistenteScreen(baseId = currentUserBaseId.value ?: "")
         }
 
         composable(Routes.LocationConfig.route) {
