@@ -395,6 +395,7 @@ def assistente_chat():
     Header: Authorization: Bearer <Firebase ID Token>
     """
     try:
+        initialize_services()
         uid, err = _verify_firebase_token()
         if err:
             return jsonify(err[0]), err[1]
