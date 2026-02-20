@@ -5,10 +5,11 @@ Lê tokens FCM do Firestore para uma base específica.
 Conecta ao Firestore usando Firebase Admin SDK com Service Account.
 """
 
+import os
+from collections import Counter
+from typing import List, Dict, Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
-from typing import List, Dict, Optional
-import os
 
 
 class FirestoreReader:
@@ -332,7 +333,7 @@ class FirestoreReader:
             except Exception as e_q:
                 print(f"get_contexto quinzena: {e_q}")
 
-            # --- DEVOLUÇÕES: organizado por motorista, com data, hora, id, quantidade e lista de IDs dos pacotes ---
+            # --- DEVOLUÇÕES: por motorista → Total por dia → depois cada devolução (data hora — N pacotes. IDs: ...) ---
             try:
                 dev_ref = base_ref.collection('devolucoes')
                 dev_docs = list(dev_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(50).stream())
@@ -364,16 +365,19 @@ class FirestoreReader:
                         by_motorista.setdefault(quem, []).append(entry)
                     dev_blocks = []
                     for motorista, entradas in sorted(by_motorista.items(), key=lambda x: x[0]):
-                        linhas = [f"Motorista: {motorista}"]
+                        # Total por dia (agrupar por data)
+                        por_dia = Counter(e["data"] for e in entradas[:15] if e.get("data"))
+                        total_por_dia = "; ".join(f"{data} {c} devolução(ões)" for data, c in sorted(por_dia.items()))
+                        linhas = [f"[Motorista: {motorista}]", f"Total por dia: {total_por_dia}."]
                         for e in entradas[:15]:
                             data_hora = f"{e['data']} {e['hora']}".strip()
-                            ids_str = ", ".join(e["ids"][:20]) if e["ids"] else "(sem IDs)"
-                            if len(e["ids"]) > 20:
-                                ids_str += f" ... (+{len(e['ids']) - 20} mais)"
-                            linhas.append(f"  - {data_hora}: {e['qtd']} pacote(s). id={e['id']}. IDs dos pacotes: {ids_str}")
+                            ids_str = ", ".join(e["ids"][:30]) if e["ids"] else "(sem IDs)"
+                            if len(e["ids"]) > 30:
+                                ids_str += f" ... (+{len(e['ids']) - 30} mais)"
+                            linhas.append(f"  • {data_hora} — {e['qtd']} pacote(s). IDs: {ids_str}")
                         dev_blocks.append("\n".join(linhas))
                     if dev_blocks:
-                        parts.append("Devoluções (por motorista, com data, hora, id da devolução e IDs dos pacotes):")
+                        parts.append("Devoluções (apresente EXATAMENTE neste formato: primeiro Total por dia do motorista, depois cada linha com data hora — N pacotes. IDs: ...):")
                         parts.append("\n".join(dev_blocks))
             except Exception as e_dev:
                 print(f"get_contexto devolucoes: {e_dev}")

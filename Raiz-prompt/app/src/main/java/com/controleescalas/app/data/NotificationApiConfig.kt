@@ -23,9 +23,9 @@ object NotificationApiConfig {
     
     /**
      * Timeout em segundos para requisições HTTP
-     * Render free tier pode demorar ~50s para "acordar" após inatividade
+     * Render free tier pode demorar ~50s para "acordar" após inatividade; 65s evita falha no primeiro envio
      */
-    const val TIMEOUT_SECONDS = 45L
+    const val TIMEOUT_SECONDS = 65L
     
     /**
      * Endpoints da API

@@ -70,8 +70,18 @@ def initialize_services():
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Endpoint de health check"""
+    """Endpoint de health check (não inicializa FCM; servidor pode estar acordando)."""
     return jsonify({"status": "ok", "message": "API FCM está funcionando"})
+
+
+@app.route('/health/ready', methods=['GET'])
+def health_ready():
+    """Verifica se o backend está pronto para enviar notificações (inicializa FCM). Útil para diagnóstico."""
+    try:
+        initialize_services()
+        return jsonify({"status": "ok", "ready": True, "message": "FCM inicializado"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "ready": False, "error": str(e)}), 500
 
 
 @app.route('/notify/motorista', methods=['POST'])
@@ -430,12 +440,15 @@ def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_bas
     prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada linha no formato: Nome / Vaga / Rota, agrupando por ondas (1a onda, 2a onda, etc.) se houver."
     try:
         system_instruction = (
+            "IMPORTANTE: Nunca responda com JSON, códigos ou estruturas técnicas. O usuário deve ver APENAS texto em português. "
+            "Quando for aplicar uma alteração (ex.: mudar rota/vaga), escreva primeiro uma frase curta e amigável (ex.: 'Pronto, alterei a rota do Michell para K7.' ou 'Alterado: vaga 10 e rota K7 para o Michell.'). "
+            "Em seguida, em uma linha separada, coloque EXATAMENTE: ACTION_JSON:{\"type\":\"...\", ...} (essa linha será removida e não aparece para o usuário). Use o nome exato do campo ondaIndex (não ondalndex). "
             "Você é o assistente do app Controle de Escalas. Responda APENAS sobre: escalas de motoristas, "
             "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena e devoluções. "
             "Nos DADOS DA BASE você recebe: por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
             "tempo estimado ao galpão (ETA por motorista); disponibilidade (quem está disponível/indisponível/não respondeu por data); "
-            "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções por motorista com data, hora, id da devolução, quantidade de pacotes e lista dos IDs dos pacotes. "
-            "Ao falar de devoluções: organize por motorista; para cada devolução informe data, hora, quantidade e, se o usuário pedir os IDs, liste os IDs dos pacotes de forma clara (em tópicos ou numerada). "
+            "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções por motorista com Total por dia e cada devolução com data, hora, N pacotes e IDs. "
+            "Ao falar de DEVOLUÇÕES use SEMPRE este formato: (1) Nome do motorista. (2) 'Total por dia: [data1] X devolução(ões); [data2] Y devolução(ões); ...' (3) Para cada devolução uma linha: 'DD/MM/AAAA HH:MM — N pacote(s). IDs: id1, id2, id3, ...' Não misture 'ID da devolução' no texto; não use lista numerada 1. 2. 3.; use só Total por dia e depois linhas com data hora — pacotes e IDs. "
             "Use esses dados para responder com números e nomes reais. "
             "Mantenha o contexto da conversa: se o usuário confirmar algo (ex: 'confirmado', 'sim'), interprete com base nas mensagens anteriores. "
             "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app. "
@@ -528,9 +541,8 @@ def assistente_chat():
                 "error": "Assistente indisponível. Verifique HUGGINGFACE_TOKEN no servidor."
             }), 500
 
-        # Extrair ação estruturada se o modelo retornou ACTION_JSON (ex.: adicionar motorista à escala)
+        # Extrair ação estruturada se o modelo retornou ACTION_JSON (ex.: adicionar/atualizar na escala)
         action = None
-        import re
         idx = result_text.find("ACTION_JSON:")
         if idx >= 0:
             start = result_text.find("{", idx)
@@ -548,7 +560,29 @@ def assistente_chat():
                     except Exception:
                         pass
 
-        resp_data = {"text": result_text, "ok": True}
+        # Fallback: se a resposta for só um JSON (modelo esqueceu de usar ACTION_JSON:), extrair ação e não mostrar código
+        if action is None:
+            trimmed = result_text.strip()
+            if trimmed.startswith("{") and "}" in trimmed:
+                try:
+                    end_brace = trimmed.rfind("}")
+                    if end_brace > 0:
+                        candidate = trimmed[: end_brace + 1]
+                        parsed = json.loads(candidate)
+                        if isinstance(parsed, dict) and parsed.get("type") in ("update_in_scale", "add_to_scale"):
+                            action = parsed
+                            result_text = "Alteração aplicada."
+                except Exception:
+                    pass
+
+        # Normalizar ação: garantir "ondaIndex" (modelo às vezes envia "ondalndex")
+        if action and isinstance(action, dict):
+            for key in list(action.keys()):
+                if key == "ondalndex" or key == "onda_index":
+                    action["ondaIndex"] = action.pop(key)
+                    break
+
+        resp_data = {"text": result_text.strip() or "Feito.", "ok": True}
         if action:
             resp_data["action"] = action
         return jsonify(resp_data), 200

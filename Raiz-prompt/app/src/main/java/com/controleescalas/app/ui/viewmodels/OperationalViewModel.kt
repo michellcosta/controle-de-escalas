@@ -15,7 +15,6 @@ import com.controleescalas.app.data.models.toAdminMotoristaCardData
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.MetadataChanges
-import com.controleescalas.app.data.FCMSender
 import com.controleescalas.app.data.NetworkUtils
 import com.controleescalas.app.data.RetryUtils
 import com.controleescalas.app.data.NotificationApiService
@@ -1470,31 +1469,25 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     }
                 }
                 
-                // 2. Enviar notificações push via FCM (substitui Cloud Function)
+                // 2. Enviar notificações push via backend Python (cada motorista = 1 Worker → POST /notify/motorista)
                 if (motoristaIds.isNotEmpty()) {
                     try {
-                        val fcmSender = FCMSender()
-                        val (sucessos, falhas) = fcmSender.notifyMotoristasEscalados(
-                            baseId = currentBaseId,
-                            motoristaIds = motoristaIds,
-                            title = "🚛 Você foi escalado!",
-                            body = "Você está escalado! Siga para o galpão e aguarde instruções."
-                        )
-                        
-                        if (sucessos > 0) {
-                            Log.d("OperationalViewModel", "✅ Notificações processadas: $sucessos motoristas com FCM token")
+                        val title = "🚛 Você foi escalado!"
+                        val body = "Você está escalado! Siga para o galpão e aguarde instruções."
+                        val data = mapOf("tipo" to "escalacao")
+                        motoristaIds.forEach { motoristaId ->
+                            NotifyMotoristaWorker.enqueue(
+                                context = getApplication(),
+                                baseId = currentBaseId,
+                                motoristaId = motoristaId,
+                                title = title,
+                                body = body,
+                                data = data
+                            )
                         }
-                        if (falhas > 0) {
-                            Log.w("OperationalViewModel", "⚠️ $falhas motorista(s) sem FCM token - receberão notificação via listener do Firestore")
-                        }
-                        
-                        // NOTA: As notificações reais são enviadas pelos listeners do Firestore
-                        // que detectam mudanças na escala e enviam notificações locais
-                        Log.d("OperationalViewModel", "✅ Notificações serão enviadas via listeners do Firestore")
+                        Log.d("OperationalViewModel", "✅ Notificações push enfileiradas para ${motoristaIds.size} motoristas (backend Python)")
                     } catch (e: Exception) {
-                        Log.e("OperationalViewModel", "❌ Erro ao processar notificações FCM: ${e.message}", e)
-                        // Continuar mesmo se falhar, pois já atualizou status e os listeners do Firestore
-                        // vão enviar as notificações automaticamente
+                        Log.e("OperationalViewModel", "❌ Erro ao enfileirar notificações: ${e.message}", e)
                     }
                 }
                 

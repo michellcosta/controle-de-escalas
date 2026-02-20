@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -27,12 +28,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.theme.*
@@ -65,6 +69,8 @@ fun AssistenteScreen(
     val scope = rememberCoroutineScope()
     val lastPhotoPath = remember { mutableStateOf<String?>(null) }
     var isListening by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    var requestFocusAfterSpeech by remember { mutableStateOf(false) }
 
     fun runRecognition() {
         val recognizer = SpeechRecognizer.createSpeechRecognizer(context)
@@ -87,15 +93,21 @@ fun AssistenteScreen(
                 scope.launch { snackbarHostState.showSnackbar(message = msg, duration = SnackbarDuration.Short) }
             }
             override fun onResults(bundle: Bundle?) {
-                isListening = false
                 val results = bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val text = results?.firstOrNull()?.trim()
-                if (!text.isNullOrBlank()) inputText = text
                 recognizer.destroy()
+                scope.launch {
+                    isListening = false
+                    if (!text.isNullOrBlank()) inputText = text
+                    requestFocusAfterSpeech = true
+                }
             }
             override fun onPartialResults(partialResults: Bundle?) {
                 val results = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                results?.firstOrNull()?.trim()?.takeIf { it.isNotBlank() }?.let { inputText = it }
+                val partial = results?.firstOrNull()?.trim()
+                if (!partial.isNullOrBlank()) {
+                    scope.launch { inputText = partial }
+                }
             }
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
@@ -106,6 +118,14 @@ fun AssistenteScreen(
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
         recognizer.startListening(intent)
+    }
+
+    LaunchedEffect(requestFocusAfterSpeech) {
+        if (requestFocusAfterSpeech) {
+            requestFocusAfterSpeech = false
+            delay(100)
+            focusRequester.requestFocus()
+        }
     }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
@@ -242,6 +262,10 @@ fun AssistenteScreen(
             }
 
             Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .padding(bottom = 12.dp),
                 color = DarkSurface,
                 shadowElevation = 8.dp
             ) {
@@ -344,6 +368,7 @@ fun AssistenteScreen(
                             onValueChange = { inputText = it },
                             modifier = Modifier
                                 .weight(1f)
+                                .focusRequester(focusRequester)
                                 .background(DarkSurfaceVariant, RoundedCornerShape(24.dp))
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),
@@ -352,10 +377,11 @@ fun AssistenteScreen(
                                 Box(modifier = Modifier.fillMaxWidth()) {
                                     if (inputText.isEmpty()) {
                                         Text(
-                                            if (selectedImageUri != null)
-                                                "Digite o que deseja fazer com a imagem..."
-                                            else
-                                                "Digite ou envie mídia...",
+                                            when {
+                                                selectedImageUri != null -> "Digite o que deseja fazer com a imagem..."
+                                                isListening -> "Ouvindo... (o que você disser aparecerá aqui)"
+                                                else -> "Digite ou envie mídia..."
+                                            },
                                             color = TextGray,
                                             style = MaterialTheme.typography.bodyLarge
                                         )
