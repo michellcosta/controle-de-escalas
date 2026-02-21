@@ -1165,75 +1165,53 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                         val rota = action.rota ?: ""
                         val sacas = action.sacas
 
-                        // 1. Verificar se já existe em alguma onda
-                        var found = false
-                        for ((idx, o) in ondas.withIndex()) {
-                            val existing = o.itens.find { it.motoristaId == motoristaId }
-                            if (existing != null) {
-                                val itemIdx = o.itens.indexOf(existing)
-                                if (itemIdx >= 0) {
-                                    val itensOnda = o.itens.toMutableList()
-                                    val vagaNormalized = vaga.trim().takeIf { it.isNotBlank() }?.let { if (it.length == 1) "0$it" else it } ?: existing.vaga
-                                    val rotaNormalized = rota.trim().takeIf { it.isNotBlank() }?.uppercase() ?: existing.rota
-                                    val sacasNormalized = sacas ?: existing.sacas
-                                    
-                                    itensOnda[itemIdx] = existing.copy(
-                                        vaga = vagaNormalized,
-                                        rota = rotaNormalized,
-                                        sacas = sacasNormalized
-                                    )
-                                    ondas[idx] = o.copy(itens = itensOnda.sortedBy { it.vaga.toIntOrNull() ?: Int.MAX_VALUE })
-                                    found = true
-                                    
-                                    // Atualizar status individual (pode ser paralelo, mas aqui é seguro)
-                                    try {
-                                        motoristaRepository.updateStatusMotorista(
-                                            motoristaId = motoristaId,
-                                            baseId = currentBaseId,
-                                            estado = "A_CAMINHO",
-                                            vagaAtual = vagaNormalized,
-                                            rotaAtual = rotaNormalized,
-                                            mensagem = "Dados atualizados!"
-                                        )
-                                    } catch (_: Exception) {}
-                                }
-                                break
+                        // 1. Remover de qualquer onda que ele já esteja (Troca de onda/vaga limpa)
+                        for (i in ondas.indices) {
+                            val itensFiltrados = ondas[i].itens.filter { it.motoristaId != motoristaId }
+                            if (itensFiltrados.size != ondas[i].itens.size) {
+                                ondas[i] = ondas[i].copy(itens = itensFiltrados)
                             }
                         }
 
-                        if (!found) {
-                            // 2. Adicionar como novo se não encontrado ou se for explicitamente ADD
-                            while (ondaIndex >= ondas.size) {
-                                val num = ondas.size + 1
-                                ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
-                            }
+                        // 2. Garantir que a onda de destino existe
+                        while (ondaIndex >= ondas.size) {
+                            val num = ondas.size + 1
+                            ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+                        }
 
-                            val onda = ondas[ondaIndex]
-                            val novoItem = OndaItem(
+                        // 3. Adicionar na onda correta com os dados novos
+                        val targetOnda = ondas[ondaIndex]
+                        val vagaNormalized = vaga.trim().let { v -> 
+                            if (v.isEmpty()) "" else if (v.length == 1) "0$v" else v 
+                        }
+                        val rotaNormalized = rota.trim().uppercase()
+                        
+                        val novoItem = OndaItem(
+                            motoristaId = motoristaId,
+                            nome = nome,
+                            horario = targetOnda.horario,
+                            vaga = vagaNormalized,
+                            rota = rotaNormalized,
+                            sacas = sacas,
+                            modalidade = "FROTA"
+                        )
+                        
+                        val itensAtualizados = (targetOnda.itens + novoItem).sortedBy { 
+                            it.vaga.toIntOrNull() ?: Int.MAX_VALUE 
+                        }
+                        ondas[ondaIndex] = targetOnda.copy(itens = itensAtualizados)
+
+                        // 4. Atualizar status individual no Firestore
+                        try {
+                            motoristaRepository.updateStatusMotorista(
                                 motoristaId = motoristaId,
-                                nome = nome,
-                                horario = onda.horario,
-                                vaga = vaga.trim().let { if (it.length == 1) "0$it" else it },
-                                rota = rota.trim().uppercase(),
-                                sacas = sacas,
-                                modalidade = "FROTA"
+                                baseId = currentBaseId,
+                                estado = "A_CAMINHO",
+                                mensagem = "Dados atualizados via Assistente!",
+                                vagaAtual = vagaNormalized.takeIf { it.isNotBlank() },
+                                rotaAtual = rotaNormalized.takeIf { it.isNotBlank() }
                             )
-                            val itensAtualizados = (onda.itens + novoItem).sortedBy { 
-                                it.vaga.toIntOrNull() ?: Int.MAX_VALUE 
-                            }
-                            ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
-
-                            try {
-                                motoristaRepository.updateStatusMotorista(
-                                    motoristaId = motoristaId,
-                                    baseId = currentBaseId,
-                                    estado = "A_CAMINHO",
-                                    mensagem = "Você está escalado!",
-                                    vagaAtual = novoItem.vaga.takeIf { it.isNotBlank() },
-                                    rotaAtual = novoItem.rota.takeIf { it.isNotBlank() }
-                                )
-                            } catch (_: Exception) {}
-                        }
+                        } catch (_: Exception) {}
                     }
 
                     val updatedEscala = currentEscala.copy(ondas = ondas, data = dataEscala)
@@ -1244,10 +1222,10 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     updateOndasForCurrentTurno()
                     escalaRepository.saveEscala(currentBaseId, updatedEscala)
                 }
-                _message.value = "Escala atualizada (${actions.size} alterações)"
+                _message.value = "Escala atualizada (${actions.size} motoristas)"
             } catch (e: Exception) {
                 Log.e("OperationalViewModel", "Erro no bulk apply: ${e.message}", e)
-                _error.value = "Erro ao atualizar escala: ${e.message}"
+                _error.value = "Erro ao atualizar: ${e.message}"
             }
         }
     }

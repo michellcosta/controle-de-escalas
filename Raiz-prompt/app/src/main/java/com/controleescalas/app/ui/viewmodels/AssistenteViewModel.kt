@@ -78,23 +78,29 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private fun findMotoristaByName(baseId: String, searchName: String, preFetched: List<com.controleescalas.app.data.models.AdminMotoristaCardData>? = null): Pair<String, String>? {
-        val searchNorm = normalizeForCompare(searchName)
-        val motoristas = preFetched ?: run {
-            // Se não fornecido, buscar de forma bloqueante (ou suspensa)
-            // Para simplificar no contexto de suspend, vamos assumir que quem chama coordena
-            null
-        } ?: return null // Agora findMotoristaByName assume que recebe a lista ou falha
+        val searchNorm = normalizeForCompare(searchName).trim()
+        if (searchNorm.isEmpty()) return null
+        val motoristas = preFetched ?: return null
         
-        return motoristas
-            .filter { it.papel == "motorista" }
-            .map { it to normalizeForCompare(it.nome) }
-            .firstOrNull { (m, norm) ->
-                norm.contains(searchNorm) || searchNorm.contains(norm) ||
-                    m.nome.lowercase().split(" ").any { part ->
-                        part.contains(searchNorm) || searchNorm.contains(part)
-                    }
+        val candidates = motoristas.filter { it.papel == "motorista" }
+            .map { it to normalizeForCompare(it.nome).trim() }
+
+        // 1. Busca Exata (Normalizada) - Prioridade Máxima
+        candidates.firstOrNull { it.second == searchNorm }?.let { return it.first.id to it.first.nome }
+
+        // 2. Busca por Partes Relevantes (mínimo 3 caracteres para evitar iniciais como "A." ou "F.")
+        return candidates.firstOrNull { (m, norm) ->
+            val searchWords = searchNorm.split(" ").filter { it.length >= 3 }
+            val nameWords = norm.split(" ").filter { it.length >= 3 }
+            
+            // Se o termo de busca for curto (ex: "Gil"), permitimos se bater com o início de alguma palavra do nome
+            if (searchNorm.length >= 3 && norm.startsWith(searchNorm)) return@firstOrNull true
+
+            // Se as palavras principais baterem
+            searchWords.any { sw -> 
+                nameWords.any { nw -> nw.startsWith(sw) || sw.startsWith(nw) }
             }
-            ?.let { (m, _) -> m.id to m.nome }
+        }?.let { (m, _) -> m.id to m.nome }
     }
 
     /**
