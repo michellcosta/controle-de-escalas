@@ -22,4 +22,5 @@ flask-cors>=4.0.0
 # Gunicorn para produção (servidor WSGI)
 gunicorn>=21.2.0
 
-# Assistente usa apenas Hugging Face (HUGGINGFACE_TOKEN)
+# OpenAI SDK para o Assistente (GPT-4o-mini)
+openai>=1.30.0

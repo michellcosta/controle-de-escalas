@@ -14,6 +14,7 @@ Ou com gunicorn (produção):
 import os
 import json
 import requests as http_requests
+import openai
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from firebase_admin import auth, firestore
@@ -23,6 +24,13 @@ from typing import Optional, Tuple
 
 app = Flask(__name__)
 CORS(app)  # Permitir requisições do app Android
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    """Garante que erros 500 retornem JSON para o app não exibir HTML."""
+    return jsonify({"error": "Erro interno no servidor. Tente novamente."}), 500
+
 
 # Inicializar serviços (serão inicializados na primeira requisição)
 reader: Optional[FirestoreReader] = None
@@ -71,7 +79,14 @@ def initialize_services():
 @app.route('/health', methods=['GET'])
 def health():
     """Endpoint de health check (não inicializa FCM; servidor pode estar acordando)."""
-    return jsonify({"status": "ok", "message": "API FCM está funcionando"})
+    modelo = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+    tem_chave = bool(os.getenv('OPENAI_API_KEY'))
+    return jsonify({
+        "status": "ok",
+        "message": "API FCM está funcionando",
+        "assistente_modelo": modelo,
+        "openai_configurado": tem_chave,
+    })
 
 
 @app.route('/health/ready', methods=['GET'])
@@ -427,77 +442,86 @@ def location_receive():
         return jsonify({"error": str(e)}), 500
 
 
-def _assistente_via_huggingface(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None) -> Optional[str]:
-    """Usa Hugging Face Router API (OpenAI-compatible). Visão + texto ou só texto. context_base = dados reais da base. history = lista de {role, content} para manter contexto."""
-    hf_token = os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_TOKEN')
-    if not hf_token:
+# Prompt de sistema compartilhado pelo assistente (mesmo para texto e visão)
+_SYSTEM_PROMPT = (
+    "IMPORTANTE: Nunca responda com JSON, códigos ou estruturas técnicas. O usuário deve ver APENAS texto em português. "
+    "Quando for aplicar uma alteração (ex.: mudar rota/vaga), escreva primeiro uma frase curta e amigável (ex.: 'Pronto, alterei a rota do Michell para K7.' ou 'Alterado: vaga 10 e rota K7 para o Michell.'). "
+    "Em seguida, em uma linha separada, coloque EXATAMENTE: ACTION_JSON:{\"type\":\"...\", ...} (essa linha será removida e não aparece para o usuário). Use o nome exato do campo ondaIndex (não ondalndex). "
+    "Você é o assistente do app Controle de Escalas. Responda APENAS sobre: escalas de motoristas, "
+    "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena e devoluções. "
+    "Nos DADOS DA BASE você recebe: por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
+    "tempo estimado ao galpão (ETA por motorista); disponibilidade (quem está disponível/indisponível/não respondeu por data); "
+    "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções por motorista com Total por dia e cada devolução com data, hora, N pacotes e IDs. "
+    "Ao falar de DEVOLUÇÕES use SEMPRE este formato: (1) Nome do motorista. (2) 'Total por dia: [data1] X devolução(ões); [data2] Y devolução(ões); ...' (3) Para cada devolução uma linha: 'DD/MM/AAAA HH:MM — N pacote(s). IDs: id1, id2, id3, ...' Não misture 'ID da devolução' no texto; não use lista numerada 1. 2. 3.; use só Total por dia e depois linhas com data hora — pacotes e IDs. "
+    "Use esses dados para responder com números e nomes reais. "
+    "Mantenha o contexto da conversa: se o usuário confirmar algo (ex: 'confirmado', 'sim'), interprete com base nas mensagens anteriores. "
+    "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app. "
+    "REGRA ESCALA: (1) Quem já está escalado está na lista 'Detalhe da escala' / 'Motoristas já escalados'. NUNCA adicione o mesmo motorista de novo. "
+    "(2) Se o usuário pedir para TROCAR/ALTERAR/MUDAR vaga, rota ou sacas de alguém que JÁ ESTÁ escalado: use ACTION_JSON com type \"update_in_scale\" e preencha só o que mudou: {\"type\":\"update_in_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"02\" (opcional),\"rota\":\"G9\" (opcional),\"sacas\":4 (opcional ou null)}. ondaIndex = onda em que o motorista está (0 = primeira). "
+    "(3) Se o usuário pedir para ADICIONAR/COLOCAR um motorista que AINDA NÃO ESTÁ na escala: você PRECISA de rota (e opcionalmente sacas). Se o usuário só disser 'adicionar Brendon na vaga 1' sem rota, NÃO emita ACTION_JSON; pergunte: 'Qual a rota do Brendon? Tem sacas?' e espere a resposta. Quando tiver rota (e sacas se aplicável), aí sim emita: {\"type\":\"add_to_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"01\",\"rota\":\"G9\",\"sacas\":null ou número}. "
+    "(4) Só use add_to_scale para motoristas que NÃO aparecem na escala. Para quem já está escalado, use sempre update_in_scale. vaga sempre 2 dígitos (01, 02). rota em maiúsculas."
+    "\n\nQUANDO RECEBER UMA FOTO: Se a imagem contiver uma escala (lista com nomes, vagas e/ou rotas), extraia TODOS os motoristas identificados e emita um ACTION_JSON para cada um, usando add_to_scale ou update_in_scale conforme o caso. Emita os ACTION_JSON um por linha, um para cada motorista. Confirme com texto amigável o que foi feito."
+)
+
+
+def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None) -> Optional[str]:
+    """Usa OpenAI GPT-4o-mini. Suporta visão (imagem base64) + texto e histórico de conversa."""
+    api_key = os.getenv('OPENAI_API_KEY')
+    if not api_key:
+        print("OPENAI_API_KEY não configurada.")
         return None
-    url = "https://router.huggingface.co/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
-    model_vision = os.getenv('HF_VISION_MODEL', 'zai-org/GLM-4.5V')
-    model_text = os.getenv('HF_TEXT_MODEL', 'Qwen/Qwen2.5-7B-Instruct')
-    model = model_vision if image_b64 else model_text
-    prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada linha no formato: Nome / Vaga / Rota, agrupando por ondas (1a onda, 2a onda, etc.) se houver."
+
+    client = openai.OpenAI(api_key=api_key)
+    model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+    prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada motorista com vaga e rota, agrupando por ondas se houver."
+
+    system_instruction = _SYSTEM_PROMPT
+    if context_base and context_base.strip():
+        system_instruction += "\n\nDADOS DA BASE (use para responder): " + context_base.strip()
+
+    messages = [{"role": "system", "content": system_instruction}]
+
+    # Adicionar histórico de conversa
+    for h in (history or []):
+        role = (h.get("role") or "user").strip().lower()
+        if role not in ("user", "assistant"):
+            continue
+        msg_content = (h.get("content") or h.get("text") or "").strip()
+        if msg_content:
+            messages.append({"role": role, "content": msg_content})
+
+    # Última mensagem do usuário (texto + imagem opcional)
+    if image_b64:
+        user_content = [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {
+                "url": f"data:image/jpeg;base64,{image_b64}",
+                "detail": "high"
+            }},
+        ]
+    else:
+        user_content = prompt
+
+    messages.append({"role": "user", "content": user_content})
+
     try:
-        system_instruction = (
-            "IMPORTANTE: Nunca responda com JSON, códigos ou estruturas técnicas. O usuário deve ver APENAS texto em português. "
-            "Quando for aplicar uma alteração (ex.: mudar rota/vaga), escreva primeiro uma frase curta e amigável (ex.: 'Pronto, alterei a rota do Michell para K7.' ou 'Alterado: vaga 10 e rota K7 para o Michell.'). "
-            "Em seguida, em uma linha separada, coloque EXATAMENTE: ACTION_JSON:{\"type\":\"...\", ...} (essa linha será removida e não aparece para o usuário). Use o nome exato do campo ondaIndex (não ondalndex). "
-            "Você é o assistente do app Controle de Escalas. Responda APENAS sobre: escalas de motoristas, "
-            "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena e devoluções. "
-            "Nos DADOS DA BASE você recebe: por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
-            "tempo estimado ao galpão (ETA por motorista); disponibilidade (quem está disponível/indisponível/não respondeu por data); "
-            "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções por motorista com Total por dia e cada devolução com data, hora, N pacotes e IDs. "
-            "Ao falar de DEVOLUÇÕES use SEMPRE este formato: (1) Nome do motorista. (2) 'Total por dia: [data1] X devolução(ões); [data2] Y devolução(ões); ...' (3) Para cada devolução uma linha: 'DD/MM/AAAA HH:MM — N pacote(s). IDs: id1, id2, id3, ...' Não misture 'ID da devolução' no texto; não use lista numerada 1. 2. 3.; use só Total por dia e depois linhas com data hora — pacotes e IDs. "
-            "Use esses dados para responder com números e nomes reais. "
-            "Mantenha o contexto da conversa: se o usuário confirmar algo (ex: 'confirmado', 'sim'), interprete com base nas mensagens anteriores. "
-            "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app. "
-            "REGRA ESCALA: (1) Quem já está escalado está na lista 'Detalhe da escala' / 'Motoristas já escalados'. NUNCA adicione o mesmo motorista de novo. "
-            "(2) Se o usuário pedir para TROCAR/ALTERAR/MUDAR vaga, rota ou sacas de alguém que JÁ ESTÁ escalado: use ACTION_JSON com type \"update_in_scale\" e preencha só o que mudou: {\"type\":\"update_in_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"02\" (opcional),\"rota\":\"G9\" (opcional),\"sacas\":4 (opcional ou null)}. ondaIndex = onda em que o motorista está (0 = primeira). "
-            "(3) Se o usuário pedir para ADICIONAR/COLOCAR um motorista que AINDA NÃO ESTÁ na escala: você PRECISA de rota (e opcionalmente sacas). Se o usuário só disser 'adicionar Brendon na vaga 1' sem rota, NÃO emita ACTION_JSON; pergunte: 'Qual a rota do Brendon? Tem sacas?' e espere a resposta. Quando tiver rota (e sacas se aplicável), aí sim emita: {\"type\":\"add_to_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"01\",\"rota\":\"G9\",\"sacas\":null ou número}. "
-            "(4) Só use add_to_scale para motoristas que NÃO aparecem na escala. Para quem já está escalado, use sempre update_in_scale. vaga sempre 2 dígitos (01, 02). rota em maiúsculas."
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=1500,
+            temperature=0.2,  # Mais determinístico para ações estruturadas
         )
-        if context_base and context_base.strip():
-            system_instruction += "\n\nDADOS DA BASE (use para responder): " + context_base.strip()
-        if image_b64:
-            content = [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
-            ]
-        else:
-            content = prompt
-        messages = [{"role": "system", "content": system_instruction}]
-        for h in (history or []):
-            role = (h.get("role") or "user").strip().lower()
-            if role not in ("user", "assistant"):
-                continue
-            msg_content = (h.get("content") or h.get("text") or "").strip()
-            if msg_content:
-                messages.append({"role": role, "content": msg_content})
-        messages.append({"role": "user", "content": content})
-        payload = {
-            "model": model,
-            "messages": messages,
-            "max_tokens": 1024,
-        }
-        resp = http_requests.post(url, json=payload, headers=headers, timeout=90)
-        if not resp.ok:
-            err = resp.text
-            try:
-                j = resp.json()
-                err = j.get("error", {}).get("message") or j.get("error") or err
-            except Exception:
-                pass
-            print(f"HF API error {resp.status_code}: {err}")
-            return None
-        out = resp.json()
-        choice = (out.get("choices") or [None])[0]
-        if not choice:
-            return None
-        msg = choice.get("message") or {}
-        return (msg.get("content") or "").strip()
+        result = (response.choices[0].message.content or "").strip()
+        print(f"✅ OpenAI {model} respondeu ({len(result)} chars)")
+        return result
+    except openai.AuthenticationError:
+        print("❌ OpenAI: OPENAI_API_KEY inválida.")
+        return None
+    except openai.RateLimitError:
+        print("❌ OpenAI: Rate limit atingido.")
+        return None
     except Exception as e:
-        print(f"HF request failed: {e}")
+        print(f"❌ OpenAI request failed: {e}")
         return None
 
 
@@ -532,13 +556,16 @@ def assistente_chat():
             return jsonify({"error": "baseId é obrigatório"}), 400
         if not text and not image_b64:
             return jsonify({"error": "text ou imageBase64 é obrigatório"}), 400
+        # Imagem muito grande pode causar timeout ou erro no modelo de visão
+        if image_b64 and len(image_b64) > 3_500_000:
+            return jsonify({"error": "Imagem muito grande. Use uma foto menor (menos de ~2,5 MB)."}), 400
 
         contexto_base = reader.get_contexto_base_para_assistente(base_id) if reader else ""
-        result_text = _assistente_via_huggingface(text, image_b64, context_base=contexto_base, history=history)
+        result_text = _assistente_via_openai(text, image_b64, context_base=contexto_base, history=history)
 
         if result_text is None or result_text == "":
             return jsonify({
-                "error": "Assistente indisponível. Verifique HUGGINGFACE_TOKEN no servidor."
+                "error": "Assistente indisponível. Verifique OPENAI_API_KEY no servidor."
             }), 500
 
         # Extrair ação estruturada se o modelo retornou ACTION_JSON (ex.: adicionar/atualizar na escala)

@@ -6,6 +6,7 @@ Conecta ao Firestore usando Firebase Admin SDK com Service Account.
 """
 
 import os
+import time
 from collections import Counter
 from typing import List, Dict, Optional
 import firebase_admin
@@ -14,6 +15,10 @@ from firebase_admin import credentials, firestore
 
 class FirestoreReader:
     """Classe para ler dados do Firestore"""
+
+    # Cache em memória: { base_id: (timestamp, contexto_str) }
+    _contexto_cache: Dict[str, tuple] = {}
+    _CACHE_TTL_SEGUNDOS = 120  # 2 minutos
     
     def __init__(self, service_account_path: Optional[str] = None):
         """
@@ -195,12 +200,26 @@ class FirestoreReader:
             print(f"get_superadmin_uids_from_config: {e}")
             return []
 
+    def invalidar_cache_contexto(self, base_id: str):
+        """Força a invalidação do cache de contexto para uma base específica."""
+        FirestoreReader._contexto_cache.pop(base_id, None)
+        print(f"🔄 Cache de contexto invalidado para base {base_id}")
+
     def get_contexto_base_para_assistente(self, base_id: str) -> str:
         """
         Monta um resumo completo da base para o assistente: escala (onda, hora, AM/PM, rota, vaga, sacas),
         tempo estimado (ETA), disponibilidade, quinzena e devoluções (id, quem devolveu).
+        Resultado é cacheado por _CACHE_TTL_SEGUNDOS segundos para reduzir leituras no Firestore.
         """
         from datetime import datetime
+        # Verificar cache
+        agora = time.monotonic()
+        cached = FirestoreReader._contexto_cache.get(base_id)
+        if cached is not None:
+            ts, contexto = cached
+            if agora - ts < FirestoreReader._CACHE_TTL_SEGUNDOS:
+                print(f"⚡ Contexto da base {base_id} servido do cache ({int(agora - ts)}s atrás)")
+                return contexto
         try:
             parts = []
             base_ref = self.db.collection('bases').document(base_id)
@@ -382,7 +401,10 @@ class FirestoreReader:
             except Exception as e_dev:
                 print(f"get_contexto devolucoes: {e_dev}")
 
-            return " ".join(parts)
+            contexto = " ".join(parts)
+            FirestoreReader._contexto_cache[base_id] = (agora, contexto)
+            print(f"✅ Contexto da base {base_id} cacheado por {FirestoreReader._CACHE_TTL_SEGUNDOS}s")
+            return contexto
         except Exception as e:
             print(f"get_contexto_base_para_assistente: {e}")
             return ""
