@@ -463,7 +463,11 @@ _SYSTEM_PROMPT = (
     "(5) CRIAÇÃO DO ZERO: Se não existirem ondas criadas (DADOS DA BASE vazios), você ainda deve emitir ACTION_JSON para adicionar os motoristas. O app criará as ondas automaticamente começando da '1ª ONDA' (ondaIndex: 0)."
     "\n\nTURNO (AM/PM): Em DADOS DA BASE você vê o turno selecionado no app. SEMPRE verifique se a informação (na foto ou texto) corresponde ao turno atual. "
     "Se o usuário enviar uma foto ou comando mas você não conseguir identificar se é para o turno AM ou PM, e os dados da base estiverem vazios ou ambíguos, PERGUNTE: 'Esta escala é para o turno AM ou PM?'. Só prossiga com ACTION_JSON após a confirmação do turno ou se estiver claro."
-    "\n\nQUANDO RECEBER UMA FOTO: Se a imagem contiver uma escala (lista com nomes, vagas e/ou rotas), extraia TODOS os motoristas identificados e emita um ACTION_JSON para cada um, usando add_to_scale ou update_in_scale conforme o caso. Emita os ACTION_JSON um por linha, um para cada motorista. Confirme com texto amigável o que foi feito."
+    "\n\nQUANDO RECEBER UMA FOTO: Você tem visão total para fotos. "
+    "Se a imagem contiver uma escala, identifique não só os motoristas, mas também as ONDAS (ex: 1ª Onda, 2ª Onda, 3ª Onda). "
+    "Use o campo ondaIndex (0 para a 1ª onda, 1 para a 2ª, etc.) de acordo com a ordem das ondas identificadas na foto. "
+    "Se o usuário pedir para 'organizar como na foto' ou 'separar por ondas', você DEVE re-analisar a imagem do contexto para emitir ACTION_JSON com os ondaIndex corretos. "
+    "Extraia TODOS os motoristas e emita um ACTION_JSON para cada um, um por linha. Confirme o que foi feito em texto amigável."
 )
 
 

@@ -34,6 +34,8 @@ typealias OnUpdateInScaleAction = (motoristaId: String, ondaIndex: Int, vaga: St
 class AssistenteViewModel(application: Application) : AndroidViewModel(application) {
     private val locationRepo = LocationRequestRepository()
     private val motoristaRepo = MotoristaRepository()
+    private var persistentImageBase64: String? = null // Visão persistente durante a sessão do chat
+
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -115,6 +117,7 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                 return@launch
             }
             val base64Image = Base64.getEncoder().encodeToString(bytes)
+            persistentImageBase64 = base64Image // Salva para seguir no contexto em msgs de texto
             val displayText = text?.takeIf { it.isNotBlank() } ?: "O que há nesta imagem?"
             _messages.value = _messages.value + ChatMessage("user", displayText)
             _isLoading.value = true
@@ -271,11 +274,12 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 val api = NotificationApiService()
                 val history = _messages.value.map { it.role to it.text }
-                var chatResult = api.chatWithAssistente(baseId, text, null, idToken, history)
+                // Envia a imagem persistente se houver, para manter o contexto visual
+                var chatResult = api.chatWithAssistente(baseId, text, persistentImageBase64, idToken, history)
                 val firstError = chatResult.error
                 if (!chatResult.success && firstError != null && "401" in firstError && "Token" in firstError) {
                     runCatching { user.getIdToken(true).await() }.getOrNull()?.token?.let { fresh ->
-                        chatResult = api.chatWithAssistente(baseId, text, null, fresh)
+                        chatResult = api.chatWithAssistente(baseId, text, persistentImageBase64, fresh, history)
                     }
                 }
                 _isLoading.value = false
