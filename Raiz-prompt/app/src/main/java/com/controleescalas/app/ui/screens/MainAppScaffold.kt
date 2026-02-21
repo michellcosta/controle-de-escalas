@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
@@ -115,6 +116,7 @@ fun MainAppScaffold(
             composable(BottomNavItem.Assistente.route) {
                 val operationEntry = navController.getBackStackEntry(BottomNavItem.Operation.route)
                 val operationalViewModel: OperationalViewModel = viewModel(operationEntry!!)
+                val currentTurno by operationalViewModel.turnoAtual.collectAsState()
                 AssistenteScreen(
                     baseId = baseId,
                     onBack = { navController.popBackStack(BottomNavItem.Operation.route, false) },
@@ -127,7 +129,8 @@ fun MainAppScaffold(
                     onBulkActions = { actions ->
                         operationalViewModel.bulkApplyScaleActions(actions)
                     },
-                    onInputFocusChange = { focused -> assistenteInputFocused = focused }
+                    onInputFocusChange = { focused -> assistenteInputFocused = focused },
+                    turno = currentTurno
                 )
             }
             composable(BottomNavItem.Operation.route) {

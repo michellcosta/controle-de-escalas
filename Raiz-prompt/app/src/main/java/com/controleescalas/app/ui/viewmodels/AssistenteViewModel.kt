@@ -1,6 +1,8 @@
 package com.controleescalas.app.ui.viewmodels
 
 import android.app.Application
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -38,6 +40,8 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
     private val locationRepo = LocationRequestRepository()
     private val motoristaRepo = MotoristaRepository()
     private var persistentImageBase64: String? = null // Visão persistente durante a sessão do chat
+    private var _currentTurno = "AM"
+    fun setCurrentTurno(newTurno: String) { _currentTurno = newTurno }
 
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -86,10 +90,13 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             .map { it to normalizeForCompare(it.nome).trim() }
 
         // 1. Busca Exata (Normalizada) - Prioridade Máxima
-        candidates.firstOrNull { it.second == searchNorm }?.let { return it.first.id to it.first.nome }
+        candidates.firstOrNull { it.second == searchNorm }?.let { 
+            android.util.Log.d("AssistenteVM", "Match exato: '$searchName' -> '${it.first.nome}'")
+            return it.first.id to it.first.nome 
+        }
 
         // 2. Busca por Partes Relevantes (mínimo 3 caracteres para evitar iniciais como "A." ou "F.")
-        return candidates.firstOrNull { (m, norm) ->
+        val match = candidates.firstOrNull { (m, norm) ->
             val searchWords = searchNorm.split(" ").filter { it.length >= 3 }
             val nameWords = norm.split(" ").filter { it.length >= 3 }
             
@@ -100,7 +107,15 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             searchWords.any { sw -> 
                 nameWords.any { nw -> nw.startsWith(sw) || sw.startsWith(nw) }
             }
-        }?.let { (m, _) -> m.id to m.nome }
+        }
+        
+        if (match != null) {
+            android.util.Log.d("AssistenteVM", "Match parcial: '$searchName' -> '${match.first.nome}'")
+            return match.first.id to match.first.nome
+        }
+        
+        android.util.Log.w("AssistenteVM", "Nenhum motorista encontrado para: '$searchName'")
+        return null
     }
 
     /**
@@ -114,8 +129,19 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             val bytes = try {
                 withContext(Dispatchers.IO) {
                     contentResolver.openInputStream(imageUri)?.use { input ->
+                        val originalBitmap = BitmapFactory.decodeStream(input)
+                        if (originalBitmap == null) return@withContext null
+                        
+                        // Redimensionar se for muito grande (max 1280px em maior dimensão) para evitar erro de 5MB
+                        val maxDim = 1200
+                        val scaledBitmap = if (originalBitmap.width > maxDim || originalBitmap.height > maxDim) {
+                            val ratio = originalBitmap.width.toFloat() / originalBitmap.height.toFloat()
+                            val (newW, newH) = if (ratio > 1) (maxDim to (maxDim / ratio).toInt()) else ((maxDim * ratio).toInt() to maxDim)
+                            Bitmap.createScaledBitmap(originalBitmap, newW, newH, true)
+                        } else originalBitmap
+
                         ByteArrayOutputStream().use { output ->
-                            input.copyTo(output)
+                            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, output)
                             output.toByteArray()
                         }
                     }
@@ -132,7 +158,11 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             }
             val base64Image = Base64.getEncoder().encodeToString(bytes)
             persistentImageBase64 = base64Image // Salva para seguir no contexto em msgs de texto
-            val displayText = text?.takeIf { it.isNotBlank() } ?: "O que há nesta imagem?"
+            val displayText = if (text?.isNotBlank() == true) {
+                "[Turno Selecionado: $_currentTurno] ${text}"
+            } else {
+                "[Turno Selecionado: $_currentTurno] Monte a escala conforme esta imagem."
+            }
             _messages.value = _messages.value + ChatMessage("user", displayText)
             _isLoading.value = true
 

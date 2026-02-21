@@ -60,12 +60,14 @@ fun AssistenteScreen(
     onUpdateInScaleAction: OnUpdateInScaleAction? = null,
     onBulkActions: OnBulkScaleActions? = null,
     onInputFocusChange: (Boolean) -> Unit = {},
+    turno: String = "AM",
     viewModel: AssistenteViewModel = viewModel()
 ) {
     val context = LocalContext.current
     LaunchedEffect(onAddToScaleAction) { viewModel.setOnAddToScaleAction(onAddToScaleAction) }
     LaunchedEffect(onUpdateInScaleAction) { viewModel.setOnUpdateInScaleAction(onUpdateInScaleAction) }
     LaunchedEffect(onBulkActions) { viewModel.setOnBulkActions(onBulkActions) }
+    LaunchedEffect(turno) { viewModel.setCurrentTurno(turno) }
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     var inputText by remember { mutableStateOf("") }
