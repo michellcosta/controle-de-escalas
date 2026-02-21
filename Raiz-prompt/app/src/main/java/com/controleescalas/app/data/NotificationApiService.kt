@@ -164,8 +164,12 @@ class NotificationApiService {
         val success: Boolean,
         val text: String?,
         val error: String?,
+        // Ação única (retrocompatibilidade)
         val addToScaleAction: AddToScaleAction? = null,
-        val updateInScaleAction: UpdateInScaleAction? = null
+        val updateInScaleAction: UpdateInScaleAction? = null,
+        // Lista de ações (quando há múltiplos motoristas, ex.: foto de escala)
+        val addToScaleActions: List<AddToScaleAction> = emptyList(),
+        val updateInScaleActions: List<UpdateInScaleAction> = emptyList()
     ) {
         /** Ação de adicionar (retrocompatibilidade). */
         val action: AddToScaleAction? get() = addToScaleAction
@@ -233,8 +237,42 @@ class NotificationApiService {
                 response.isSuccessful -> {
                     val json = body?.let { JSONObject(it) }
                     val textRes = json?.optString("text") ?: json?.optString("response") ?: body ?: ""
-                    val actionObj = json?.optJSONObject("action")
-                    val addAction = actionObj?.let { a ->
+
+                    // Parsear lista de ações (novo campo "actions": [...])
+                    val addList = mutableListOf<AddToScaleAction>()
+                    val updateList = mutableListOf<UpdateInScaleAction>()
+                    val actionsArray = json?.optJSONArray("actions")
+                    if (actionsArray != null) {
+                        for (i in 0 until actionsArray.length()) {
+                            val a = actionsArray.optJSONObject(i) ?: continue
+                            when (a.optString("type")) {
+                                "add_to_scale" -> {
+                                    val nome = a.optString("motoristaNome").trim().ifBlank { continue }
+                                    addList.add(AddToScaleAction(
+                                        motoristaNome = nome,
+                                        ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
+                                        vaga = a.optString("vaga").trim().ifBlank { "01" }.let { v -> if (v.length == 1) "0$v" else v },
+                                        rota = a.optString("rota").trim().uppercase(),
+                                        sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it > 0 } else null
+                                    ))
+                                }
+                                "update_in_scale" -> {
+                                    val nome = a.optString("motoristaNome").trim().ifBlank { continue }
+                                    updateList.add(UpdateInScaleAction(
+                                        motoristaNome = nome,
+                                        ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
+                                        vaga = a.optString("vaga").trim().takeIf { it.isNotBlank() }?.let { v -> if (v.length == 1) "0$v" else v },
+                                        rota = a.optString("rota").trim().uppercase().takeIf { it.isNotBlank() },
+                                        sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it >= 0 } else null
+                                    ))
+                                }
+                            }
+                        }
+                    }
+
+                    // Retrocompatibilidade: ler campo "action" único caso "actions" não exista
+                    val actionObj = if (actionsArray == null) json?.optJSONObject("action") else null
+                    val addAction = addList.firstOrNull() ?: actionObj?.let { a ->
                         if (a.optString("type") == "add_to_scale") {
                             val nome = a.optString("motoristaNome").trim().ifBlank { return@let null } ?: return@let null
                             AddToScaleAction(
@@ -246,7 +284,7 @@ class NotificationApiService {
                             )
                         } else null
                     }
-                    val updateAction = actionObj?.let { a ->
+                    val updateAction = updateList.firstOrNull() ?: actionObj?.let { a ->
                         if (a.optString("type") == "update_in_scale") {
                             val nome = a.optString("motoristaNome").trim().ifBlank { return@let null } ?: return@let null
                             UpdateInScaleAction(
@@ -258,9 +296,31 @@ class NotificationApiService {
                             )
                         } else null
                     }
-                    ChatAssistenteResult(success = true, text = textRes, error = null, addToScaleAction = addAction, updateInScaleAction = updateAction)
+                    ChatAssistenteResult(
+                        success = true, text = textRes, error = null,
+                        addToScaleAction = addAction, updateInScaleAction = updateAction,
+                        addToScaleActions = addList, updateInScaleActions = updateList
+                    )
                 }
-                else -> ChatAssistenteResult(success = false, text = null, error = "Erro ${response.code}: $body")
+                else -> {
+                    val errorMsg = when {
+                        body.isNullOrBlank() -> "Erro ${response.code}"
+                        body.contains("<") || body.contains("Internal Server Error") ->
+                            if (response.code == 500)
+                                "Serviço temporariamente indisponível. Tente novamente ou use uma foto menor."
+                            else
+                                "Erro ${response.code}. Tente novamente."
+                        else -> {
+                            try {
+                                org.json.JSONObject(body).optString("error").takeIf { it.isNotBlank() }
+                                    ?: "Erro ${response.code}: ${body.take(200)}"
+                            } catch (_: Exception) {
+                                "Erro ${response.code}: ${body.take(200)}"
+                            }
+                        }
+                    }
+                    ChatAssistenteResult(success = false, text = null, error = errorMsg)
+                }
             }
         } catch (e: Exception) {
             ChatAssistenteResult(success = false, text = null, error = "Erro: ${e.message}")

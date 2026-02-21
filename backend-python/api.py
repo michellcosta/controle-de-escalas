@@ -568,50 +568,66 @@ def assistente_chat():
                 "error": "Assistente indisponível. Verifique OPENAI_API_KEY no servidor."
             }), 500
 
-        # Extrair ação estruturada se o modelo retornou ACTION_JSON (ex.: adicionar/atualizar na escala)
-        action = None
-        idx = result_text.find("ACTION_JSON:")
-        if idx >= 0:
-            start = result_text.find("{", idx)
-            if start >= 0:
+        # Extrair TODAS as ações ACTION_JSON do texto (pode haver múltiplas quando a imagem tem vários motoristas)
+        def _extract_all_action_jsons(text: str):
+            """Remove todos os blocos ACTION_JSON: {...} do texto e retorna (texto_limpo, lista_de_acoes)."""
+            acts = []
+            remaining = text
+            while True:
+                idx = remaining.find("ACTION_JSON:")
+                if idx < 0:
+                    break
+                start = remaining.find("{", idx)
+                if start < 0:
+                    break
                 depth = 0
                 end = start
-                for i, c in enumerate(result_text[start:], start):
-                    if c == "{": depth += 1
-                    elif c == "}": depth -= 1
-                    if depth == 0: end = i; break
-                if end >= start:
-                    try:
-                        action = json.loads(result_text[start:end + 1])
-                        result_text = (result_text[:idx].rstrip() + "\n" + result_text[end + 1:].lstrip()).strip()
-                    except Exception:
-                        pass
+                for i, c in enumerate(remaining[start:], start):
+                    if c == "{":
+                        depth += 1
+                    elif c == "}":
+                        depth -= 1
+                    if depth == 0:
+                        end = i
+                        break
+                if end <= start:
+                    break
+                try:
+                    parsed = json.loads(remaining[start:end + 1])
+                    acts.append(parsed)
+                except Exception:
+                    pass
+                remaining = (remaining[:idx].rstrip() + remaining[end + 1:].lstrip())
+            return remaining.strip(), acts
 
-        # Fallback: se a resposta for só um JSON (modelo esqueceu de usar ACTION_JSON:), extrair ação e não mostrar código
-        if action is None:
+        result_text, actions = _extract_all_action_jsons(result_text)
+
+        # Fallback: resposta foi só um JSON puro (modelo esqueceu o ACTION_JSON:)
+        if not actions:
             trimmed = result_text.strip()
             if trimmed.startswith("{") and "}" in trimmed:
                 try:
                     end_brace = trimmed.rfind("}")
                     if end_brace > 0:
-                        candidate = trimmed[: end_brace + 1]
-                        parsed = json.loads(candidate)
+                        parsed = json.loads(trimmed[: end_brace + 1])
                         if isinstance(parsed, dict) and parsed.get("type") in ("update_in_scale", "add_to_scale"):
-                            action = parsed
+                            actions = [parsed]
                             result_text = "Alteração aplicada."
                 except Exception:
                     pass
 
-        # Normalizar ação: garantir "ondaIndex" (modelo às vezes envia "ondalndex")
-        if action and isinstance(action, dict):
-            for key in list(action.keys()):
-                if key == "ondalndex" or key == "onda_index":
-                    action["ondaIndex"] = action.pop(key)
-                    break
+        # Normalizar todas as ações: garantir "ondaIndex" (modelo às vezes envia "ondalndex")
+        for a in actions:
+            if isinstance(a, dict):
+                for key in list(a.keys()):
+                    if key in ("ondalndex", "onda_index"):
+                        a["ondaIndex"] = a.pop(key)
+                        break
 
         resp_data = {"text": result_text.strip() or "Feito.", "ok": True}
-        if action:
-            resp_data["action"] = action
+        if actions:
+            resp_data["actions"] = actions       # lista completa (novo)
+            resp_data["action"] = actions[0]     # retrocompatibilidade (1ª ação)
         return jsonify(resp_data), 200
 
     except Exception as e:

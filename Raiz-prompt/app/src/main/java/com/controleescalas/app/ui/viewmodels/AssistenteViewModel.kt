@@ -145,12 +145,17 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             val error = chatResult.error
             if (chatResult.success && text != null) {
                 _messages.value = _messages.value + ChatMessage("assistant", text)
-                chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
-                chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
+                chatResult.addToScaleActions.forEach { applyAddToScaleAction(baseId, it) }
+                chatResult.updateInScaleActions.forEach { applyUpdateInScaleAction(baseId, it) }
+                // Retrocompatibilidade: se listas vazias mas ação única presente
+                if (chatResult.addToScaleActions.isEmpty()) chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
+                if (chatResult.updateInScaleActions.isEmpty()) chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
             } else {
                 val errorMsg = when {
                     error != null && "401" in error && "Token" in error ->
                         "Sessão expirada. Faça logout e login novamente para continuar."
+                    error != null && (error.contains("500") || error.contains("Internal Server") || error.contains("<")) ->
+                        "Não foi possível analisar a imagem. Tente novamente ou use uma foto menor e mais nítida."
                     else ->
                         error ?: "Não foi possível processar a imagem. Tente novamente."
                 }
@@ -278,12 +283,17 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                 val error = chatResult.error
                 if (chatResult.success && !text.isNullOrBlank()) {
                     _messages.value = _messages.value + ChatMessage("assistant", text)
-                    chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
-                    chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
+                    chatResult.addToScaleActions.forEach { applyAddToScaleAction(baseId, it) }
+                    chatResult.updateInScaleActions.forEach { applyUpdateInScaleAction(baseId, it) }
+                    // Retrocompatibilidade
+                    if (chatResult.addToScaleActions.isEmpty()) chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
+                    if (chatResult.updateInScaleActions.isEmpty()) chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
                 } else {
                     val errorMsg = when {
                         error != null && "401" in error && "Token" in error ->
                             "Sessão expirada. Faça logout e login novamente para continuar."
+                        error != null && (error.contains("500") || error.contains("Internal Server") || error.contains("<")) ->
+                            "Serviço temporariamente indisponível. Tente novamente em instantes."
                         else ->
                             error ?: "Não foi possível obter resposta. Tente novamente."
                     }
