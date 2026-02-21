@@ -247,7 +247,7 @@ class NotificationApiService {
                             val a = actionsArray.optJSONObject(i) ?: continue
                             when (a.optString("type")) {
                                 "add_to_scale" -> {
-                                    val nome = a.optString("motoristaNome").trim().ifBlank { continue }
+                                    val nome = a.optString("motoristaNome").trim(); if (nome.isBlank()) continue
                                     addList.add(AddToScaleAction(
                                         motoristaNome = nome,
                                         ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
@@ -257,7 +257,7 @@ class NotificationApiService {
                                     ))
                                 }
                                 "update_in_scale" -> {
-                                    val nome = a.optString("motoristaNome").trim().ifBlank { continue }
+                                    val nome = a.optString("motoristaNome").trim(); if (nome.isBlank()) continue
                                     updateList.add(UpdateInScaleAction(
                                         motoristaNome = nome,
                                         ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
