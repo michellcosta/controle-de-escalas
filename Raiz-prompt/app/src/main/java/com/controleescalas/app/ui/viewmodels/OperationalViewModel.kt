@@ -1157,6 +1157,8 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     val ondas = currentEscala.ondas.toMutableList()
                     val dataEscala = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
 
+                    android.util.Log.d("OperationalVM", "🚀 Iniciando processamento de ${actions.size} ações em massa")
+                    
                     for (action in actions) {
                         val motoristaId = action.motoristaId
                         val nome = action.nome
@@ -1164,6 +1166,8 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                         val vaga = action.vaga ?: ""
                         val rota = action.rota ?: ""
                         val sacas = action.sacas
+
+                        android.util.Log.d("OperationalVM", "📦 Processando: $nome (ID: $motoristaId) -> Onda $ondaIndex, Vaga $vaga, Rota $rota")
 
                         // 1. Remover de qualquer onda que ele já esteja (Troca de onda/vaga limpa)
                         for (i in ondas.indices) {

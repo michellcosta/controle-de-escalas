@@ -86,35 +86,41 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
         if (searchNorm.isEmpty()) return null
         val motoristas = preFetched ?: return null
         
-        val candidates = motoristas.filter { it.papel == "motorista" }
-            .map { it to normalizeForCompare(it.nome).trim() }
+        // Removemos o filtro de papel "motorista" pois Laura pode ser "auxiliar" ou "admin"
+        // Pegaremos todos que tiverem nome
+        val candidates = motoristas.map { it to normalizeForCompare(it.nome).trim() }
 
         // 1. Busca Exata (Normalizada) - Prioridade Máxima
         candidates.firstOrNull { it.second == searchNorm }?.let { 
-            android.util.Log.d("AssistenteVM", "Match exato: '$searchName' -> '${it.first.nome}'")
+            android.util.Log.d("AssistenteVM", "Match exato: '$searchName' -> '${it.first.nome}' (${it.first.papel})")
             return it.first.id to it.first.nome 
         }
 
-        // 2. Busca por Partes Relevantes (mínimo 3 caracteres para evitar iniciais como "A." ou "F.")
-        val match = candidates.firstOrNull { (m, norm) ->
-            val searchWords = searchNorm.split(" ").filter { it.length >= 3 }
-            val nameWords = norm.split(" ").filter { it.length >= 3 }
-            
-            // Se o termo de busca for curto (ex: "Gil"), permitimos se bater com o início de alguma palavra do nome
-            if (searchNorm.length >= 3 && norm.startsWith(searchNorm)) return@firstOrNull true
+        // 2. Busca por Início do Nome Completo
+        candidates.firstOrNull { (m, norm) ->
+            searchNorm.length >= 3 && norm.startsWith(searchNorm)
+        }?.let { (m, _) ->
+            android.util.Log.d("AssistenteVM", "Match início total: '$searchName' -> '${m.nome}'")
+            return m.id to m.nome
+        }
 
-            // Se as palavras principais baterem
+        // 3. Busca por Partes Relevantes (mínimo 4 caracteres para ser bem rigoroso)
+        val match = candidates.firstOrNull { (m, norm) ->
+            val searchWords = searchNorm.split(" ").filter { it.length >= 4 }
+            val nameWords = norm.split(" ").filter { it.length >= 4 }
+            
+            // Se as palavras principais baterem (ambas precisam ser longas)
             searchWords.any { sw -> 
                 nameWords.any { nw -> nw.startsWith(sw) || sw.startsWith(nw) }
             }
         }
         
         if (match != null) {
-            android.util.Log.d("AssistenteVM", "Match parcial: '$searchName' -> '${match.first.nome}'")
+            android.util.Log.d("AssistenteVM", "Match parcial rigoroso (4+ chars): '$searchName' -> '${match.first.nome}'")
             return match.first.id to match.first.nome
         }
         
-        android.util.Log.w("AssistenteVM", "Nenhum motorista encontrado para: '$searchName'")
+        android.util.Log.w("AssistenteVM", "Nenhum motorista encontrado para: '$searchName' (Buscados ${candidates.size} candidatos)")
         return null
     }
 
@@ -241,6 +247,14 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                     }
                     
                     if (bulkActions.isNotEmpty()) {
+                        val ids = bulkActions.map { it.motoristaId }
+                        if (ids.size != ids.distinct().size) {
+                            android.util.Log.w("AssistenteVM", "ATENÇÃO: Colisão de IDs detectada no lote! ${ids.size} ações para ${ids.distinct().size} motoristas únicos.")
+                            bulkActions.forEach { 
+                                android.util.Log.d("AssistenteVM", "   - Ação para: ${it.nome} (ID: ${it.motoristaId})")
+                            }
+                        }
+                        
                         android.util.Log.d("AssistenteVM", "Aplicando ${bulkActions.size} ações em massa")
                         onBulkActions?.invoke(bulkActions)
                     }
