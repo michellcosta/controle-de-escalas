@@ -452,6 +452,7 @@ _SYSTEM_PROMPT = (
     "Nos DADOS DA BASE você recebe: por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
     "tempo estimado ao galpão (ETA por motorista); disponibilidade (quem está disponível/indisponível/não respondeu por data); "
     "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções por motorista com Total por dia e cada devolução com data, hora, N pacotes e IDs. "
+    "MÁXIMA ATENÇÃO: Se a imagem contiver 6 motoristas, você deve gerar 6 linhas de ACTION_JSON. NUNCA resuma ou ignore motoristas. "
     "Ao falar de DEVOLUÇÕES use SEMPRE este formato: (1) Nome do motorista. (2) 'Total por dia: [data1] X devolução(ões); [data2] Y devolução(ões); ...' (3) Para cada devolução uma linha: 'DD/MM/AAAA HH:MM — N pacote(s). IDs: id1, id2, id3, ...' Não misture 'ID da devolução' no texto; não use lista numerada 1. 2. 3.; use só Total por dia e depois linhas com data hora — pacotes e IDs. "
     "Use esses dados para responder com números e nomes reais. "
     "Mantenha o contexto da conversa: se o usuário confirmar algo (ex: 'confirmado', 'sim'), interprete com base nas mensagens anteriores. "
@@ -467,7 +468,7 @@ _SYSTEM_PROMPT = (
     "Se a imagem contiver uma escala, identifique não só os motoristas, mas também as ONDAS (ex: 1ª Onda, 2ª Onda, 3ª Onda). "
     "Use o campo ondaIndex (0 para a 1ª onda, 1 para a 2ª, etc.) de acordo com a ordem das ondas identificadas na foto. "
     "Se o usuário pedir para 'organizar como na foto' ou 'separar por ondas', você DEVE re-analisar a imagem do contexto para emitir ACTION_JSON com os ondaIndex corretos. "
-    "Extraia TODOS os motoristas e emita um ACTION_JSON para cada um, um por linha. Confirme o que foi feito em texto amigável."
+    "Extraia TODOS os motoristas (sem limite de quantidade) e emita um ACTION_JSON para cada um, um por linha. NÃO esqueça de nenhum motorista presente na imagem. Confirme o que foi feito em texto amigável."
 )
 
 

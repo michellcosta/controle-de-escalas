@@ -148,6 +148,7 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             val error = chatResult.error
             if (chatResult.success && text != null) {
                 _messages.value = _messages.value + ChatMessage("assistant", text)
+                android.util.Log.d("AssistenteVM", "Recebidas ${chatResult.addToScaleActions.size} adições e ${chatResult.updateInScaleActions.size} atualizações")
                 chatResult.addToScaleActions.forEach { applyAddToScaleAction(baseId, it) }
                 chatResult.updateInScaleActions.forEach { applyUpdateInScaleAction(baseId, it) }
                 // Retrocompatibilidade: se listas vazias mas ação única presente
@@ -287,6 +288,7 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                 val error = chatResult.error
                 if (chatResult.success && !text.isNullOrBlank()) {
                     _messages.value = _messages.value + ChatMessage("assistant", text)
+                    android.util.Log.d("AssistenteVM", "Recebidas ${chatResult.addToScaleActions.size} adições e ${chatResult.updateInScaleActions.size} atualizações via texto")
                     chatResult.addToScaleActions.forEach { applyAddToScaleAction(baseId, it) }
                     chatResult.updateInScaleActions.forEach { applyUpdateInScaleAction(baseId, it) }
                     // Retrocompatibilidade
