@@ -557,8 +557,8 @@ def assistente_chat():
         if not text and not image_b64:
             return jsonify({"error": "text ou imageBase64 é obrigatório"}), 400
         # Imagem muito grande pode causar timeout ou erro no modelo de visão
-        if image_b64 and len(image_b64) > 3_500_000:
-            return jsonify({"error": "Imagem muito grande. Use uma foto menor (menos de ~2,5 MB)."}), 400
+        if image_b64 and len(image_b64) > 6_700_000:
+            return jsonify({"error": "Imagem muito grande. Use uma foto menor (menos de ~5 MB)."}), 400
 
         contexto_base = reader.get_contexto_base_para_assistente(base_id) if reader else ""
         result_text = _assistente_via_openai(text, image_b64, context_base=contexto_base, history=history)
