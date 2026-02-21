@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -39,6 +41,9 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     private val notificationService = com.controleescalas.app.data.NotificationService(application)
     private val notificationApiService = NotificationApiService()
     private val quinzenaViewModel = QuinzenaViewModel()
+    
+    // Mutex para garantir que atualizações na escala sejam sequenciais e evitar condições de corrida
+    private val escalaMutex = Mutex()
     
     private val _turnoAtual = MutableStateFlow("AM")
     val turnoAtual: StateFlow<String> = _turnoAtual.asStateFlow()
@@ -1022,66 +1027,101 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun addMotoristaToOndaWithDetails(ondaIndex: Int, motoristaId: String, nome: String, vaga: String, rota: String, sacas: Int? = null) {
         viewModelScope.launch {
             try {
-                val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
-                } ?: return@launch
+                escalaMutex.withLock {
+                    val turno = _turnoAtual.value
+                    val currentEscala = when (turno) {
+                        "AM" -> _escalaAM.value
+                        "PM" -> _escalaPM.value
+                        else -> null
+                    } ?: return@withLock
 
-                // Se já está escalado em alguma onda, apenas atualizar vaga/rota/sacas (não duplicar)
-                for ((idx, o) in currentEscala.ondas.withIndex()) {
-                    val existing = o.itens.find { it.motoristaId == motoristaId }
-                    if (existing != null) {
-                        updateMotoristaInOndaByDetails(idx, motoristaId, vaga, rota, sacas)
-                        _message.value = "Dados do motorista atualizados"
-                        return@launch
+                    // Se já está escalado em alguma onda, apenas atualizar vaga/rota/sacas (não duplicar)
+                    for ((idx, o) in currentEscala.ondas.withIndex()) {
+                        val existing = o.itens.find { it.motoristaId == motoristaId }
+                        if (existing != null) {
+                            // Chamamos a função de atualização interna (que deve estar fora do lock ou ser suspensa)
+                            // Para simplificar, vamos atualizar diretamente aqui já que estamos com o lock
+                            val item = existing
+                            val vagaNormalized = vaga.trim().takeIf { it.isNotBlank() }?.let { if (it.length == 1) "0$it" else it } ?: item.vaga
+                            val rotaNormalized = rota.trim().takeIf { it.isNotBlank() }?.uppercase() ?: item.rota
+                            val sacasNormalized = sacas ?: item.sacas
+                            
+                            val asOndas = currentEscala.ondas.toMutableList()
+                            val itensOnda = asOndas[idx].itens.toMutableList()
+                            val itemIdx = itensOnda.indexOf(existing)
+                            if (itemIdx >= 0) {
+                                itensOnda[itemIdx] = item.copy(vaga = vagaNormalized, rota = rotaNormalized, sacas = sacasNormalized)
+                                asOndas[idx] = asOndas[idx].copy(itens = itensOnda.sortedBy { it.vaga.toIntOrNull() ?: Int.MAX_VALUE })
+                                val updateEscala = currentEscala.copy(ondas = asOndas, data = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
+                                
+                                when (turno) {
+                                    "AM" -> _escalaAM.value = updateEscala
+                                    "PM" -> _escalaPM.value = updateEscala
+                                }
+                                updateOndasForCurrentTurno()
+                                escalaRepository.saveEscala(currentBaseId, updateEscala)
+                                
+                                try {
+                                    motoristaRepository.updateStatusMotorista(
+                                        motoristaId = motoristaId,
+                                        baseId = currentBaseId,
+                                        estado = "A_CAMINHO",
+                                        vagaAtual = vagaNormalized,
+                                        rotaAtual = rotaNormalized,
+                                        mensagem = "Dados atualizados!"
+                                    )
+                                } catch (_: Exception) {}
+                            }
+                            
+                            _message.value = "Dados do motorista atualizados"
+                            return@withLock
+                        }
                     }
-                }
 
-                val ondas = currentEscala.ondas.toMutableList()
-                while (ondaIndex >= ondas.size) {
-                    val num = ondas.size + 1
-                    ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
-                }
+                    val ondas = currentEscala.ondas.toMutableList()
+                    while (ondaIndex >= ondas.size) {
+                        val num = ondas.size + 1
+                        ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+                    }
 
-                val onda = ondas[ondaIndex]
-                val novoItem = OndaItem(
-                    motoristaId = motoristaId,
-                    nome = nome,
-                    horario = onda.horario,
-                    vaga = vaga,
-                    rota = rota,
-                    sacas = sacas,
-                    modalidade = "FROTA"
-                )
-                val itensAtualizados = (onda.itens + novoItem).sortedWith(
-                    compareBy { it.vaga.toIntOrNull() ?: Int.MAX_VALUE }
-                )
-                ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
-                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                val updatedEscala = currentEscala.copy(ondas = ondas, data = hoje)
-
-                when (turno) {
-                    "AM" -> _escalaAM.value = updatedEscala
-                    "PM" -> _escalaPM.value = updatedEscala
-                }
-                updateOndasForCurrentTurno()
-                escalaRepository.saveEscala(currentBaseId, updatedEscala)
-
-                try {
-                    motoristaRepository.updateStatusMotorista(
+                    val onda = ondas[ondaIndex]
+                    val novoItem = OndaItem(
                         motoristaId = motoristaId,
-                        baseId = currentBaseId,
-                        estado = "A_CAMINHO",
-                        mensagem = "Você está escalado!",
-                        vagaAtual = vaga.takeIf { it.isNotBlank() },
-                        rotaAtual = rota.takeIf { it.isNotBlank() },
-                        inicioCarregamento = null,
-                        fimCarregamento = null
+                        nome = nome,
+                        horario = onda.horario,
+                        vaga = vaga.trim().let { if (it.length == 1) "0$it" else it },
+                        rota = rota.trim().uppercase(),
+                        sacas = sacas,
+                        modalidade = "FROTA"
                     )
-                } catch (_: Exception) {}
-                _message.value = "Motorista adicionado"
+                    val itensAtualizados = (onda.itens + novoItem).sortedBy { 
+                        it.vaga.toIntOrNull() ?: Int.MAX_VALUE 
+                    }
+                    ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
+                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val updatedEscala = currentEscala.copy(ondas = ondas, data = hoje)
+
+                    when (turno) {
+                        "AM" -> _escalaAM.value = updatedEscala
+                        "PM" -> _escalaPM.value = updatedEscala
+                    }
+                    updateOndasForCurrentTurno()
+                    escalaRepository.saveEscala(currentBaseId, updatedEscala)
+
+                    try {
+                        motoristaRepository.updateStatusMotorista(
+                            motoristaId = motoristaId,
+                            baseId = currentBaseId,
+                            estado = "A_CAMINHO",
+                            mensagem = "Você está escalado!",
+                            vagaAtual = novoItem.vaga.takeIf { it.isNotBlank() },
+                            rotaAtual = novoItem.rota.takeIf { it.isNotBlank() },
+                            inicioCarregamento = null,
+                            fimCarregamento = null
+                        )
+                    } catch (_: Exception) {}
+                    _message.value = "Motorista adicionado"
+                }
             } catch (e: Exception) {
                 Log.e("OperationalViewModel", "Erro ao adicionar por foto: ${e.message}", e)
                 _error.value = "Erro: ${e.message}"
