@@ -32,6 +32,19 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
+ * Representa uma ação de escala em massa.
+ */
+data class BulkScaleAction(
+    val isAdd: Boolean,
+    val motoristaId: String,
+    val nome: String,
+    val ondaIndex: Int,
+    val vaga: String?,
+    val rota: String?,
+    val sacas: Int?
+)
+
+/**
  * ViewModel para Dashboard Operacional
  * Gerencia operação em tempo real das ondas
  */
@@ -1129,9 +1142,115 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
-    /**
-     * Garante que existam pelo menos N ondas no turno (usado na importação por foto).
-     */
+    fun bulkApplyScaleActions(actions: List<BulkScaleAction>) {
+        if (actions.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                escalaMutex.withLock {
+                    val turno = _turnoAtual.value
+                    var currentEscala = when (turno) {
+                        "AM" -> _escalaAM.value
+                        "PM" -> _escalaPM.value
+                        else -> null
+                    } ?: return@withLock
+
+                    val ondas = currentEscala.ondas.toMutableList()
+                    val dataEscala = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+
+                    for (action in actions) {
+                        val motoristaId = action.motoristaId
+                        val nome = action.nome
+                        val ondaIndex = action.ondaIndex
+                        val vaga = action.vaga ?: ""
+                        val rota = action.rota ?: ""
+                        val sacas = action.sacas
+
+                        // 1. Verificar se já existe em alguma onda
+                        var found = false
+                        for ((idx, o) in ondas.withIndex()) {
+                            val existing = o.itens.find { it.motoristaId == motoristaId }
+                            if (existing != null) {
+                                val itemIdx = o.itens.indexOf(existing)
+                                if (itemIdx >= 0) {
+                                    val itensOnda = o.itens.toMutableList()
+                                    val vagaNormalized = vaga.trim().takeIf { it.isNotBlank() }?.let { if (it.length == 1) "0$it" else it } ?: existing.vaga
+                                    val rotaNormalized = rota.trim().takeIf { it.isNotBlank() }?.uppercase() ?: existing.rota
+                                    val sacasNormalized = sacas ?: existing.sacas
+                                    
+                                    itensOnda[itemIdx] = existing.copy(
+                                        vaga = vagaNormalized,
+                                        rota = rotaNormalized,
+                                        sacas = sacasNormalized
+                                    )
+                                    ondas[idx] = o.copy(itens = itensOnda.sortedBy { it.vaga.toIntOrNull() ?: Int.MAX_VALUE })
+                                    found = true
+                                    
+                                    // Atualizar status individual (pode ser paralelo, mas aqui é seguro)
+                                    try {
+                                        motoristaRepository.updateStatusMotorista(
+                                            motoristaId = motoristaId,
+                                            baseId = currentBaseId,
+                                            estado = "A_CAMINHO",
+                                            vagaAtual = vagaNormalized,
+                                            rotaAtual = rotaNormalized,
+                                            mensagem = "Dados atualizados!"
+                                        )
+                                    } catch (_: Exception) {}
+                                }
+                                break
+                            }
+                        }
+
+                        if (!found) {
+                            // 2. Adicionar como novo se não encontrado ou se for explicitamente ADD
+                            while (ondaIndex >= ondas.size) {
+                                val num = ondas.size + 1
+                                ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+                            }
+
+                            val onda = ondas[ondaIndex]
+                            val novoItem = OndaItem(
+                                motoristaId = motoristaId,
+                                nome = nome,
+                                horario = onda.horario,
+                                vaga = vaga.trim().let { if (it.length == 1) "0$it" else it },
+                                rota = rota.trim().uppercase(),
+                                sacas = sacas,
+                                modalidade = "FROTA"
+                            )
+                            val itensAtualizados = (onda.itens + novoItem).sortedBy { 
+                                it.vaga.toIntOrNull() ?: Int.MAX_VALUE 
+                            }
+                            ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
+
+                            try {
+                                motoristaRepository.updateStatusMotorista(
+                                    motoristaId = motoristaId,
+                                    baseId = currentBaseId,
+                                    estado = "A_CAMINHO",
+                                    mensagem = "Você está escalado!",
+                                    vagaAtual = novoItem.vaga.takeIf { it.isNotBlank() },
+                                    rotaAtual = novoItem.rota.takeIf { it.isNotBlank() }
+                                )
+                            } catch (_: Exception) {}
+                        }
+                    }
+
+                    val updatedEscala = currentEscala.copy(ondas = ondas, data = dataEscala)
+                    when (turno) {
+                        "AM" -> _escalaAM.value = updatedEscala
+                        "PM" -> _escalaPM.value = updatedEscala
+                    }
+                    updateOndasForCurrentTurno()
+                    escalaRepository.saveEscala(currentBaseId, updatedEscala)
+                }
+                _message.value = "Escala atualizada (${actions.size} alterações)"
+            } catch (e: Exception) {
+                Log.e("OperationalViewModel", "Erro no bulk apply: ${e.message}", e)
+                _error.value = "Erro ao atualizar escala: ${e.message}"
+            }
+        }
+    }
     fun ensureOndasCount(turno: String, count: Int) {
         viewModelScope.launch {
             val currentEscala = when (turno) {
@@ -1375,13 +1494,17 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 if (snapshot != null && snapshot.exists()) {
                     val escala = snapshot.toObject(Escala::class.java)
                     if (escala != null) {
-                        when (turnoAtual) {
-                            "AM" -> _escalaAM.value = escala
-                            "PM" -> _escalaPM.value = escala
+                        viewModelScope.launch {
+                            escalaMutex.withLock {
+                                when (turnoAtual) {
+                                    "AM" -> _escalaAM.value = escala
+                                    "PM" -> _escalaPM.value = escala
+                                }
+                                updateOndasForCurrentTurno()
+                                // Atualizar estado de conexão
+                                updateConnectionState()
+                            }
                         }
-                        updateOndasForCurrentTurno()
-                        // Atualizar estado de conexão
-                        updateConnectionState()
                     }
                 }
             }

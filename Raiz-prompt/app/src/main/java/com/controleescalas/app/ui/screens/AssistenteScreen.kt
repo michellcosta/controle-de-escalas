@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +45,8 @@ import com.controleescalas.app.ui.viewmodels.AssistenteViewModel
 import com.controleescalas.app.ui.viewmodels.ChatMessage
 import com.controleescalas.app.ui.viewmodels.OnAddToScaleAction
 import com.controleescalas.app.ui.viewmodels.OnUpdateInScaleAction
+import com.controleescalas.app.ui.viewmodels.OnBulkScaleActions
+import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import java.util.Locale
 import java.io.File
 import android.Manifest
@@ -55,11 +58,14 @@ fun AssistenteScreen(
     onBack: () -> Unit = {},
     onAddToScaleAction: OnAddToScaleAction? = null,
     onUpdateInScaleAction: OnUpdateInScaleAction? = null,
+    onBulkActions: OnBulkScaleActions? = null,
+    onInputFocusChange: (Boolean) -> Unit = {},
     viewModel: AssistenteViewModel = viewModel()
 ) {
     val context = LocalContext.current
     LaunchedEffect(onAddToScaleAction) { viewModel.setOnAddToScaleAction(onAddToScaleAction) }
     LaunchedEffect(onUpdateInScaleAction) { viewModel.setOnUpdateInScaleAction(onUpdateInScaleAction) }
+    LaunchedEffect(onBulkActions) { viewModel.setOnBulkActions(onBulkActions) }
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     var inputText by remember { mutableStateOf("") }
@@ -147,10 +153,15 @@ fun AssistenteScreen(
     val takePictureLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) {
-            lastPhotoPath.value?.let { path ->
-                selectedImageUri = Uri.parse("file://$path")
+        try {
+            if (success) {
+                val path = lastPhotoPath.value
+                if (!path.isNullOrBlank()) {
+                    selectedImageUri = Uri.parse("file://$path")
+                }
             }
+        } catch (e: Exception) {
+            android.util.Log.e("AssistenteScreen", "TakePicture result: ${e.message}", e)
         }
     }
 
@@ -369,6 +380,7 @@ fun AssistenteScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(focusRequester)
+                                .onFocusChanged { onInputFocusChange(it.isFocused) }
                                 .background(DarkSurfaceVariant, RoundedCornerShape(24.dp))
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),

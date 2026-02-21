@@ -29,6 +29,7 @@ import com.controleescalas.app.ui.theme.NeonGreen
 import com.controleescalas.app.ui.theme.NeonOrange
 import com.controleescalas.app.ui.theme.TextGray
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
+import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import com.google.firebase.auth.FirebaseAuth
 import android.util.Log
 
@@ -40,9 +41,18 @@ fun MainAppScaffold(
     onNavigateToUserManagement: () -> Unit
 ) {
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    var assistenteInputFocused by remember { mutableStateOf(false) }
     var trialExpirado by remember { mutableStateOf(false) }
     var planosHabilitados by remember { mutableStateOf(false) }
-    
+
+    LaunchedEffect(currentRoute) {
+        if (currentRoute != BottomNavItem.Assistente.route) {
+            assistenteInputFocused = false
+        }
+    }
+
     LaunchedEffect(baseId) {
         if (baseId.isNotEmpty()) {
             val base = BaseRepository().getBase(baseId)
@@ -52,9 +62,13 @@ fun MainAppScaffold(
         planosHabilitados = config.planosHabilitados
     }
     
+    val hideBottomBar = currentRoute == BottomNavItem.Assistente.route && assistenteInputFocused
+
     Scaffold(
         bottomBar = {
-            BottomNavigationBar(navController = navController)
+            if (!hideBottomBar) {
+                BottomNavigationBar(navController = navController)
+            }
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize()) {
@@ -109,7 +123,11 @@ fun MainAppScaffold(
                     },
                     onUpdateInScaleAction = { motoristaId, ondaIndex, vaga, rota, sacas ->
                         operationalViewModel.updateMotoristaInOndaByDetails(ondaIndex, motoristaId, vaga, rota, sacas)
-                    }
+                    },
+                    onBulkActions = { actions ->
+                        operationalViewModel.bulkApplyScaleActions(actions)
+                    },
+                    onInputFocusChange = { focused -> assistenteInputFocused = focused }
                 )
             }
             composable(BottomNavItem.Operation.route) {

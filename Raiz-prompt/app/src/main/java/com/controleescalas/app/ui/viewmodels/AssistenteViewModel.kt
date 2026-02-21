@@ -31,6 +31,9 @@ typealias OnAddToScaleAction = (motoristaId: String, nome: String, ondaIndex: In
 /** Callback para aplicar ação "atualizar na escala" (vaga/rota/sacas) quando o motorista já está escalado. */
 typealias OnUpdateInScaleAction = (motoristaId: String, ondaIndex: Int, vaga: String?, rota: String?, sacas: Int?) -> Unit
 
+/** Callback para aplicar múltiplas ações vinda do assistente em massa (previne race conditions). */
+typealias OnBulkScaleActions = (List<BulkScaleAction>) -> Unit
+
 class AssistenteViewModel(application: Application) : AndroidViewModel(application) {
     private val locationRepo = LocationRequestRepository()
     private val motoristaRepo = MotoristaRepository()
@@ -74,9 +77,14 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             .replace(Regex("[\\p{InCombiningDiacriticalMarks}]"), "")
     }
 
-    private suspend fun findMotoristaByName(baseId: String, searchName: String): Pair<String, String>? {
-        val motoristas = motoristaRepo.getMotoristas(baseId)
+    private fun findMotoristaByName(baseId: String, searchName: String, preFetched: List<com.controleescalas.app.data.models.AdminMotoristaCardData>? = null): Pair<String, String>? {
         val searchNorm = normalizeForCompare(searchName)
+        val motoristas = preFetched ?: run {
+            // Se não fornecido, buscar de forma bloqueante (ou suspensa)
+            // Para simplificar no contexto de suspend, vamos assumir que quem chama coordena
+            null
+        } ?: return null // Agora findMotoristaByName assume que recebe a lista ou falha
+        
         return motoristas
             .filter { it.papel == "motorista" }
             .map { it to normalizeForCompare(it.nome) }
@@ -149,11 +157,58 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             if (chatResult.success && text != null) {
                 _messages.value = _messages.value + ChatMessage("assistant", text)
                 android.util.Log.d("AssistenteVM", "Recebidas ${chatResult.addToScaleActions.size} adições e ${chatResult.updateInScaleActions.size} atualizações")
-                chatResult.addToScaleActions.forEach { applyAddToScaleAction(baseId, it) }
-                chatResult.updateInScaleActions.forEach { applyUpdateInScaleAction(baseId, it) }
-                // Retrocompatibilidade: se listas vazias mas ação única presente
-                if (chatResult.addToScaleActions.isEmpty()) chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
-                if (chatResult.updateInScaleActions.isEmpty()) chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
+                
+                viewModelScope.launch {
+                    val motoristas = motoristaRepo.getMotoristas(baseId)
+                    val bulkActions = mutableListOf<BulkScaleAction>()
+                    
+                    // Processar Adições
+                    val addActions = chatResult.addToScaleActions.toMutableList()
+                    if (addActions.isEmpty() && chatResult.addToScaleAction != null) {
+                        addActions.add(chatResult.addToScaleAction!!)
+                    }
+                    
+                    for (act in addActions) {
+                        val found = findMotoristaByName(baseId, act.motoristaNome, motoristas)
+                        if (found != null) {
+                            bulkActions.add(BulkScaleAction(
+                                isAdd = true,
+                                motoristaId = found.first,
+                                nome = found.second,
+                                ondaIndex = act.ondaIndex,
+                                vaga = act.vaga,
+                                rota = act.rota,
+                                sacas = act.sacas
+                            ))
+                        }
+                    }
+                    
+                    // Processar Atualizações
+                    val updateActions = chatResult.updateInScaleActions.toMutableList()
+                    if (updateActions.isEmpty() && chatResult.updateInScaleAction != null) {
+                        updateActions.add(chatResult.updateInScaleAction!!)
+                    }
+                    
+                    for (act in updateActions) {
+                        val found = findMotoristaByName(baseId, act.motoristaNome, motoristas)
+                        if (found != null) {
+                            bulkActions.add(BulkScaleAction(
+                                isAdd = false,
+                                motoristaId = found.first,
+                                nome = found.second,
+                                ondaIndex = act.ondaIndex,
+                                vaga = act.vaga,
+                                rota = act.rota,
+                                sacas = act.sacas
+                            ))
+                        }
+                    }
+                    
+                    if (bulkActions.isNotEmpty()) {
+                        android.util.Log.d("AssistenteVM", "Aplicando ${bulkActions.size} ações em massa")
+                        onBulkActions?.invoke(bulkActions)
+                    }
+                }
             } else {
                 val errorMsg = when {
                     error != null && "401" in error && "Token" in error ->
@@ -175,6 +230,10 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
     /** Aplica ação update_in_scale: resolve nome do motorista e invoca callback (só atualiza, não adiciona). */
     private var onUpdateInScaleAction: OnUpdateInScaleAction? = null
     fun setOnUpdateInScaleAction(callback: OnUpdateInScaleAction?) { onUpdateInScaleAction = callback }
+
+    /** Aplica múltiplas ações de uma vez para evitar race conditions. */
+    private var onBulkActions: OnBulkScaleActions? = null
+    fun setOnBulkActions(callback: OnBulkScaleActions?) { onBulkActions = callback }
 
     private fun applyAddToScaleAction(baseId: String, action: NotificationApiService.AddToScaleAction) {
         viewModelScope.launch {
