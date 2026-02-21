@@ -212,7 +212,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     return@launch
                 }
                 
-                // 2. WorkManager envia push em background (sobrevive ao app fechando, lida com cold start Render)
+                // 2. Enviar push na hora (backend Python) para funcionar mesmo com app do motorista fechado
                 val title = "🚚 Chamada para Carregamento"
                 val body = "Subir agora para a VAGA $vagaParaUsar${if (rotaParaUsar.isNotBlank()) " com rota $rotaParaUsar" else ""}"
                 val data = mapOf(
@@ -220,14 +220,24 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     "vaga" to vagaParaUsar,
                     "rota" to rotaParaUsar
                 )
-                NotifyMotoristaWorker.enqueue(
-                    context = getApplication(),
+                val (sent, _) = notificationApiService.notifyMotorista(
                     baseId = currentBaseId,
                     motoristaId = motorista.motoristaId,
                     title = title,
                     body = body,
                     data = data
                 )
+                if (!sent) {
+                    NotifyMotoristaWorker.enqueue(
+                        context = getApplication(),
+                        baseId = currentBaseId,
+                        motoristaId = motorista.motoristaId,
+                        title = title,
+                        body = body,
+                        data = data
+                    )
+                    Log.d("OperationalViewModel", "Notificação enfileirada para retry em background")
+                }
             } catch (e: Exception) {
                 Log.e("OperationalViewModel", "❌ Erro ao chamar motorista: ${e.message}", e)
                 _error.value = "Erro ao chamar motorista: ${e.message}"
@@ -374,21 +384,31 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     return@launch
                 }
                 
-                // 2. WorkManager envia push em background
+                // 2. Enviar push na hora (backend Python) para funcionar com app do motorista fechado
                 val title = "🅿️ Chamada para Estacionamento"
                 val body = "Vá para o ESTACIONAMENTO e aguarde"
                 val data = mapOf(
                     "tipo" to "chamada_estacionamento",
                     "estado" to "IR_ESTACIONAMENTO"
                 )
-                NotifyMotoristaWorker.enqueue(
-                    context = getApplication(),
+                val (sent, _) = notificationApiService.notifyMotorista(
                     baseId = currentBaseId,
                     motoristaId = motorista.motoristaId,
                     title = title,
                     body = body,
                     data = data
                 )
+                if (!sent) {
+                    NotifyMotoristaWorker.enqueue(
+                        context = getApplication(),
+                        baseId = currentBaseId,
+                        motoristaId = motorista.motoristaId,
+                        title = title,
+                        body = body,
+                        data = data
+                    )
+                    Log.d("OperationalViewModel", "Notificação estacionamento enfileirada para retry")
+                }
             } catch (e: Exception) {
                 Log.e("OperationalViewModel", "❌ Erro ao chamar motorista para estacionamento: ${e.message}", e)
                 _error.value = "Erro ao chamar motorista: ${e.message}"
@@ -1020,7 +1040,10 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 }
 
                 val ondas = currentEscala.ondas.toMutableList()
-                if (ondaIndex !in ondas.indices) return@launch
+                while (ondaIndex >= ondas.size) {
+                    val num = ondas.size + 1
+                    ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+                }
 
                 val onda = ondas[ondaIndex]
                 val novoItem = OndaItem(
