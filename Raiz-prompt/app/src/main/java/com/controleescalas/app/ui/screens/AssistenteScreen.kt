@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -245,15 +247,21 @@ fun AssistenteScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                "Pergunte sobre escalas e motoristas",
-                                color = TextGray,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                            Text(
-                                "Ex: \"Quanto tempo para João chegar?\" ou envie uma foto com o que deseja fazer",
-                                color = TextGray.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            "Assistente IA",
+                            color = NeonGreen,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Pronto para organizar sua escala hoje.",
+                            color = TextWhite,
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            "Dê comandos de voz, digite ou envie uma foto.",
+                            color = TextGray.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         }
                     }
                 } else {
@@ -322,7 +330,10 @@ fun AssistenteScreen(
                                     .padding(horizontal = 12.dp, vertical = 8.dp),
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),
                                 cursorBrush = SolidColor(NeonGreen),
-                                decorationBox = { inner ->
+                                keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Sentences
+                            ),
+                            decorationBox = { inner ->
                                     Box(modifier = Modifier.fillMaxWidth()) {
                                         if (inputText.isEmpty() && selectedImageUri == null) {
                                             Text("Fale com o assistente...", color = TextGray, style = MaterialTheme.typography.bodyLarge)
