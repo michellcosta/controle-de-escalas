@@ -129,6 +129,9 @@ fun MainAppScaffold(
                     onBulkActions = { actions ->
                         operationalViewModel.bulkApplyScaleActions(actions)
                     },
+                    onSendNotification = { motoristaId, nome, body ->
+                        operationalViewModel.sendNotificationBatch(motoristaId, nome, body)
+                    },
                     onInputFocusChange = { focused -> assistenteInputFocused = focused },
                     turno = currentTurno
                 )

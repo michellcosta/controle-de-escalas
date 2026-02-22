@@ -1233,6 +1233,57 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
+
+    /**
+     * Envia notificações em lote para motoristas (individual ou por onda).
+     * @param targetId O ID do motorista ou "WAVE_{index}" para notificar uma onda inteira.
+     */
+    fun sendNotificationBatch(targetId: String, nome: String, body: String) {
+        viewModelScope.launch {
+            try {
+                val baseId = currentBaseId
+                val api = NotificationApiService()
+                val recipients = mutableListOf<Pair<String, String>>()
+
+                if (targetId.startsWith("WAVE_")) {
+                    val ondaIndexStr = targetId.removePrefix("WAVE_")
+                    val ondaIndex = ondaIndexStr.toIntOrNull() ?: return@launch
+                    val currentTurno = _turnoAtual.value
+                    val skala = when (currentTurno) {
+                        "AM" -> _escalaAM.value
+                        "PM" -> _escalaPM.value
+                        else -> null
+                    }
+                    
+                    skala?.ondas?.getOrNull(ondaIndex)?.itens?.forEach { 
+                        recipients.add(it.motoristaId to it.nome)
+                    }
+                } else {
+                    recipients.add(targetId to nome)
+                }
+
+                if (recipients.isEmpty()) {
+                    Log.w("OperationalVM", "⚠️ Nenhum destinatário encontrado para aviso: $targetId")
+                    return@launch
+                }
+
+                Log.d("OperationalVM", "🔔 Enviando avisos para ${recipients.size} destinatários")
+                recipients.forEach { (id, n) ->
+                    api.notifyMotorista(
+                        baseId = baseId,
+                        motoristaId = id,
+                        title = "📢 Aviso do Assistente",
+                        body = body,
+                        data = mapOf("tipo" to "aviso")
+                    )
+                }
+                
+                _message.value = "Aviso enviado para ${recipients.size} motorista(s)"
+            } catch (e: Exception) {
+                Log.e("OperationalVM", "❌ Erro ao enviar aviso em massa: ${e.message}")
+            }
+        }
+    }
     fun ensureOndasCount(turno: String, count: Int) {
         viewModelScope.launch {
             val currentEscala = when (turno) {

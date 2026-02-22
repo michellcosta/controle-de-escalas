@@ -36,6 +36,9 @@ typealias OnUpdateInScaleAction = (motoristaId: String, ondaIndex: Int, vaga: St
 /** Callback para aplicar múltiplas ações vinda do assistente em massa (previne race conditions). */
 typealias OnBulkScaleActions = (List<BulkScaleAction>) -> Unit
 
+/** Callback para enviar notificações push via assistente. (motoristaId, nome, mensagem) */
+typealias OnSendNotification = (motoristaId: String, nome: String, body: String) -> Unit
+
 class AssistenteViewModel(application: Application) : AndroidViewModel(application) {
     private val locationRepo = LocationRequestRepository()
     private val motoristaRepo = MotoristaRepository()
@@ -49,6 +52,16 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private var onAddToScaleAction: OnAddToScaleAction? = null
+    private var onUpdateInScaleAction: OnUpdateInScaleAction? = null
+    private var onBulkActions: OnBulkScaleActions? = null
+    private var onSendNotification: OnSendNotification? = null
+
+    fun setOnAddToScaleAction(callback: OnAddToScaleAction?) { onAddToScaleAction = callback }
+    fun setOnUpdateInScaleAction(callback: OnUpdateInScaleAction?) { onUpdateInScaleAction = callback }
+    fun setOnBulkActions(callback: OnBulkScaleActions?) { onBulkActions = callback }
+    fun setOnSendNotification(callback: OnSendNotification?) { onSendNotification = callback }
 
     /**
      * Extrai nome do motorista de frases como:
@@ -274,20 +287,9 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     /** Aplica ação add_to_scale: resolve nome do motorista e invoca callback. */
-    private var onAddToScaleAction: OnAddToScaleAction? = null
-    fun setOnAddToScaleAction(callback: OnAddToScaleAction?) { onAddToScaleAction = callback }
-
-    /** Aplica ação update_in_scale: resolve nome do motorista e invoca callback (só atualiza, não adiciona). */
-    private var onUpdateInScaleAction: OnUpdateInScaleAction? = null
-    fun setOnUpdateInScaleAction(callback: OnUpdateInScaleAction?) { onUpdateInScaleAction = callback }
-
-    /** Aplica múltiplas ações de uma vez para evitar race conditions. */
-    private var onBulkActions: OnBulkScaleActions? = null
-    fun setOnBulkActions(callback: OnBulkScaleActions?) { onBulkActions = callback }
-
-    private fun applyAddToScaleAction(baseId: String, action: NotificationApiService.AddToScaleAction) {
+    private fun applyAddToScaleAction(baseId: String, action: NotificationApiService.AddToScaleAction, preFetched: List<com.controleescalas.app.data.models.AdminMotoristaCardData>? = null) {
         viewModelScope.launch {
-            val found = findMotoristaByName(baseId, action.motoristaNome)
+            val found = findMotoristaByName(baseId, action.motoristaNome, preFetched)
             if (found != null) {
                 val (motoristaId, nome) = found
                 onAddToScaleAction?.invoke(motoristaId, nome, action.ondaIndex, action.vaga, action.rota, action.sacas)
@@ -295,12 +297,30 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    private fun applyUpdateInScaleAction(baseId: String, action: NotificationApiService.UpdateInScaleAction) {
+    /** Aplica ação update_in_scale: resolve nome do motorista e invoca callback (só atualiza, não adiciona). */
+    private fun applyUpdateInScaleAction(baseId: String, action: NotificationApiService.UpdateInScaleAction, preFetched: List<com.controleescalas.app.data.models.AdminMotoristaCardData>? = null) {
         viewModelScope.launch {
-            val found = findMotoristaByName(baseId, action.motoristaNome)
+            val found = findMotoristaByName(baseId, action.motoristaNome, preFetched)
             if (found != null) {
                 val (motoristaId, _) = found
                 onUpdateInScaleAction?.invoke(motoristaId, action.ondaIndex, action.vaga, action.rota, action.sacas)
+            }
+        }
+    }
+
+    private fun applySendNotificationAction(baseId: String, action: NotificationApiService.SendNotificationAction, preFetched: List<com.controleescalas.app.data.models.AdminMotoristaCardData>? = null) {
+        viewModelScope.launch {
+            if (action.motoristaNome != null) {
+                // Notificação individual
+                val match = findMotoristaByName(baseId, action.motoristaNome, preFetched)
+                if (match != null) {
+                    android.util.Log.d("AssistenteVM", "🔔 Enviando notificação individual para ${match.second}")
+                    onSendNotification?.invoke(match.first, match.second, action.body)
+                }
+            } else if (action.ondaIndex != null) {
+                // Notificação para a ONDA (será tratada no OperationalViewModel)
+                android.util.Log.d("AssistenteVM", "🔔 Solicitando notificação para ONDA ${action.ondaIndex + 1}")
+                onSendNotification?.invoke("WAVE_${action.ondaIndex}", "Onda ${action.ondaIndex + 1}", action.body)
             }
         }
     }
@@ -392,17 +412,25 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                         chatResult = api.chatWithAssistente(baseId, text, persistentImageBase64, fresh, history)
                     }
                 }
+                
+                // Buscar lista de motoristas para resolver nomes das ações
+                val motoristaList = motoristaRepo.getMotoristas(baseId)
+                
                 _isLoading.value = false
-                val text = chatResult.text
+                val resText = chatResult.text
                 val error = chatResult.error
-                if (chatResult.success && !text.isNullOrBlank()) {
-                    _messages.value = _messages.value + ChatMessage("assistant", text)
-                    android.util.Log.d("AssistenteVM", "Recebidas ${chatResult.addToScaleActions.size} adições e ${chatResult.updateInScaleActions.size} atualizações via texto")
-                    chatResult.addToScaleActions.forEach { applyAddToScaleAction(baseId, it) }
-                    chatResult.updateInScaleActions.forEach { applyUpdateInScaleAction(baseId, it) }
+                if (chatResult.success && !resText.isNullOrBlank()) {
+                    _messages.value = _messages.value + ChatMessage("assistant", resText)
+                    android.util.Log.d("AssistenteVM", "Recebidas ${chatResult.addToScaleActions.size} adições, ${chatResult.updateInScaleActions.size} atualizações e ${chatResult.sendNotificationActions.size} avisos")
+                    chatResult.addToScaleActions.forEach { applyAddToScaleAction(baseId, it, motoristaList) }
+                    chatResult.updateInScaleActions.forEach { applyUpdateInScaleAction(baseId, it, motoristaList) }
+                    chatResult.sendNotificationActions.forEach { applySendNotificationAction(baseId, it, motoristaList) }
+                    
                     // Retrocompatibilidade
-                    if (chatResult.addToScaleActions.isEmpty()) chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it) }
-                    if (chatResult.updateInScaleActions.isEmpty()) chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it) }
+                    if (chatResult.addToScaleActions.isEmpty() && chatResult.updateInScaleActions.isEmpty()) {
+                        chatResult.addToScaleAction?.let { applyAddToScaleAction(baseId, it, motoristaList) }
+                        chatResult.updateInScaleAction?.let { applyUpdateInScaleAction(baseId, it, motoristaList) }
+                    }
                 } else {
                     val errorMsg = when {
                         error != null && "401" in error && "Token" in error ->

@@ -169,7 +169,8 @@ class NotificationApiService {
         val updateInScaleAction: UpdateInScaleAction? = null,
         // Lista de ações (quando há múltiplos motoristas, ex.: foto de escala)
         val addToScaleActions: List<AddToScaleAction> = emptyList(),
-        val updateInScaleActions: List<UpdateInScaleAction> = emptyList()
+        val updateInScaleActions: List<UpdateInScaleAction> = emptyList(),
+        val sendNotificationActions: List<SendNotificationAction> = emptyList()
     ) {
         /** Ação de adicionar (retrocompatibilidade). */
         val action: AddToScaleAction? get() = addToScaleAction
@@ -195,6 +196,15 @@ class NotificationApiService {
         val vaga: String?,
         val rota: String?,
         val sacas: Int?
+    )
+
+    /**
+     * Ação retornada pelo assistente para enviar notificação push.
+     */
+    data class SendNotificationAction(
+        val motoristaNome: String?,
+        val ondaIndex: Int?,
+        val body: String
     )
 
     /**
@@ -241,6 +251,7 @@ class NotificationApiService {
                     // Parsear lista de ações (novo campo "actions": [...])
                     val addList = mutableListOf<AddToScaleAction>()
                     val updateList = mutableListOf<UpdateInScaleAction>()
+                    val notifyList = mutableListOf<SendNotificationAction>()
                     val actionsArray = json?.optJSONArray("actions")
                     if (actionsArray != null) {
                         for (i in 0 until actionsArray.length()) {
@@ -264,6 +275,14 @@ class NotificationApiService {
                                         vaga = a.optString("vaga").trim().takeIf { it.isNotBlank() }?.let { v -> if (v.length == 1) "0$v" else v },
                                         rota = a.optString("rota").trim().uppercase().takeIf { it.isNotBlank() },
                                         sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it >= 0 } else null
+                                    ))
+                                }
+                                "send_notification" -> {
+                                    val bodyText = a.optString("body").trim(); if (bodyText.isBlank()) continue
+                                    notifyList.add(SendNotificationAction(
+                                        motoristaNome = a.optString("motoristaNome").trim().takeIf { it.isNotBlank() },
+                                        ondaIndex = if (a.has("ondaIndex")) a.optInt("ondaIndex").coerceAtLeast(0) else null,
+                                        body = bodyText
                                     ))
                                 }
                             }
@@ -299,7 +318,8 @@ class NotificationApiService {
                     ChatAssistenteResult(
                         success = true, text = textRes, error = null,
                         addToScaleAction = addAction, updateInScaleAction = updateAction,
-                        addToScaleActions = addList, updateInScaleActions = updateList
+                        addToScaleActions = addList, updateInScaleActions = updateList,
+                        sendNotificationActions = notifyList
                     )
                 }
                 else -> {

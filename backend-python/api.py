@@ -469,6 +469,10 @@ _SYSTEM_PROMPT = (
     "Use o campo ondaIndex (0 para a 1ª onda, 1 para a 2ª, etc.) de acordo com a ordem das ondas identificadas na foto. "
     "Se o usuário pedir para 'organizar como na foto' ou 'separar por ondas', você DEVE re-analisar a imagem do contexto para emitir ACTION_JSON com os ondaIndex corretos. "
     "Extraia TODOS os motoristas (sem limite de quantidade) e emita um ACTION_JSON para cada um, um por linha. NÃO esqueça de nenhum motorista presente na imagem. Confirme o que foi feito em texto amigável."
+    "\n\nENVIO DE AVISOS/MENSAGENS: Você pode enviar avisos para motoristas. "
+    "(1) Se o usuário pedir para avisar um motorista (ex: 'Avise o David para esperar'): emita ACTION_JSON:{\"type\":\"send_notification\",\"motoristaNome\":\"Nome\",\"body\":\"Mensagem\"}. "
+    "(2) Se o usuário pedir para avisar uma ONDA (ex: 'Avisa a 2ª onda que o pátio liberou'): emita ACTION_JSON:{\"type\":\"send_notification\",\"ondaIndex\":1,\"body\":\"Mensagem\"}. "
+    "Confirme sempre o envio com uma frase positiva."
 )
 
 
