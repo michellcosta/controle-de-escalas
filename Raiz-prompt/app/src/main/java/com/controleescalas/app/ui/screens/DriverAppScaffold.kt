@@ -282,7 +282,8 @@ fun DriverAppScaffold(
                     }
                 },
             colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = MaterialTheme.colorScheme.background
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent
             )
             )
         },

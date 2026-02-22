@@ -274,7 +274,8 @@ fun OperationalDashboardScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
                 )
             )
         },
@@ -293,7 +294,7 @@ fun OperationalDashboardScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(DarkBackground, DeepBlue)
+                        colors = listOf(DeepBlue, DarkBackground, DarkBackground)
                     )
                 )
                 .padding(paddingValues)

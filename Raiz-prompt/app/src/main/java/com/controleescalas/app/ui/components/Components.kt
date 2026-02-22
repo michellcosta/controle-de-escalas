@@ -57,18 +57,20 @@ import java.util.*
 fun GlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    border: BorderStroke = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+    containerColor: Color = DarkSurface.copy(alpha = 0.4f),
     content: @Composable () -> Unit
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = GlassDark
+            containerColor = containerColor
         ),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+        border = border,
         onClick = onClick ?: {}
     ) {
-        Box(modifier = Modifier.padding(16.dp)) {
+        Box(modifier = Modifier.padding(20.dp)) {
             content()
         }
     }

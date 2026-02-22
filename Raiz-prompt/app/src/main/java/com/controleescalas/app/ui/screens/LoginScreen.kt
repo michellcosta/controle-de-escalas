@@ -10,9 +10,12 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -93,7 +96,7 @@ fun LoginExistingScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(DarkBackground, DeepBlue)
+                    colors = listOf(DeepBlue, DarkBackground, DarkBackground)
                 )
             )
             .padding(24.dp),
@@ -111,7 +114,8 @@ fun LoginExistingScreen(
                 color = NeonGreen,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                lineHeight = MaterialTheme.typography.headlineLarge.lineHeight
+                lineHeight = MaterialTheme.typography.headlineLarge.lineHeight,
+                modifier = Modifier.scale(logoScale)
             )
             
             if (showAccountsList) {
@@ -181,16 +185,27 @@ fun LoginExistingScreen(
                                 modifier = Modifier.heightIn(max = 400.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                items(availableAccounts) { account ->
-                                    AccountCard(
-                                        nome = account.nome,
-                                        telefone = account.telefone,
-                                        papel = account.papel,
-                                        onClick = {
-                                            telefone = account.telefone
-                                            showAccountsList = false
-                                        }
-                                    )
+                                items(availableAccounts.indices.toList()) { index ->
+                                    val account = availableAccounts[index]
+                                    var visible by remember { mutableStateOf(false) }
+                                    LaunchedEffect(Unit) {
+                                        delay(index * 100L)
+                                        visible = true
+                                    }
+                                    AnimatedVisibility(
+                                        visible = visible,
+                                        enter = slideInVertically { it / 2 } + fadeIn()
+                                    ) {
+                                        AccountCard(
+                                            nome = account.nome,
+                                            telefone = account.telefone,
+                                            papel = account.papel,
+                                            onClick = {
+                                                telefone = account.telefone
+                                                showAccountsList = false
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -245,6 +260,16 @@ fun LoginExistingScreen(
                                 CircularProgressIndicator(color = NeonGreen)
                             }
                         } else {
+                            val buttonAlpha by infiniteTransition.animateFloat(
+                                initialValue = 0.8f,
+                                targetValue = 1f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1500),
+                                    repeatMode = RepeatMode.Reverse
+                                ),
+                                label = "buttonAlpha"
+                            )
+                            
                             NeonButton(
                                 text = "ENTRAR",
                                 onClick = {
@@ -252,8 +277,18 @@ fun LoginExistingScreen(
                                         viewModel.login(telefone, pin)
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = telefone.isNotBlank() && pin.length == 6
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .shadow(
+                                        elevation = if (telefone.isNotBlank() && pin.length == 6) 12.dp else 0.dp,
+                                        shape = RoundedCornerShape(12.dp),
+                                        ambientColor = NeonGreen,
+                                        spotColor = NeonGreen
+                                    ),
+                                enabled = telefone.isNotBlank() && pin.length == 6,
+                                color = if (telefone.isNotBlank() && pin.length == 6) 
+                                    NeonGreen.copy(alpha = buttonAlpha) 
+                                else NeonGreen.copy(alpha = 0.5f)
                             )
                         }
                         

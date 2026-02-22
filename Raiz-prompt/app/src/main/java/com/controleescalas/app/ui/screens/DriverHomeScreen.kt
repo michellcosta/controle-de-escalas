@@ -1,12 +1,9 @@
 package com.controleescalas.app.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -89,7 +86,8 @@ fun DriverHomeScreen(
             TopAppBar(
                 title = { Text("Minha Jornada", color = TextWhite) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent
                 ),
                 actions = {
                     IconButton(onClick = onLogout) {
@@ -106,8 +104,13 @@ fun DriverHomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(DeepBlue, DarkBackground, DarkBackground)
+                    )
+                )
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
@@ -115,53 +118,74 @@ fun DriverHomeScreen(
                     color = NeonGreen
                 )
             } else {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // DISPONIBILIDADE - Mostrar apenas se houver solicitação pendente
-                    minhaDisponibilidade?.let { disp ->
-                        DisponibilidadeCard(
-                            data = disponibilidadeViewModel.disponibilidade.value?.data ?: "",
-                            jaRespondeu = disp.disponivel != null,
-                            disponivel = disp.disponivel,
-                            onMarcarDisponivel = {
-                                disponibilidadeViewModel.marcarDisponibilidade(
-                                    baseId, motoristaId, true
-                                )
-                            },
-                            onMarcarIndisponivel = {
-                                disponibilidadeViewModel.marcarDisponibilidade(
-                                    baseId, motoristaId, false
+                    // Usar animações de entrada para cada card
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        var visible by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) { 
+                            delay(100)
+                            visible = true 
+                        }
+
+                        // DISPONIBILIDADE
+                        AnimatedVisibility(
+                            visible = visible,
+                            enter = slideInVertically { it / 2 } + fadeIn()
+                        ) {
+                            minhaDisponibilidade?.let { disp ->
+                                DisponibilidadeCard(
+                                    data = disponibilidadeViewModel.disponibilidade.value?.data ?: "",
+                                    jaRespondeu = disp.disponivel != null,
+                                    disponivel = disp.disponivel,
+                                    onMarcarDisponivel = {
+                                        disponibilidadeViewModel.marcarDisponibilidade(
+                                            baseId, motoristaId, true
+                                        )
+                                    },
+                                    onMarcarIndisponivel = {
+                                        disponibilidadeViewModel.marcarDisponibilidade(
+                                            baseId, motoristaId, false
+                                        )
+                                    }
                                 )
                             }
-                        )
-                    }
-                    
-                    // QUINZENA - Contagem de dias trabalhados
-                    QuinzenaCard(quinzena = minhaQuinzena)
-                    
-                    // STATUS PRINCIPAL - Destaque
-                    // Só mostrar StatusCard se houver escala (motorista escalado)
-                    // Isso garante que quando o motorista for removido da escala, o status não será exibido
-                    if (escalaInfo != null) {
-                        StatusCard(
-                            statusInfo = statusInfo,
-                            onConfirmarChamada = {
-                                viewModel.confirmarChamada(motoristaId, baseId)
-                            },
-                            onConcluirCarregamento = {
-                                viewModel.concluirCarregamento(motoristaId, baseId)
+                        }
+                        
+                        // QUINZENA
+                        AnimatedVisibility(
+                            visible = visible,
+                            enter = slideInVertically { it / 2 } + fadeIn(initialAlpha = 0f)
+                        ) {
+                            QuinzenaCard(quinzena = minhaQuinzena)
+                        }
+                        
+                        // STATUS/ESCALA
+                        AnimatedVisibility(
+                            visible = visible,
+                            enter = slideInVertically { it / 2 } + fadeIn()
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                                if (escalaInfo != null) {
+                                    StatusCard(
+                                        statusInfo = statusInfo,
+                                        onConfirmarChamada = {
+                                            viewModel.confirmarChamada(motoristaId, baseId)
+                                        },
+                                        onConcluirCarregamento = {
+                                            viewModel.concluirCarregamento(motoristaId, baseId)
+                                        }
+                                    )
+                                }
+                                
+                                EscalaCompactCard(
+                                    escalaInfo = escalaInfo,
+                                    statusInfo = statusInfo
+                                )
                             }
-                        )
+                        }
                     }
-                    
-                    // ESCALA DO DIA - Compacta
-                    EscalaCompactCard(
-                        escalaInfo = escalaInfo,
-                        statusInfo = statusInfo
-                    )
-                }
             }
             
             error?.let { errorMessage ->

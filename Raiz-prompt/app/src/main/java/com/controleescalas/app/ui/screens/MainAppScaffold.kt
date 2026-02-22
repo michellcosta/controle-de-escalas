@@ -108,6 +108,11 @@ fun MainAppScaffold(
                 startDestination = BottomNavItem.Operation.route,
                 modifier = Modifier
                     .weight(1f)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(DeepBlue, DarkBackground, DarkBackground)
+                        )
+                    )
                     .padding(paddingValues)
             ) {
             // Log quando o NavHost é criado
