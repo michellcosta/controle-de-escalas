@@ -8,20 +8,25 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,10 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.delay
@@ -193,7 +202,12 @@ fun AssistenteScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Assistente", color = TextWhite) },
+                title = { 
+                    Column {
+                        Text("Assistente IA", color = TextWhite, style = MaterialTheme.typography.titleMedium)
+                        Text("Online e pronto para ajudar", color = NeonGreen, style = MaterialTheme.typography.labelSmall)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -203,231 +217,163 @@ fun AssistenteScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.Transparent
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(DeepBlue, DarkBackground, DarkBackground)
+                    )
+                )
                 .padding(paddingValues)
         ) {
-            if (messages.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (messages.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "Pergunte sobre escalas e motoristas",
-                            color = TextGray,
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            "Ex: \"Quanto tempo para João chegar?\" ou envie uma foto com o que deseja fazer",
-                            color = TextGray.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                "Pergunte sobre escalas e motoristas",
+                                color = TextGray,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                "Ex: \"Quanto tempo para João chegar?\" ou envie uma foto com o que deseja fazer",
+                                color = TextGray.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(messages) { msg ->
-                        MessageBubble(msg = msg)
-                    }
-                    if (isLoading) {
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp),
-                                    color = DarkSurface
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
-                                            color = NeonGreen,
-                                            strokeWidth = 2.dp
-                                        )
-                                        Text("...", color = TextGray)
-                                    }
-                                }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(messages) { msg ->
+                            MessageBubble(msg = msg)
+                        }
+                        if (isLoading) {
+                            item {
+                                TypingIndicator()
                             }
                         }
                     }
                 }
-            }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .padding(bottom = 12.dp),
-                color = DarkSurface,
-                shadowElevation = 8.dp
-            ) {
-                Column(
+                // Barra de Entrada Flutuante
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp)
+                        .imePadding()
+                        .padding(horizontal = 16.dp, vertical = 20.dp),
+                    color = DarkSurface.copy(alpha = 0.8f),
+                    shape = RoundedCornerShape(32.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                    shadowElevation = 12.dp
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(4.dp)
                     ) {
-                        IconButton(
-                            onClick = { launchCamera() },
-                            enabled = !isLoading
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.CameraAlt,
-                                contentDescription = "Câmera",
-                                tint = if (isLoading) TextGray else TextWhite
-                            )
-                        }
-                        IconButton(
-                            onClick = { pickImageLauncher.launch("image/*") },
-                            enabled = !isLoading
-                        ) {
-                            Icon(
-                                Icons.Default.AddPhotoAlternate,
-                                contentDescription = "Galeria",
-                                tint = if (isLoading) TextGray else TextWhite
-                            )
-                        }
-                        IconButton(
-                            onClick = { startSpeechRecognition() },
-                            enabled = !isLoading
-                        ) {
-                            Icon(
-                                Icons.Default.Mic,
-                                contentDescription = if (isListening) "Ouvindo..." else "Falar",
-                                tint = when {
-                                    isLoading -> TextGray
-                                    isListening -> NeonGreen
-                                    else -> TextWhite
+                            IconButton(onClick = { launchCamera() }, enabled = !isLoading) {
+                                Icon(Icons.Default.CameraAlt, "Câmera", tint = if (isLoading) TextGray else TextWhite)
+                            }
+                            IconButton(onClick = { pickImageLauncher.launch("image/*") }, enabled = !isLoading) {
+                                Icon(Icons.Default.AddPhotoAlternate, "Galeria", tint = if (isLoading) TextGray else TextWhite)
+                            }
+                            IconButton(onClick = { startSpeechRecognition() }, enabled = !isLoading) {
+                                Icon(
+                                    Icons.Default.Mic,
+                                    if (isListening) "Ouvindo..." else "Falar",
+                                    tint = if (isListening) NeonGreen else if (isLoading) TextGray else TextWhite
+                                )
+                            }
+
+                            BasicTextField(
+                                value = inputText,
+                                onValueChange = { inputText = it },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(focusRequester)
+                                    .onFocusChanged { onInputFocusChange(it.isFocused) }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),
+                                cursorBrush = SolidColor(NeonGreen),
+                                decorationBox = { inner ->
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        if (inputText.isEmpty() && selectedImageUri == null) {
+                                            Text("Fale com o assistente...", color = TextGray, style = MaterialTheme.typography.bodyLarge)
+                                        }
+                                        inner()
+                                    }
                                 }
                             )
+
+                            val canSend = !isLoading && (inputText.isNotBlank() || selectedImageUri != null)
+                            FloatingActionButton(
+                                onClick = {
+                                    if (canSend) {
+                                        selectedImageUri?.let { uri ->
+                                            viewModel.sendMessageWithImage(baseId, inputText.ifBlank { null }, uri)
+                                            selectedImageUri = null
+                                            inputText = ""
+                                        } ?: run {
+                                            viewModel.sendMessage(inputText, baseId)
+                                            inputText = ""
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.size(44.dp),
+                                shape = CircleShape,
+                                containerColor = if (canSend) NeonGreen else DarkSurfaceVariant,
+                                contentColor = if (canSend) DarkBackground else TextGray,
+                                elevation = FloatingActionButtonDefaults.elevation(0.dp)
+                            ) {
+                                Icon(Icons.Default.Send, "Enviar", modifier = Modifier.size(20.dp))
+                            }
                         }
-                    }
-                    if (selectedImageUri != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = NeonGreen.copy(alpha = 0.2f)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+
+                        if (selectedImageUri != null) {
+                            Surface(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                color = NeonGreen.copy(alpha = 0.15f)
                             ) {
                                 Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Icon(
-                                        Icons.Default.AddPhotoAlternate,
-                                        contentDescription = null,
-                                        tint = NeonGreen,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Text(
-                                        "Imagem anexada",
-                                        color = TextWhite,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { selectedImageUri = null },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Close,
-                                        contentDescription = "Remover imagem",
-                                        tint = TextGray,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        BasicTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(focusRequester)
-                                .onFocusChanged { onInputFocusChange(it.isFocused) }
-                                .background(DarkSurfaceVariant, RoundedCornerShape(24.dp))
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),
-                            cursorBrush = SolidColor(NeonGreen),
-                            decorationBox = { inner ->
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    if (inputText.isEmpty()) {
-                                        Text(
-                                            when {
-                                                selectedImageUri != null -> "Digite o que deseja fazer com a imagem..."
-                                                isListening -> "Ouvindo... (o que você disser aparecerá aqui)"
-                                                else -> "Digite ou envie mídia..."
-                                            },
-                                            color = TextGray,
-                                            style = MaterialTheme.typography.bodyLarge
-                                        )
-                                    }
-                                    inner()
-                                }
-                            }
-                        )
-                        val canSend = !isLoading && (inputText.isNotBlank() || selectedImageUri != null)
-                        IconButton(
-                            onClick = {
-                                selectedImageUri?.let { uri ->
-                                    viewModel.sendMessageWithImage(baseId, inputText.ifBlank { null }, uri)
-                                    selectedImageUri = null
-                                    inputText = ""
-                                } ?: run {
-                                    if (inputText.isNotBlank()) {
-                                        viewModel.sendMessage(inputText, baseId)
-                                        inputText = ""
+                                    Icon(Icons.Default.AddPhotoAlternate, null, tint = NeonGreen, modifier = Modifier.size(18.dp))
+                                    Text("Imagem anexada", color = TextWhite, style = MaterialTheme.typography.bodySmall)
+                                    IconButton(onClick = { selectedImageUri = null }, modifier = Modifier.size(24.dp)) {
+                                        Icon(Icons.Default.Close, "Remover", tint = TextGray, modifier = Modifier.size(14.dp))
                                     }
                                 }
-                            },
-                            enabled = canSend
-                        ) {
-                            Icon(
-                                Icons.Default.Send,
-                                contentDescription = "Enviar",
-                                tint = if (canSend) NeonGreen else TextGray
-                            )
+                            }
                         }
                     }
                 }
@@ -437,29 +383,106 @@ fun AssistenteScreen(
 }
 
 @Composable
-private fun MessageBubble(msg: ChatMessage) {
+fun MessageBubble(msg: ChatMessage) {
     val isUser = msg.role == "user"
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInHorizontally(initialOffsetX = { if (isUser) it else -it }) + fadeIn()
     ) {
-        Surface(
-            modifier = Modifier.widthIn(max = 320.dp),
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (isUser) 16.dp else 4.dp,
-                bottomEnd = if (isUser) 4.dp else 16.dp
-            ),
-            color = if (isUser) NeonGreen.copy(alpha = 0.3f) else DarkSurface
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+            verticalAlignment = Alignment.Bottom
         ) {
-            Text(
-                text = msg.text,
-                modifier = Modifier.padding(12.dp),
-                color = TextWhite,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isUser) FontWeight.Medium else FontWeight.Normal
-            )
+            if (!isUser) {
+                AvatarIcon(Icons.Default.AutoAwesome, NeonGreen)
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            
+            Surface(
+                modifier = Modifier.widthIn(max = 280.dp),
+                shape = RoundedCornerShape(
+                    topStart = 20.dp, topEnd = 20.dp,
+                    bottomStart = if (isUser) 20.dp else 4.dp,
+                    bottomEnd = if (isUser) 4.dp else 20.dp
+                ),
+                color = if (isUser) NeonGreen.copy(alpha = 0.2f) else DarkSurface.copy(alpha = 0.7f),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp, 
+                    if (isUser) NeonGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+                )
+            ) {
+                Text(
+                    text = msg.text,
+                    modifier = Modifier.padding(14.dp),
+                    color = TextWhite,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        lineHeight = 22.sp,
+                        letterSpacing = 0.3.sp
+                    )
+                )
+            }
+
+            if (isUser) {
+                Spacer(modifier = Modifier.width(8.dp))
+                AvatarIcon(Icons.Default.Person, Color.White.copy(alpha = 0.6f))
+            }
         }
     }
+}
+
+@Composable
+fun AvatarIcon(icon: ImageVector, color: Color) {
+    Surface(
+        modifier = Modifier.size(32.dp),
+        shape = CircleShape,
+        color = DarkSurfaceVariant,
+        border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.2f))
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+fun TypingIndicator() {
+    val infiniteTransition = rememberInfiniteTransition(label = "typing")
+    
+    @Composable
+    fun animateDot(delay: Int): Float {
+        return infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = -10f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(600, delayMillis = delay, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "dot"
+        ).value
+    }
+
+    Row(
+        modifier = Modifier.padding(start = 40.dp, top = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Dot(animateDot(0))
+        Dot(animateDot(150))
+        Dot(animateDot(300))
+    }
+}
+
+@Composable
+fun Dot(offsetY: Float) {
+    Surface(
+        modifier = Modifier
+            .size(6.dp)
+            .offset(y = offsetY.dp),
+        shape = CircleShape,
+        color = NeonGreen.copy(alpha = 0.6f)
+    ) {}
 }
