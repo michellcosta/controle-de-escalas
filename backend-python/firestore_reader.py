@@ -224,18 +224,62 @@ class FirestoreReader:
             parts = []
             base_ref = self.db.collection('bases').document(base_id)
             base_doc = base_ref.get()
-            nome_base = (base_doc.to_dict() or {}).get('nome', 'Base') if base_doc.exists else 'Base'
+            base_data = base_doc.to_dict() or {}
+            nome_base = base_data.get('nome', 'Base') if base_doc.exists else 'Base'
             parts.append(f"Base atual: {nome_base} (id: {base_id}).")
+
+            # --- MONETIZAÇÃO (PLANOS) ---
+            plano = base_data.get('plano', 'gratuito')
+            parts.append(f"Plano da base: {plano}.")
+            if plano == 'trial':
+                fim_trial = base_data.get('dataFimTrial')
+                if fim_trial:
+                    try:
+                        dt_fim = datetime.fromtimestamp(fim_trial / 1000.0)
+                        dias_restantes = (dt_fim - datetime.utcnow()).days
+                        parts.append(f"Período de teste (Trial) termina em: {dt_fim.strftime('%d/%m/%Y')} ({max(0, dias_restantes)} dias restantes).")
+                    except: pass
+
+            # --- CONFIGURAÇÃO E REGRAS DA BASE ---
+            try:
+                config_ref = base_ref.collection('configuracao').document('principal')
+                config_doc = config_ref.get()
+                if config_doc.exists:
+                    c_data = config_doc.to_dict() or {}
+                    galpao = c_data.get('galpao') or {}
+                    if galpao.get('lat') and galpao.get('lng'):
+                        parts.append(f"Regra de Localização: Galpão em ({galpao.get('lat')}, {galpao.get('lng')}) com raio de detecção de {galpao.get('raio', 100)} metros.")
+                    
+                    limites = c_data.get('limitesOndas') or {}
+                    if limites:
+                        limites_str = ", ".join([f"{k}: {v} motoristas" for k, v in limites.items()])
+                        parts.append(f"Limites de motoristas por onda: {limites_str}.")
+            except Exception as e_cfg:
+                print(f"get_contexto config: {e_cfg}")
 
             motoristas_ref = base_ref.collection('motoristas')
             motoristas_docs = list(motoristas_ref.stream())
-            motoristas_nomes = sorted(
-                (d.to_dict() or {}).get('nome', '').strip()
-                for d in motoristas_docs
-                if (d.to_dict() or {}).get('papel') == 'motorista' and (d.to_dict() or {}).get('ativo', True)
-            )
+            
+            # Contagem por modalidade
+            contagem_modalidade = Counter()
+            motoristas_nomes = []
+            for d in motoristas_docs:
+                m_data = d.to_dict() or {}
+                if m_data.get('papel') == 'motorista' and m_data.get('ativo', True):
+                    nome = m_data.get('nome', '').strip()
+                    modalidade = m_data.get('modalidade', 'FROTA').upper()
+                    if nome:
+                        motoristas_nomes.append(nome)
+                        contagem_modalidade[modalidade] += 1
+            
+            motoristas_nomes.sort()
             total_motoristas = len(motoristas_nomes)
             parts.append(f"Total de motoristas na base: {total_motoristas}.")
+            
+            if contagem_modalidade:
+                resumo_mod = ", ".join([f"{count} {mod}" for mod, count in sorted(contagem_modalidade.items())])
+                parts.append(f"Contagem por modalidade: {resumo_mod}.")
+
             if motoristas_nomes:
                 parts.append("Motoristas que podem ser escalados (use estes nomes exatos): " + ", ".join(motoristas_nomes) + ".")
 
@@ -315,17 +359,22 @@ class FirestoreReader:
                         continue
                     motoristas = data_disp.get('motoristas') or []
                     resumos = []
+                    counts = Counter()
                     for m in motoristas:
                         nome_m = (m.get('nome') or '').strip()
                         disp = m.get('disponivel')
+                        status_str = "não respondeu"
                         if disp is True:
-                            resumos.append(f"{nome_m}: disponível")
+                            status_str = "disponível"
                         elif disp is False:
-                            resumos.append(f"{nome_m}: indisponível")
-                        else:
-                            resumos.append(f"{nome_m}: não respondeu")
+                            status_str = "indisponível"
+                        
+                        counts[status_str] += 1
+                        resumos.append(f"{nome_m}: {status_str}")
+                    
                     if resumos:
-                        disp_listas.append(f"Data {data_str}: " + "; ".join(resumos[:15]))
+                        resumo_counts = f"({counts['disponível']} disponíveis, {counts['indisponível']} indisponíveis, {counts['não respondeu']} sem resposta)"
+                        disp_listas.append(f"Data {data_str} {resumo_counts}: " + "; ".join(resumos[:15]))
                 if disp_listas:
                     parts.append("Disponibilidade (hoje/amanhã): " + " | ".join(disp_listas))
             except Exception as e_disp:
@@ -400,6 +449,31 @@ class FirestoreReader:
                         parts.append("\n".join(dev_blocks))
             except Exception as e_dev:
                 print(f"get_contexto devolucoes: {e_dev}")
+
+            # --- HISTÓRICO DE NOTIFICAÇÕES (AVISOS ENVIADOS) ---
+            try:
+                avisos_ref = base_ref.collection('avisos_enviados')
+                avisos_docs = list(avisos_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10).stream())
+                if avisos_docs:
+                    parts.append("Últimos avisos enviados aos motoristas:")
+                    for d in avisos_docs:
+                        a = d.to_dict() or {}
+                        ts = a.get('timestamp')
+                        ts_str = ""
+                        if ts:
+                            try:
+                                # Firestore timestamp ou milissegundos
+                                if hasattr(ts, 'timestamp'):
+                                    ts_str = ts.strftime('%d/%m %H:%M')
+                                else:
+                                    ts_str = datetime.fromtimestamp(ts / 1000.0).strftime('%d/%m %H:%M')
+                            except: pass
+                        remetente = a.get('remetenteNome', 'Admin')
+                        destinatario = a.get('destinatarioNome', 'Motorista')
+                        texto = a.get('texto', '')
+                        parts.append(f"  [{ts_str}] {remetente} enviou para {destinatario}: \"{texto}\"")
+            except Exception as e_avisos:
+                print(f"get_contexto avisos: {e_avisos}")
 
             contexto = " ".join(parts)
             FirestoreReader._contexto_cache[base_id] = (agora, contexto)

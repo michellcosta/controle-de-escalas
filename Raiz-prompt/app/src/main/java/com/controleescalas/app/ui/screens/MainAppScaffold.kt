@@ -1,5 +1,6 @@
 package com.controleescalas.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
@@ -25,10 +26,15 @@ import com.controleescalas.app.navigation.Routes
 import com.controleescalas.app.ui.navigation.BottomNavItem
 import com.controleescalas.app.data.repositories.BaseRepository
 import com.controleescalas.app.data.repositories.SistemaRepository
+import com.controleescalas.app.ui.theme.*
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.DarkSurface
 import com.controleescalas.app.ui.theme.NeonGreen
 import com.controleescalas.app.ui.theme.NeonOrange
 import com.controleescalas.app.ui.theme.TextGray
+import androidx.compose.ui.graphics.Brush
+import com.controleescalas.app.ui.theme.DeepBlue
+import com.controleescalas.app.ui.theme.DarkBackground
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
 import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import com.google.firebase.auth.FirebaseAuth
@@ -103,176 +109,136 @@ fun MainAppScaffold(
                     }
                 }
             }
-            NavHost(
-                navController = navController,
-                startDestination = BottomNavItem.Operation.route,
-                modifier = Modifier
-                    .weight(1f)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(DeepBlue, DarkBackground, DarkBackground)
+            PremiumBackground(modifier = Modifier.weight(1f)) {
+                NavHost(
+                    navController = navController,
+                    startDestination = BottomNavItem.Operation.route,
+                    modifier = Modifier.padding(paddingValues)
+                ) {
+                    // Log quando o NavHost é criado
+                    println("🔵 MainAppScaffold: NavHost criado, startDestination: ${BottomNavItem.Operation.route}")
+                    android.util.Log.e("DEBUG", "🔵 MainAppScaffold: NavHost criado")
+                    composable(BottomNavItem.Assistente.route) {
+                        val operationEntry = navController.getBackStackEntry(BottomNavItem.Operation.route)
+                        val operationalViewModel: OperationalViewModel = viewModel(operationEntry!!)
+                        val currentTurno by operationalViewModel.turnoAtual.collectAsState()
+                        AssistenteScreen(
+                            baseId = baseId,
+                            onBack = { navController.popBackStack(BottomNavItem.Operation.route, false) },
+                            onAddToScaleAction = { motoristaId, nome, ondaIndex, vaga, rota, sacas ->
+                                operationalViewModel.addMotoristaToOndaWithDetails(ondaIndex, motoristaId, nome, vaga, rota, sacas)
+                            },
+                            onUpdateInScaleAction = { motoristaId, ondaIndex, vaga, rota, sacas ->
+                                operationalViewModel.updateMotoristaInOndaByDetails(ondaIndex, motoristaId, vaga, rota, sacas)
+                            },
+                            onBulkActions = { actions ->
+                                operationalViewModel.bulkApplyScaleActions(actions)
+                            },
+                            onSendNotification = { motoristaId, nome, body ->
+                                operationalViewModel.sendNotificationBatch(motoristaId, nome, body)
+                            },
+                            onInputFocusChange = { focused -> assistenteInputFocused = focused },
+                            turno = currentTurno
                         )
-                    )
-                    .padding(paddingValues)
-            ) {
-            // Log quando o NavHost é criado
-            println("🔵 MainAppScaffold: NavHost criado, startDestination: ${BottomNavItem.Operation.route}")
-            android.util.Log.e("DEBUG", "🔵 MainAppScaffold: NavHost criado")
-            composable(BottomNavItem.Assistente.route) {
-                val operationEntry = navController.getBackStackEntry(BottomNavItem.Operation.route)
-                val operationalViewModel: OperationalViewModel = viewModel(operationEntry!!)
-                val currentTurno by operationalViewModel.turnoAtual.collectAsState()
-                AssistenteScreen(
-                    baseId = baseId,
-                    onBack = { navController.popBackStack(BottomNavItem.Operation.route, false) },
-                    onAddToScaleAction = { motoristaId, nome, ondaIndex, vaga, rota, sacas ->
-                        operationalViewModel.addMotoristaToOndaWithDetails(ondaIndex, motoristaId, nome, vaga, rota, sacas)
-                    },
-                    onUpdateInScaleAction = { motoristaId, ondaIndex, vaga, rota, sacas ->
-                        operationalViewModel.updateMotoristaInOndaByDetails(ondaIndex, motoristaId, vaga, rota, sacas)
-                    },
-                    onBulkActions = { actions ->
-                        operationalViewModel.bulkApplyScaleActions(actions)
-                    },
-                    onSendNotification = { motoristaId, nome, body ->
-                        operationalViewModel.sendNotificationBatch(motoristaId, nome, body)
-                    },
-                    onInputFocusChange = { focused -> assistenteInputFocused = focused },
-                    turno = currentTurno
-                )
-            }
-            composable(BottomNavItem.Operation.route) {
-                // OperationalDashboardScreen mostra a aba de Operação/Ondas (Operações do Dia)
-                OperationalDashboardScreen(
-                    baseId = baseId,
-                    onOpenAssistente = { navController.navigate(BottomNavItem.Assistente.route) }
-                )
-            }
-            composable(BottomNavItem.Availability.route) {
-                // Nova tela de Disponibilidade
-                val disponibilidadeViewModel: com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel = viewModel()
-                AvailabilityScreen(
-                    baseId = baseId,
-                    viewModel = disponibilidadeViewModel
-                )
-            }
-            composable(BottomNavItem.Configuration.route) {
-                AdminPanelScreen(
-                    baseId = baseId,
-                    onEscalaClick = { /* Removido */ },
-                    onLocationConfigClick = onNavigateToLocationConfig,
-                    onUserManagementClick = onNavigateToUserManagement,
-                    onQuinzenaClick = { navController.navigate(Routes.QuinzenaList.route) },
-                    onDevolucaoClick = { navController.navigate(Routes.AdminDevolucoes.route) },
-                    onPlanosClick = { navController.navigate(Routes.Planos.route) },
-                    showPlanosButton = planosHabilitados,
-                    onFeedbackClick = { navController.navigate(Routes.AdminFeedback.route) },
-                    onLogout = onLogout
-                )
-            }
-            composable(Routes.Planos.route) {
-                PlanosScreen(
-                    baseId = baseId,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable("quinzena_list") {
-                QuinzenaListScreen(
-                    baseId = baseId,
-                    onBack = { navController.popBackStack() },
-                    onMotoristaClick = { motoristaId ->
-                        navController.navigate("quinzena_motorista/$motoristaId")
                     }
-                )
-            }
-            composable("quinzena_motorista/{motoristaId}") { backStackEntry ->
-                val motoristaId = backStackEntry.arguments?.getString("motoristaId") ?: ""
-                val quinzenaViewModel: com.controleescalas.app.ui.viewmodels.QuinzenaViewModel = viewModel()
-                DriverQuinzenaScreen(
-                    baseId = baseId,
-                    motoristaId = motoristaId,
-                    viewModel = quinzenaViewModel,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(Routes.AdminFeedback.route) {
-                val adminId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
-                AdminFeedbackScreen(
-                    baseId = baseId,
-                    adminId = adminId,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-
-            // Rotas de Devolução (Admin)
-            composable(Routes.AdminDevolucoes.route) {
-                android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: AdminDevolucoes route composable REGISTERED - route: ${Routes.AdminDevolucoes.route}")
-                println("🔵 [HYP-C] MainAppScaffold: AdminDevolucoes route composable registered - route: ${Routes.AdminDevolucoes.route}")
-                android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: About to create ViewModel")
-                println("🔵 [HYP-C] MainAppScaffold: About to create ViewModel")
-                val devolucaoViewModel: com.controleescalas.app.ui.viewmodels.DevolucaoViewModel = viewModel()
-                android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: ViewModel created successfully")
-                println("🔵 [HYP-C] MainAppScaffold: ViewModel created successfully")
-                android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: About to call AdminDevolucoesScreen")
-                println("🔵 [HYP-C] MainAppScaffold: About to call AdminDevolucoesScreen")
-                AdminDevolucoesScreen(
-                    baseId = baseId,
-                    onDismiss = { navController.popBackStack() },
-                    onMotoristaClick = { motoristaId, motoristaNome ->
-                        android.util.Log.e("DEBUG", "🔵 [HYP-B] MainAppScaffold: onMotoristaClick CALLBACK RECEIVED - motoristaId: $motoristaId, nome: $motoristaNome")
-                        println("🔵 [HYP-B] MainAppScaffold: onMotoristaClick callback received - motoristaId: $motoristaId, nome: $motoristaNome")
-                        android.util.Log.e("DEBUG", "🔵 [HYP-B] MainAppScaffold: navController is null: ${navController == null}")
-                        println("🔵 [HYP-B] MainAppScaffold: navController is null: ${navController == null}")
-                        // Usar apenas motoristaId na rota para evitar problemas com caracteres especiais
-                        val route = "${Routes.AdminDevolucaoDetalhes.route}/$motoristaId"
-                        android.util.Log.e("DEBUG", "🔵 [HYP-D] MainAppScaffold: Route constructed - baseRoute: ${Routes.AdminDevolucaoDetalhes.route}, fullRoute: $route")
-                        println("🔵 [HYP-D] MainAppScaffold: Route constructed - baseRoute: ${Routes.AdminDevolucaoDetalhes.route}, fullRoute: $route")
-                        android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: About to call navController.navigate()")
-                        println("🔵 [HYP-C] MainAppScaffold: About to call navController.navigate()")
-                        try {
-                            navController.navigate(route) {
-                                android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: navigate() lambda executed")
-                                println("🔵 [HYP-C] MainAppScaffold: navigate() lambda executed")
+                    composable(BottomNavItem.Operation.route) {
+                        // OperationalDashboardScreen mostra a aba de Operação/Ondas (Operações do Dia)
+                        OperationalDashboardScreen(
+                            baseId = baseId,
+                            onOpenAssistente = { navController.navigate(BottomNavItem.Assistente.route) }
+                        )
+                    }
+                    composable(BottomNavItem.Availability.route) {
+                        // Nova tela de Disponibilidade
+                        val disponibilidadeViewModel: com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel = viewModel()
+                        AvailabilityScreen(
+                            baseId = baseId,
+                            viewModel = disponibilidadeViewModel
+                        )
+                    }
+                    composable(BottomNavItem.Configuration.route) {
+                        AdminPanelScreen(
+                            baseId = baseId,
+                            onEscalaClick = { /* Removido */ },
+                            onLocationConfigClick = onNavigateToLocationConfig,
+                            onUserManagementClick = onNavigateToUserManagement,
+                            onQuinzenaClick = { navController.navigate("quinzena_list") },
+                            onDevolucaoClick = { navController.navigate(Routes.AdminDevolucoes.route) },
+                            onPlanosClick = { navController.navigate(Routes.Planos.route) },
+                            showPlanosButton = planosHabilitados,
+                            onFeedbackClick = { navController.navigate(Routes.AdminFeedback.route) },
+                            onLogout = onLogout
+                        )
+                    }
+                    composable(Routes.Planos.route) {
+                        PlanosScreen(
+                            baseId = baseId,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable("quinzena_list") {
+                        QuinzenaListScreen(
+                            baseId = baseId,
+                            onBack = { navController.popBackStack() },
+                            onMotoristaClick = { motoristaId ->
+                                navController.navigate("quinzena_motorista/$motoristaId")
                             }
-                            android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: navigate() completed without exception")
-                            println("🔵 [HYP-C] MainAppScaffold: navigate() completed without exception")
-                        } catch (e: Exception) {
-                            android.util.Log.e("DEBUG", "❌ [HYP-C] MainAppScaffold: Exception in navigate() - ${e.javaClass.simpleName}: ${e.message}")
-                            println("❌ [HYP-C] MainAppScaffold: Exception in navigate() - ${e.javaClass.simpleName}: ${e.message}")
-                            e.printStackTrace()
+                        )
+                    }
+                    composable("quinzena_motorista/{motoristaId}") { backStackEntry ->
+                        val motoristaId = backStackEntry.arguments?.getString("motoristaId") ?: ""
+                        val quinzenaViewModel: com.controleescalas.app.ui.viewmodels.QuinzenaViewModel = viewModel()
+                        DriverQuinzenaScreen(
+                            baseId = baseId,
+                            motoristaId = motoristaId,
+                            viewModel = quinzenaViewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable(Routes.AdminFeedback.route) {
+                        val adminId = FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                        AdminFeedbackScreen(
+                            baseId = baseId,
+                            adminId = adminId,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+
+                    // Rotas de Devolução (Admin)
+                    composable(Routes.AdminDevolucoes.route) {
+                        val devolucaoViewModel: com.controleescalas.app.ui.viewmodels.DevolucaoViewModel = viewModel()
+                        AdminDevolucoesScreen(
+                            baseId = baseId,
+                            onDismiss = { navController.popBackStack() },
+                            onMotoristaClick = { motoristaId, motoristaNome ->
+                                val route = "${Routes.AdminDevolucaoDetalhes.route}/$motoristaId"
+                                navController.navigate(route)
+                            },
+                            viewModel = devolucaoViewModel
+                        )
+                    }
+                    
+                    composable("${Routes.AdminDevolucaoDetalhes.route}/{motoristaId}") { backStackEntry ->
+                        val devolucaoViewModel: com.controleescalas.app.ui.viewmodels.DevolucaoViewModel = viewModel()
+                        val motoristaId = backStackEntry.arguments?.getString("motoristaId") ?: ""
+                        var motoristaNome by remember { mutableStateOf("") }
+                        LaunchedEffect(motoristaId, baseId) {
+                            if (motoristaId.isNotEmpty() && baseId.isNotEmpty()) {
+                                val repository = com.controleescalas.app.data.repositories.MotoristaRepository()
+                                val nome = repository.getMotoristaNome(motoristaId, baseId)
+                                motoristaNome = nome ?: "Motorista"
+                            }
                         }
-                    },
-                    viewModel = devolucaoViewModel
-                )
-                android.util.Log.e("DEBUG", "🔵 [HYP-C] MainAppScaffold: AdminDevolucoesScreen call completed")
-                println("🔵 [HYP-C] MainAppScaffold: AdminDevolucoesScreen call completed")
-            }
-            
-            composable("${Routes.AdminDevolucaoDetalhes.route}/{motoristaId}") { backStackEntry ->
-                android.util.Log.e("DEBUG", "🔵 [HYP-E] MainAppScaffold: AdminDevolucaoDetalhes composable MATCHED - route: ${backStackEntry.destination.route}")
-                println("🔵 [HYP-E] MainAppScaffold: AdminDevolucaoDetalhes composable matched - route: ${backStackEntry.destination.route}")
-                val devolucaoViewModel: com.controleescalas.app.ui.viewmodels.DevolucaoViewModel = viewModel()
-                val motoristaId = backStackEntry.arguments?.getString("motoristaId") ?: ""
-                println("🔵 [HYP-E] MainAppScaffold: Extracted motoristaId: '$motoristaId' (empty: ${motoristaId.isEmpty()})")
-                // Buscar o nome do motorista a partir do ID
-                var motoristaNome by remember { mutableStateOf("") }
-                LaunchedEffect(motoristaId, baseId) {
-                    if (motoristaId.isNotEmpty() && baseId.isNotEmpty()) {
-                        val repository = com.controleescalas.app.data.repositories.MotoristaRepository()
-                        val nome = repository.getMotoristaNome(motoristaId, baseId)
-                        motoristaNome = nome ?: "Motorista"
+                        AdminDevolucaoDetalhesScreen(
+                            baseId = baseId,
+                            motoristaId = motoristaId,
+                            motoristaNome = motoristaNome,
+                            onDismiss = { navController.popBackStack() },
+                            viewModel = devolucaoViewModel
+                        )
                     }
                 }
-                println("🔵 [HYP-E] MainAppScaffold: About to render AdminDevolucaoDetalhesScreen - motoristaNome: '$motoristaNome', baseId: '$baseId'")
-                AdminDevolucaoDetalhesScreen(
-                    baseId = baseId,
-                    motoristaId = motoristaId,
-                    motoristaNome = motoristaNome,
-                    onDismiss = { navController.popBackStack() },
-                    viewModel = devolucaoViewModel
-                )
             }
-        }
         }
     }
 }

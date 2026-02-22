@@ -16,11 +16,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +43,9 @@ import com.controleescalas.app.data.models.Onda
 import com.controleescalas.app.data.models.OndaItem
 import com.controleescalas.app.data.models.StatusMotorista
 import com.controleescalas.app.ui.components.*
+import com.controleescalas.app.ui.components.ConnectionStatusIndicator
+import com.controleescalas.app.ui.components.PremiumBackground
+import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.data.models.AdminMotoristaCardData
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
@@ -289,35 +292,23 @@ fun OperationalDashboardScreen(
             }
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(DeepBlue, DarkBackground, DarkBackground)
-                    )
-                )
-                .padding(paddingValues)
-        ) {
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = NeonGreen)
                 }
             } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Seletor de Turno
-                    TurnoSelector(
-                        turnoAtual = turnoAtual,
-                        onTurnoChange = { viewModel.changeTurno(it) },
-                        ondasCountAM = 0,
-                        ondasCountPM = 0
-                    )
-                    
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                ) {
                     WavesContent(
                         ondas = ondas,
                         turnoAtual = turnoAtual,
                         motoristasStatus = motoristasStatus,
                         motoristasDisponiveis = motoristasDisponiveis,
+                        onTurnoChange = { viewModel.changeTurno(it) },
                         onCallDriver = { motorista -> 
                             viewModel.callDriverToVaga(motorista) 
                         },
@@ -394,21 +385,32 @@ fun OperationalDashboardScreen(
                 )
             }
             
-            // Feedback Messages
-            FeedbackSnackbar(message = message, error = error, onClear = { viewModel.clearMessages() })
-            
-            // SnackbarHost para mensagens de compartilhamento
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) { snackbarData ->
-                val messageText = snackbarData.visuals.message
-                val isError = messageText.contains("erro", ignoreCase = true)
-                Snackbar(
-                    snackbarData = snackbarData,
-                    containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                    contentColor = if (isError) TextWhite else Color.Black
-                )
+            Box(modifier = Modifier.fillMaxSize()) {
+                val currentMessage = message
+                val currentError = error
+                
+                if (currentMessage != null || currentError != null) {
+                    FeedbackSnackbar(
+                        message = currentMessage,
+                        error = currentError,
+                        onClear = { viewModel.clearMessages() },
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
+                
+                // SnackbarHost para mensagens de compartilhamento
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) { snackbarData ->
+                    val messageText = snackbarData.visuals.message
+                    val isError = messageText.contains("erro", ignoreCase = true)
+                    Snackbar(
+                        snackbarData = snackbarData,
+                        containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
+                        contentColor = if (isError) TextWhite else Color.Black
+                    )
+                }
             }
         }
     }
@@ -420,6 +422,7 @@ fun WavesContent(
     turnoAtual: String,
     motoristasStatus: Map<String, StatusMotorista>,
     motoristasDisponiveis: List<AdminMotoristaCardData>,
+    onTurnoChange: (String) -> Unit, // Novo parâmetro
     onCallDriver: (OndaItem) -> Unit,
     onCallDriverWithVagaRota: (OndaItem, String, String) -> Unit,
     onCallToParking: (OndaItem) -> Unit,
@@ -439,8 +442,18 @@ fun WavesContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 80.dp)
+        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp)
     ) {
+        item {
+            // Seletor de Turno movido para dentro do LazyColumn
+            TurnoSelector(
+                turnoAtual = turnoAtual,
+                onTurnoChange = onTurnoChange,
+                ondasCountAM = 0,
+                ondasCountPM = 0
+            )
+        }
+        
         itemsIndexed(ondasNormais) { idx, onda ->
             val originalIndex = ondas.indexOf(onda)
             WaveOperationCard(
@@ -1052,8 +1065,13 @@ fun AddDriverDialog(
 }
 
 @Composable
-fun FeedbackSnackbar(message: String?, error: String?, onClear: () -> Unit) {
-    Box(modifier = Modifier.fillMaxSize()) {
+fun FeedbackSnackbar(
+    message: String?, 
+    error: String?, 
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxSize()) {
         message?.let { msg ->
             Snackbar(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),

@@ -9,7 +9,14 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+
+// Constantes de Espaçamento Premium
+val HorizontalPadding = 24.dp
+val SpacingSmall = 8.dp
+val SpacingMedium = 16.dp
+val SpacingLarge = 24.dp
 
 // Forçando Dark Mode para o Design Premium
 private val DarkColorScheme = darkColorScheme(

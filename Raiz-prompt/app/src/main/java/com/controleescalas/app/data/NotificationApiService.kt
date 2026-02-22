@@ -217,7 +217,9 @@ class NotificationApiService {
         text: String,
         base64Image: String?,
         idToken: String,
-        history: List<Pair<String, String>> = emptyList()
+        history: List<Pair<String, String>> = emptyList(),
+        userName: String? = null,
+        userRole: String? = null
     ): ChatAssistenteResult = withContext(Dispatchers.IO) {
         try {
             val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.ASSISTENTE_CHAT}"
@@ -234,6 +236,8 @@ class NotificationApiService {
                 put("text", text)
                 if (base64Image != null) put("imageBase64", base64Image)
                 if (historyArray.length() > 0) put("history", historyArray)
+                if (userName != null) put("userName", userName)
+                if (userRole != null) put("userRole", userRole)
             }
             val request = Request.Builder()
                 .url(url)

@@ -4,8 +4,12 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -27,12 +31,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.components.DisponibilidadeCard
 import com.controleescalas.app.ui.components.GlassCard
 import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.components.QuinzenaCard
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
 import com.controleescalas.app.ui.viewmodels.DriverViewModel
 import com.controleescalas.app.ui.viewmodels.QuinzenaViewModel
+import com.controleescalas.app.ui.theme.HorizontalPadding
+import com.controleescalas.app.ui.theme.SpacingSmall
+import com.controleescalas.app.ui.theme.SpacingMedium
+import com.controleescalas.app.ui.theme.SpacingLarge
 
 data class DriverEscalaInfo(
     val turno: String,
@@ -81,7 +90,7 @@ fun DriverHomeScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { Text("Minha Jornada", color = TextWhite) },
@@ -101,110 +110,125 @@ fun DriverHomeScreen(
             )
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(DeepBlue, DarkBackground, DarkBackground)
-                    )
-                )
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = NeonGreen
-                )
-            } else {
-                    // Usar animações de entrada para cada card
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(20.dp),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        var visible by remember { mutableStateOf(false) }
-                        LaunchedEffect(Unit) { 
-                            delay(100)
-                            visible = true 
-                        }
-
-                        // DISPONIBILIDADE
-                        AnimatedVisibility(
-                            visible = visible,
-                            enter = slideInVertically { it / 2 } + fadeIn()
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(HorizontalPadding)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(SpacingMedium)
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            color = NeonGreen
+                        )
+                    } else {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                            modifier = Modifier.fillMaxSize()
                         ) {
-                            minhaDisponibilidade?.let { disp ->
-                                DisponibilidadeCard(
-                                    data = disponibilidadeViewModel.disponibilidade.value?.data ?: "",
-                                    jaRespondeu = disp.disponivel != null,
-                                    disponivel = disp.disponivel,
-                                    onMarcarDisponivel = {
-                                        disponibilidadeViewModel.marcarDisponibilidade(
-                                            baseId, motoristaId, true
-                                        )
-                                    },
-                                    onMarcarIndisponivel = {
-                                        disponibilidadeViewModel.marcarDisponibilidade(
-                                            baseId, motoristaId, false
-                                        )
-                                    }
-                                )
+                            var visible by remember { mutableStateOf(false) }
+                            LaunchedEffect(Unit) { 
+                                delay(100)
+                                visible = true 
                             }
-                        }
-                        
-                        // QUINZENA
-                        AnimatedVisibility(
-                            visible = visible,
-                            enter = slideInVertically { it / 2 } + fadeIn(initialAlpha = 0f)
-                        ) {
-                            QuinzenaCard(quinzena = minhaQuinzena)
-                        }
-                        
-                        // STATUS/ESCALA
-                        AnimatedVisibility(
-                            visible = visible,
-                            enter = slideInVertically { it / 2 } + fadeIn()
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                                if (escalaInfo != null) {
-                                    StatusCard(
-                                        statusInfo = statusInfo,
-                                        onConfirmarChamada = {
-                                            viewModel.confirmarChamada(motoristaId, baseId)
+
+                            // DISPONIBILIDADE
+                            AnimatedVisibility(
+                                visible = visible,
+                                enter = slideInVertically { it / 2 } + fadeIn()
+                            ) {
+                                minhaDisponibilidade?.let { disp ->
+                                    DisponibilidadeCard(
+                                        data = disponibilidadeViewModel.disponibilidade.value?.data ?: "",
+                                        jaRespondeu = disp.disponivel != null,
+                                        disponivel = disp.disponivel,
+                                        onMarcarDisponivel = {
+                                            disponibilidadeViewModel.marcarDisponibilidade(
+                                                baseId, motoristaId, true
+                                            )
                                         },
-                                        onConcluirCarregamento = {
-                                            viewModel.concluirCarregamento(motoristaId, baseId)
+                                        onMarcarIndisponivel = {
+                                            disponibilidadeViewModel.marcarDisponibilidade(
+                                                baseId, motoristaId, false
+                                            )
                                         }
                                     )
                                 }
-                                
-                                EscalaCompactCard(
-                                    escalaInfo = escalaInfo,
-                                    statusInfo = statusInfo
-                                )
+                            }
+                            
+                            // QUINZENA
+                            AnimatedVisibility(
+                                visible = visible,
+                                enter = slideInVertically { it / 2 } + fadeIn()
+                            ) {
+                                QuinzenaCard(quinzena = minhaQuinzena)
+                            }
+                            
+                            // STATUS/ESCALA
+                            AnimatedVisibility(
+                                visible = visible,
+                                enter = slideInVertically { it / 2 } + fadeIn()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                                    if (escalaInfo != null) {
+                                        StatusCard(
+                                            statusInfo = statusInfo,
+                                            onConfirmarChamada = {
+                                                viewModel.confirmarChamada(motoristaId, baseId)
+                                            },
+                                            onConcluirCarregamento = {
+                                                viewModel.concluirCarregamento(motoristaId, baseId)
+                                            }
+                                        )
+                                    }
+                                    
+                                    EscalaCompactCard(
+                                        escalaInfo = escalaInfo,
+                                        statusInfo = statusInfo
+                                    )
+                                }
                             }
                         }
                     }
-            }
-            
-            error?.let { errorMessage ->
-                Snackbar(
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    containerColor = Color.Red,
-                    contentColor = TextWhite
-                ) {
-                    Text(errorMessage)
                 }
-            }
-            
-            disponibilidadeMessage?.let { message ->
-                Snackbar(
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                    containerColor = NeonGreen,
-                    contentColor = Color.Black
-                ) {
-                    Text(message)
+
+                // Dedicated Feedback Box for Snackbars
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (error != null) {
+                        Snackbar(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp),
+                            containerColor = StatusError,
+                            contentColor = TextWhite
+                        ) {
+                            Text(error!!)
+                        }
+                        LaunchedEffect(error) {
+                            delay(3000)
+                            viewModel.clearError()
+                        }
+                    }
+
+                    if (disponibilidadeMessage != null) {
+                        Snackbar(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp),
+                            containerColor = NeonGreen,
+                            contentColor = Color.Black
+                        ) {
+                            Text(disponibilidadeMessage!!)
+                        }
+                        LaunchedEffect(disponibilidadeMessage) {
+                            delay(2000)
+                            disponibilidadeViewModel.clearMessage()
+                        }
+                    }
                 }
             }
         }
@@ -227,7 +251,6 @@ fun StatusCard(
         animationSpec = tween(300)
     )
     
-    // Determinar título e cor baseado no status
     val (titulo, corStatus) = when {
         isChamadoParaVaga -> Pair("CHAMADO PARA VAGA", NeonGreen)
         isChamadoParaEstacionamento -> Pair("CHAMADO PARA ESTACIONAMENTO", NeonPurple)
@@ -237,7 +260,6 @@ fun StatusCard(
         else -> Pair(statusInfo?.estado?.replace("_", " ") ?: "A CAMINHO", TextGray)
     }
     
-    // Obter vaga e rota diretamente do statusInfo
     val vaga = statusInfo?.vagaAtual
     val rota = statusInfo?.rotaAtual
     
@@ -255,113 +277,46 @@ fun StatusCard(
         ) {
             when {
                 isChamadoParaVaga -> {
-                    // Exibir em 2 linhas quando chamado para vaga
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = "CHAMADO PARA",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = corStatus,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "VAGA",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = corStatus,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
+                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
+                        Text(text = "VAGA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
                     }
                 }
                 isChamadoParaEstacionamento -> {
-                    // Exibir em 2 linhas quando chamado para estacionamento
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = "CHAMADO PARA",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = corStatus,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "ESTACIONAMENTO",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = corStatus,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center
-                        )
+                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
+                        Text(text = "ESTACIONAMENTO", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
                     }
                 }
                 else -> {
-                    Text(
-                        text = titulo,
-                        style = when {
-                            statusInfo?.estado == "ESTACIONAMENTO" -> MaterialTheme.typography.titleLarge
-                            else -> MaterialTheme.typography.headlineMedium
-                        },
-                        color = corStatus,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Text(text = titulo, style = MaterialTheme.typography.headlineMedium, color = corStatus, fontWeight = FontWeight.Bold)
                 }
             }
             
-            // Mensagem específica baseada no status (em 2 linhas quando houver vaga e rota)
             when {
                 isChamadoParaVaga && vaga != null && rota != null -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "Vá para VAGA $vaga",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = TextWhite,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "ROTA $rota",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = TextWhite,
-                            textAlign = TextAlign.Center
-                        )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+                        Text(text = "ROTA $rota", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
                     }
                 }
                 isChamadoParaVaga && vaga != null -> {
-                    Text(
-                        text = "Vá para VAGA $vaga",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextWhite,
-                        textAlign = TextAlign.Center
-                    )
+                    Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
                 }
                 isChamadoParaEstacionamento -> {
-                    Text(
-                        text = "Vá para o estacionamento e aguarde",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextWhite,
-                        textAlign = TextAlign.Center
-                    )
+                    Text(text = "Vá para o estacionamento e aguarde", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
                 }
                 else -> {
-                    Text(
-                        text = statusInfo?.mensagem ?: "Aguardando instruções...",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextWhite,
-                        textAlign = TextAlign.Center
-                    )
+                    Text(text = statusInfo?.mensagem ?: "Aguardando instruções...", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
                 }
             }
             
-            // Mostrar vaga apenas quando chamado para vaga (não quando apenas escalado)
             if (isChamadoParaVaga && vaga != null) {
                 Surface(
                     color = corStatus.copy(alpha = 0.2f),
@@ -373,84 +328,25 @@ fun StatusCard(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         style = MaterialTheme.typography.titleLarge,
                         color = corStatus,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
             
-            // Botão "Entendi" quando houver chamada e não houver confirmação
             if (isChamado && statusInfo?.confirmadoEm == null && onConfirmarChamada != null) {
-                NeonButton(
-                    text = "✓ ENTENDI",
-                    onClick = onConfirmarChamada,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                NeonButton(text = "✓ ENTENDI", onClick = onConfirmarChamada, modifier = Modifier.fillMaxWidth())
             }
             
-            // Mostrar confirmação se já foi confirmado
             if (isChamado && statusInfo?.confirmadoEm != null) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Confirmado",
-                        tint = NeonGreen,
-                        modifier = Modifier.size(20.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Confirmado",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = NeonGreen
-                    )
+                    Text("Confirmado", color = NeonGreen)
                 }
             }
             
-            // Botão "Concluir Carregamento" quando estiver carregando e já confirmado
             if (isCarregando && statusInfo?.confirmadoEm != null && onConcluirCarregamento != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                NeonButton(
-                    text = "✓ CONCLUIR",
-                    onClick = onConcluirCarregamento,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun CallCard(statusInfo: DriverStatusInfo?) {
-    GlassCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Icon(
-                Icons.Default.Notifications,
-                contentDescription = null,
-                tint = NeonGreen,
-                modifier = Modifier.size(48.dp)
-            )
-            
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "CHAMADA ATIVA",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = NeonGreen,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    statusInfo?.mensagem ?: "",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextWhite
-                )
+                NeonButton(text = "✓ CONCLUIR", onClick = onConcluirCarregamento, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -462,167 +358,59 @@ fun EscalaCompactCard(
     statusInfo: DriverStatusInfo? = null
 ) {
     val isChamadoParaVaga = statusInfo?.estado == "CARREGANDO"
-    val isChamadoParaEstacionamento = statusInfo?.estado == "IR_ESTACIONAMENTO"
     
-    // Animação de piscar para vaga e rota quando chamado para vaga
     val infiniteTransition = rememberInfiniteTransition(label = "blink")
     val blinkAlpha by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = if (isChamadoParaVaga) 0.3f else 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, delayMillis = 0),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
-        ),
-        label = "blink_alpha"
+        animationSpec = infiniteRepeatable(animation = tween(800), repeatMode = RepeatMode.Reverse),
+        label = "blink"
     )
     
-    // Cor de destaque quando chamado
-    val corDestaque = if (isChamadoParaVaga) {
-        Color(0xFFFFA500) // Laranja/Amarelo
-    } else if (isChamadoParaEstacionamento) {
-        NeonPurple
-    } else {
-        null
+    val corDestaque = when {
+        isChamadoParaVaga -> Color(0xFFFFA500)
+        statusInfo?.estado == "IR_ESTACIONAMENTO" -> NeonPurple
+        else -> null
     }
     
-    GlassCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    "Escala de Hoje",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextWhite
-                )
-                
+            Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Text("Escala de Hoje", style = MaterialTheme.typography.titleMedium, color = TextWhite)
                 if (escalaInfo != null) {
-                    Surface(
-                        color = NeonBlue.copy(alpha = 0.2f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            escalaInfo.turno,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            color = NeonBlue,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                
-                // Badge de estacionamento
-                if (isChamadoParaEstacionamento) {
-                    Surface(
-                        color = NeonPurple.copy(alpha = 0.3f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            "ESTACIONAMENTO",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            color = NeonPurple,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                    Surface(color = NeonBlue.copy(alpha = 0.2f), shape = MaterialTheme.shapes.small) {
+                        Text(escalaInfo.turno, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = NeonBlue, fontWeight = FontWeight.Bold)
                     }
                 }
             }
             
             if (escalaInfo == null) {
-                Text(
-                    "Você não está escalado hoje.",
-                    color = TextGray,
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Text("Você não está escalado hoje.", color = TextGray)
             } else {
-                // Layout reorganizado: Onda/Vaga à esquerda, Horário/Rota à direita (abaixo do turno)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Coluna esquerda: Onda e Vaga
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        InfoItem(
-                            label = "Onda",
-                            value = escalaInfo.nomeOnda
-                        )
-                        
-                        // Vaga com animação de piscar quando chamado para vaga
-                        Box(
-                            modifier = Modifier.alpha(if (isChamadoParaVaga) blinkAlpha else 1f)
-                        ) {
-                            InfoItem(
-                                label = "Vaga",
-                                value = escalaInfo.vagaPlanejada,
-                                corDestaque = corDestaque
-                            )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        InfoItem(label = "Onda", value = escalaInfo.nomeOnda)
+                        Box(modifier = Modifier.alpha(if (isChamadoParaVaga) blinkAlpha else 1f)) {
+                            InfoItem(label = "Vaga", value = escalaInfo.vagaPlanejada, corDestaque = corDestaque)
                         }
                     }
-                    
-                    // Coluna direita: Horário e Rota (alinhados abaixo do turno)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.End,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // ✅ Layout customizado para Horário: "Hora" alinhado à direita, valor abaixo
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.End
-                        ) {
-                            Text(
-                                text = "Hora",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextGray,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.End
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (escalaInfo.horarioPlanejado.isBlank()) "Indefinida" else escalaInfo.horarioPlanejado,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = TextWhite,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.End
-                            )
+                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("Hora", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                            Text(escalaInfo.horarioPlanejado.ifBlank { "Indefinida" }, color = TextWhite, fontWeight = FontWeight.Medium)
                         }
-                        
-                        // Rota com animação de piscar quando chamado para vaga
-                        Box(
-                            modifier = Modifier.alpha(if (isChamadoParaVaga) blinkAlpha else 1f)
-                        ) {
-                            InfoItem(
-                                label = "Rota",
-                                value = escalaInfo.rotaCodigo,
-                                corDestaque = corDestaque
-                            )
+                        Box(modifier = Modifier.alpha(if (isChamadoParaVaga) blinkAlpha else 1f)) {
+                            InfoItem(label = "Rota", value = escalaInfo.rotaCodigo, corDestaque = corDestaque)
                         }
                     }
                 }
                 
-                // Mostrar sacas se existir
                 escalaInfo.sacas?.let { sacas ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        InfoItem(label = "Sacas", value = "$sacas")
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
+                    InfoItem(label = "Sacas", value = "$sacas")
                 }
                 
                 if (escalaInfo.hasPdf) {
-                    NeonButton(
-                        text = "Ver Rota (PDF)",
-                        onClick = { /* TODO */ },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    NeonButton(text = "Ver Rota (PDF)", onClick = { /* TODO */ }, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -637,16 +425,7 @@ fun InfoItem(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodySmall,
-            color = TextGray
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyLarge,
-            color = corDestaque ?: TextWhite,
-            fontWeight = if (corDestaque != null) FontWeight.Bold else FontWeight.Medium
-        )
+        Text(label, style = MaterialTheme.typography.bodySmall, color = TextGray)
+        Text(value, color = corDestaque ?: TextWhite, fontWeight = if (corDestaque != null) FontWeight.Bold else FontWeight.Medium)
     }
 }

@@ -914,9 +914,16 @@ class DisponibilidadeViewModel : ViewModel() {
     /**
      * Limpa mensagens de feedback
      */
-    fun clearMessages() {
+    fun clearMessage() {
         _message.value = null
         _error.value = null
+    }
+
+    /**
+     * Limpa mensagens de feedback (alias para compatibilidade)
+     */
+    fun clearMessages() {
+        clearMessage()
     }
     
     override fun onCleared() {

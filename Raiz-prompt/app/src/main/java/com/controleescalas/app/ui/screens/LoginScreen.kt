@@ -12,8 +12,11 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import kotlinx.coroutines.delay
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -29,6 +32,7 @@ import com.controleescalas.app.data.models.SavedSession
 import com.controleescalas.app.ui.components.CustomTextField
 import com.controleescalas.app.ui.components.GlassCard
 import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
@@ -37,12 +41,23 @@ import kotlinx.coroutines.launch
 fun LoginExistingScreen(
     onLoginAsMotorista: (String, String) -> Unit,
     onLoginAsAdmin: (String, String) -> Unit,
-    onLoginAsSuperAdmin: (String) -> Unit = { _ -> }, // Novo parâmetro para super admin
+    onLoginAsSuperAdmin: (String) -> Unit = { _ -> },
     viewModel: LoginViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
     val scope = rememberCoroutineScope()
+    
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val logoScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "logoScale"
+    )
     
     var telefone by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }
@@ -53,149 +68,68 @@ fun LoginExistingScreen(
     val loginResult by viewModel.loginResult.collectAsState()
     val availableAccounts by viewModel.availableAccounts.collectAsState()
     
-    // Carregar contas disponíveis ao abrir a tela
     LaunchedEffect(Unit) {
         viewModel.loadAvailableAccounts()
     }
 
     LaunchedEffect(loginResult) {
         loginResult?.let { result ->
-            when (result) {
-                is com.controleescalas.app.data.LoginResult.Success -> {
-                    // Salvar sessão antes de navegar
-                    // IMPORTANTE: Usar motoristaId (ID do documento), não telefone
-                    val session = SavedSession(
-                        userId = result.motoristaId, // ID do documento do motorista/admin
-                        baseId = result.baseId,
-                        baseName = result.baseName.ifBlank { "Transportadora" },
-                        userName = result.nome,
-                        userRole = result.papel
-                    )
-                    
-                    // Aguardar salvamento antes de navegar
-                    scope.launch {
-                        sessionManager.saveSession(session)
-                        println("✅ LoginScreen: Sessão salva - ${session.baseName} (${session.userName}), userId: ${session.userId}")
-                        
-                        // Navegar após salvar
-                        when (result.papel) {
-                            "motorista" -> onLoginAsMotorista(result.motoristaId, result.baseId)
-                            "superadmin" -> onLoginAsSuperAdmin(result.motoristaId)
-                            "admin", "auxiliar" -> onLoginAsAdmin(result.motoristaId, result.baseId)
-                            else -> {}
-                        }
+            if (result is com.controleescalas.app.data.LoginResult.Success) {
+                val session = SavedSession(
+                    userId = result.motoristaId,
+                    baseId = result.baseId,
+                    baseName = result.baseName.ifBlank { "Transportadora" },
+                    userName = result.nome,
+                    userRole = result.papel
+                )
+                
+                scope.launch {
+                    sessionManager.saveSession(session)
+                    when (result.papel) {
+                        "motorista" -> onLoginAsMotorista(result.motoristaId, result.baseId)
+                        "superadmin" -> onLoginAsSuperAdmin(result.motoristaId)
+                        "admin", "auxiliar" -> onLoginAsAdmin(result.motoristaId, result.baseId)
+                        else -> {}
                     }
                 }
-                is com.controleescalas.app.data.LoginResult.Error -> {}
             }
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(DeepBlue, DarkBackground, DarkBackground)
-                )
-            )
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            modifier = Modifier.fillMaxWidth()
+    PremiumBackground(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            contentAlignment = Alignment.Center
         ) {
-            // Logo/Título
-            Text(
-                text = "CONTROLE DE\nESCALAS",
-                style = MaterialTheme.typography.headlineLarge,
-                color = NeonGreen,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                lineHeight = MaterialTheme.typography.headlineLarge.lineHeight,
-                modifier = Modifier.scale(logoScale)
-            )
-            
-            if (showAccountsList) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
-                    "Selecione uma conta ou faça login manual",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextGray
+                    text = "CONTROLE DE\nESCALAS",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = NeonGreen,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.scale(logoScale)
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            "Contas Disponíveis",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = TextWhite,
-                            fontWeight = FontWeight.Bold
-                        )
+                
+                if (showAccountsList) {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("Contas Disponíveis", style = MaterialTheme.typography.titleLarge, color = TextWhite, fontWeight = FontWeight.Bold)
                         
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(100.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(color = NeonGreen)
-                            }
-                        } else if (availableAccounts.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = TextGray,
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                    Text(
-                                        "Nenhuma conta encontrada",
-                                        color = TextGray,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        "Crie uma transportadora primeiro",
-                                        color = TextGray,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                            if (isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = NeonGreen)
+                            } else if (availableAccounts.isEmpty()) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                    Icon(Icons.Default.Person, contentDescription = null, tint = TextGray, modifier = Modifier.size(48.dp))
+                                    Text("Nenhuma conta encontrada", color = TextGray)
                                 }
-                            }
-                        } else {
-                            Text(
-                                "Clique em uma conta para preencher automaticamente",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextGray
-                            )
-
-                            LazyColumn(
-                                modifier = Modifier.heightIn(max = 400.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(availableAccounts.indices.toList()) { index ->
-                                    val account = availableAccounts[index]
-                                    var visible by remember { mutableStateOf(false) }
-                                    LaunchedEffect(Unit) {
-                                        delay(index * 100L)
-                                        visible = true
-                                    }
-                                    AnimatedVisibility(
-                                        visible = visible,
-                                        enter = slideInVertically { it / 2 } + fadeIn()
-                                    ) {
+                            } else {
+                                LazyColumn(modifier = Modifier.heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(availableAccounts) { account ->
                                         AccountCard(
                                             nome = account.nome,
                                             telefone = account.telefone,
@@ -208,110 +142,60 @@ fun LoginExistingScreen(
                                     }
                                 }
                             }
-                        }
-                        
-                        Divider(color = TextGray.copy(alpha = 0.2f))
-                        
-                        TextButton(
-                            onClick = { showAccountsList = false },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Fazer login manual", color = NeonBlue)
-                        }
-                    }
-                }
-            } else {
-                Text(
-                    "Bem-vindo de volta",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = TextGray
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        CustomTextField(
-                            value = telefone,
-                            onValueChange = { telefone = it },
-                            label = "Telefone",
-                            leadingIcon = Icons.Default.Phone,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
-                        )
-
-                        CustomTextField(
-                            value = pin,
-                            onValueChange = { newValue ->
-                                val numericValue = newValue.filter { it.isDigit() }
-                                if (numericValue.length <= 6) {
-                                    pin = numericValue
-                                }
-                            },
-                            label = "PIN (6 dígitos)",
-                            leadingIcon = Icons.Default.Lock,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
-                        )
-
-                        if (isLoading) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator(color = NeonGreen)
-                            }
-                        } else {
-                            val buttonAlpha by infiniteTransition.animateFloat(
-                                initialValue = 0.8f,
-                                targetValue = 1f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(1500),
-                                    repeatMode = RepeatMode.Reverse
-                                ),
-                                label = "buttonAlpha"
-                            )
                             
-                            NeonButton(
-                                text = "ENTRAR",
-                                onClick = {
-                                    if (telefone.isNotBlank() && pin.length == 6) {
-                                        viewModel.login(telefone, pin)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .shadow(
-                                        elevation = if (telefone.isNotBlank() && pin.length == 6) 12.dp else 0.dp,
-                                        shape = RoundedCornerShape(12.dp),
-                                        ambientColor = NeonGreen,
-                                        spotColor = NeonGreen
-                                    ),
-                                enabled = telefone.isNotBlank() && pin.length == 6,
-                                color = if (telefone.isNotBlank() && pin.length == 6) 
-                                    NeonGreen.copy(alpha = buttonAlpha) 
-                                else NeonGreen.copy(alpha = 0.5f)
-                            )
-                        }
-                        
-                        TextButton(
-                            onClick = { showAccountsList = true },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Ver contas disponíveis", color = TextGray)
+                            Divider(color = TextGray.copy(alpha = 0.2f))
+                            TextButton(onClick = { showAccountsList = false }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Fazer login manual", color = NeonBlue)
+                            }
                         }
                     }
-                }
+                } else {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                            CustomTextField(
+                                value = telefone,
+                                onValueChange = { telefone = it },
+                                label = "Telefone",
+                                leadingIcon = Icons.Default.Phone,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                            )
 
-                error?.let { errorMessage ->
-                    Surface(
-                        color = Color.Red.copy(alpha = 0.2f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = errorMessage,
+                            CustomTextField(
+                                value = pin,
+                                onValueChange = { newValue ->
+                                    val numericValue = newValue.filter { it.isDigit() }
+                                    if (numericValue.length <= 6) pin = numericValue
+                                },
+                                label = "PIN (6 dígitos)",
+                                leadingIcon = Icons.Default.Lock,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                            )
+
+                            if (isLoading) {
+                                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = NeonGreen)
+                            } else {
+                                NeonButton(
+                                    text = "ENTRAR",
+                                    onClick = { if (telefone.isNotBlank() && pin.length == 6) viewModel.login(telefone, pin) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = telefone.isNotBlank() && pin.length == 6
+                                )
+                            }
+                            
+                            TextButton(onClick = { showAccountsList = true }, modifier = Modifier.fillMaxWidth()) {
+                                Text("Ver contas disponíveis", color = TextGray)
+                            }
+                        }
+                    }
+                    
+                    error?.let { msg ->
+                        Snackbar(
                             modifier = Modifier.padding(16.dp),
-                            color = Color.Red,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                            containerColor = StatusError,
+                            contentColor = TextWhite
+                        ) {
+                            Text(text = msg)
+                        }
                     }
                 }
             }
@@ -328,15 +212,11 @@ fun AccountCard(
 ) {
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = DarkSurfaceVariant
-        ),
+        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -352,17 +232,8 @@ fun AccountCard(
             )
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    nome,
-                    color = TextWhite,
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    telefone,
-                    color = TextGray,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Text(nome, color = TextWhite, fontWeight = FontWeight.Bold)
+                Text(telefone, color = TextGray, style = MaterialTheme.typography.bodySmall)
             }
             
             Surface(
@@ -381,8 +252,7 @@ fun AccountCard(
                         "auxiliar" -> NeonBlue
                         else -> NeonGreen
                     },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
         }

@@ -1235,6 +1235,48 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
+     * Salva uma notificação enviada no Firestore para histórico do assistente.
+     */
+    private fun saveNotificationToHistory(
+        destinatarioId: String,
+        destinatarioNome: String,
+        texto: String
+    ) {
+        viewModelScope.launch {
+            try {
+                val db = FirebaseFirestore.getInstance()
+                val auth = FirebaseAuth.getInstance()
+                val currentUser = auth.currentUser ?: return@launch
+                
+                // Buscar nome do remetente (admin logado)
+                val remetenteDoc = db.collection("usuarios").document(currentUser.uid).get().await()
+                val remetenteNome = remetenteDoc.getString("nome") ?: "Admin"
+                val remetentePapel = remetenteDoc.getString("papel") ?: "admin"
+
+                val aviso = hashMapOf(
+                    "remetenteId" to currentUser.uid,
+                    "remetenteNome" to remetenteNome,
+                    "remetentePapel" to remetentePapel,
+                    "destinatarioId" to destinatarioId,
+                    "destinatarioNome" to destinatarioNome,
+                    "texto" to texto,
+                    "timestamp" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                )
+
+                db.collection("bases")
+                    .document(currentBaseId)
+                    .collection("avisos_enviados")
+                    .add(aviso)
+                    .await()
+                
+                Log.d("OperationalVM", "✅ Aviso salvo no histórico: $destinatarioNome")
+            } catch (e: Exception) {
+                Log.e("OperationalVM", "❌ Erro ao salvar histórico de aviso: ${e.message}")
+            }
+        }
+    }
+
+    /**
      * Envia notificações em lote para motoristas (individual ou por onda).
      * @param targetId O ID do motorista ou "WAVE_{index}" para notificar uma onda inteira.
      */
@@ -1269,13 +1311,16 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
 
                 Log.d("OperationalVM", "🔔 Enviando avisos para ${recipients.size} destinatários")
                 recipients.forEach { (id, n) ->
-                    api.notifyMotorista(
+                    val (sent, _) = api.notifyMotorista(
                         baseId = baseId,
                         motoristaId = id,
                         title = "📢 Aviso do Assistente",
                         body = body,
                         data = mapOf("tipo" to "aviso")
                     )
+                    if (sent) {
+                        saveNotificationToHistory(id, n, body)
+                    }
                 }
                 
                 _message.value = "Aviso enviado para ${recipients.size} motorista(s)"

@@ -7,12 +7,25 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.*
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CloudOff
@@ -51,13 +64,12 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * GlassCard - Card com efeito de vidro e borda sutil
+ * GlassCard - Card com efeito de vidro, borda sutil e reflexo de quina
  */
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    border: BorderStroke = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
     containerColor: Color = DarkSurface.copy(alpha = 0.4f),
     content: @Composable () -> Unit
 ) {
@@ -67,7 +79,19 @@ fun GlassCard(
         colors = CardDefaults.cardColors(
             containerColor = containerColor
         ),
-        border = border,
+        // Borda assimétrica para simular reflexo de luz (Light Edge)
+        border = BorderStroke(
+            width = 1.dp,
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.2f),
+                    Color.White.copy(alpha = 0.05f),
+                    Color.Transparent
+                ),
+                start = Offset(0f, 0f),
+                end = Offset(400f, 400f)
+            )
+        ),
         onClick = onClick ?: {}
     ) {
         Box(modifier = Modifier.padding(20.dp)) {
@@ -77,7 +101,7 @@ fun GlassCard(
 }
 
 /**
- * NeonButton - Botão com gradiente e brilho
+ * NeonButton - Botão com gradiente, brilho (Neon Aura) e animação
  */
 @Composable
 fun NeonButton(
@@ -89,37 +113,118 @@ fun NeonButton(
     enabled: Boolean = true,
     color: Color = NeonGreen
 ) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(56.dp),
-        enabled = enabled && !isLoading,
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = color,
-            contentColor = Color.Black,
-            disabledContainerColor = color.copy(alpha = 0.5f)
+    val infiniteTransition = rememberInfiniteTransition(label = "neonAura")
+    val auraAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000, easing = LinearOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
         ),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-    ) {
-        if (isLoading) {
-            // CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black)
-            Text("Carregando...", style = MaterialTheme.typography.labelLarge)
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (icon != null) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+        label = "auraAlpha"
+    )
+
+    Box(contentAlignment = Alignment.Center, modifier = modifier) {
+        // Neon Aura (Glow) - Apenas se habilitado
+        if (enabled && !isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .padding(horizontal = 8.dp)
+                    .shadow(
+                        elevation = 20.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        ambientColor = color,
+                        spotColor = color
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    .background(color.copy(alpha = auraAlpha), RoundedCornerShape(12.dp))
+                    .blur(16.dp)
+            )
+        }
+
+        Button(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            enabled = enabled && !isLoading,
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = color,
+                contentColor = Color.Black,
+                disabledContainerColor = color.copy(alpha = 0.3f)
+            ),
+            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 4.dp,
+                pressedElevation = 0.dp
+            )
+        ) {
+            if (isLoading) {
+                Text("Carregando...", style = MaterialTheme.typography.labelLarge)
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (icon != null) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(
+                        text = text.uppercase(),
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp
+                        )
+                    )
                 }
-                Text(
-                    text = text.uppercase(),
-                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
-                )
             }
         }
+    }
+}
+
+/**
+ * PremiumBackground - Background com gradiente e textura de malha (dot grid)
+ */
+@Composable
+fun PremiumBackground(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        com.controleescalas.app.ui.theme.DeepBlue,
+                        com.controleescalas.app.ui.theme.DarkBackground,
+                        com.controleescalas.app.ui.theme.DarkBackground
+                    )
+                )
+            )
+            .drawBehind {
+                // Desenha uma malha de pontos sutis (Dot Grid) para textura
+                val dotSize = 1.dp.toPx()
+                val spacing = 32.dp.toPx()
+                val paintAlpha = 0.05f
+                
+                val columns = (size.width / spacing).toInt()
+                val rows = (size.height / spacing).toInt()
+                
+                for (x in 0..columns) {
+                    for (y in 0..rows) {
+                        drawCircle(
+                            color = Color.White.copy(alpha = paintAlpha),
+                            radius = dotSize / 2f,
+                            center = Offset(x.toFloat() * spacing, y.toFloat() * spacing)
+                        )
+                    }
+                }
+            }
+    ) {
+        content()
     }
 }
 

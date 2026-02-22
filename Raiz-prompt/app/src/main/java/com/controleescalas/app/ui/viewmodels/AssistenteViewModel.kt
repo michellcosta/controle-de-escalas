@@ -199,11 +199,36 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
 
             val api = NotificationApiService()
             val historyImg = _messages.value.map { it.role to it.text }
-            var chatResult = api.chatWithAssistente(baseId, displayText, base64Image, idToken, historyImg)
+
+            // Buscar dados do usuário para identidade
+            val db = FirebaseManager.firestore
+            val userDoc = try {
+                db.collection("usuarios").document(user.uid).get().await()
+            } catch (e: Exception) { null }
+            val userName = userDoc?.getString("nome")
+            val userRole = userDoc?.getString("papel")
+
+            var chatResult = api.chatWithAssistente(
+                baseId = baseId,
+                text = displayText,
+                base64Image = base64Image,
+                idToken = idToken,
+                history = historyImg,
+                userName = userName,
+                userRole = userRole
+            )
             val firstError = chatResult.error
             if (!chatResult.success && firstError != null && "401" in firstError && "Token" in firstError) {
                 runCatching { user.getIdToken(true).await() }.getOrNull()?.token?.let { freshToken ->
-                    chatResult = api.chatWithAssistente(baseId, displayText, base64Image, freshToken, historyImg)
+                    chatResult = api.chatWithAssistente(
+                        baseId = baseId,
+                        text = displayText,
+                        base64Image = base64Image,
+                        idToken = freshToken,
+                        history = historyImg,
+                        userName = userName,
+                        userRole = userRole
+                    )
                 }
             }
             _isLoading.value = false
@@ -404,12 +429,37 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                 }
                 val api = NotificationApiService()
                 val history = _messages.value.map { it.role to it.text }
+
+                // Buscar dados do usuário para identidade
+                val db = FirebaseManager.firestore
+                val userDoc = try {
+                    db.collection("usuarios").document(user.uid).get().await()
+                } catch (e: Exception) { null }
+                val userName = userDoc?.getString("nome")
+                val userRole = userDoc?.getString("papel")
+
                 // Envia a imagem persistente se houver, para manter o contexto visual
-                var chatResult = api.chatWithAssistente(baseId, text, persistentImageBase64, idToken, history)
+                var chatResult = api.chatWithAssistente(
+                    baseId = baseId,
+                    text = text,
+                    base64Image = persistentImageBase64,
+                    idToken = idToken,
+                    history = history,
+                    userName = userName,
+                    userRole = userRole
+                )
                 val firstError = chatResult.error
                 if (!chatResult.success && firstError != null && "401" in firstError && "Token" in firstError) {
                     runCatching { user.getIdToken(true).await() }.getOrNull()?.token?.let { fresh ->
-                        chatResult = api.chatWithAssistente(baseId, text, persistentImageBase64, fresh, history)
+                        chatResult = api.chatWithAssistente(
+                            baseId = baseId,
+                            text = text,
+                            base64Image = persistentImageBase64,
+                            idToken = fresh,
+                            history = history,
+                            userName = userName,
+                            userRole = userRole
+                        )
                     }
                 }
                 

@@ -447,13 +447,23 @@ _SYSTEM_PROMPT = (
     "IMPORTANTE: Nunca responda com JSON, códigos ou estruturas técnicas. O usuário deve ver APENAS texto em português. "
     "Quando for aplicar uma alteração (ex.: mudar rota/vaga), escreva primeiro uma frase curta e amigável (ex.: 'Pronto, alterei a rota do Michell para K7.' ou 'Alterado: vaga 10 e rota K7 para o Michell.'). "
     "Em seguida, em uma linha separada, coloque EXATAMENTE: ACTION_JSON:{\"type\":\"...\", ...} (essa linha será removida e não aparece para o usuário). Use o nome exato do campo ondaIndex (não ondalndex). "
-    "Você é o assistente do app Controle de Escalas. Responda APENAS sobre: escalas de motoristas, "
+    "Você é o assistente do app Controle de Escalas. Responda sobre: escalas de motoristas, "
     "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena e devoluções. "
-    "Nos DADOS DA BASE você recebe: por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
-    "tempo estimado ao galpão (ETA por motorista); disponibilidade (quem está disponível/indisponível/não respondeu por data); "
-    "quinzena (dias trabalhados na 1ª e 2ª quinzena por motorista); devoluções por motorista com Total por dia e cada devolução com data, hora, N pacotes e IDs. "
+    "Você também deve responder sobre a quantidade de motoristas em cada categoria (FROTA, PASSEIO, etc.) e resumos de disponibilidade. "
+    "Se o usuário perguntar 'quem sou eu' ou similar, use os dados de IDENTIDADE DO USUÁRIO para responder nome e papel. "
+    "Sempre cumprimente o usuário pelo nome se disponível. "
+    "\n\nGUIA DE USO DO APP (FAQ): "
+    "- Para escanear QR Code: Na tela do motorista, clique no ícone de câmera no menu inferior. "
+    "- Para ver devoluções: No painel admin, clique em 'Devoluções'. "
+    "- Para gerenciar motoristas: No painel admin, clique em 'Usuários'. "
+    "- Para configurar localização: No painel admin, clique em 'Configuração de Localização'. "
+    "- Para ver dias trabalhados: Clique em 'Quinzena' no menu admin ou no card da tela do motorista. "
+    "\n\nNos DADOS DA BASE você recebe: contagem por modalidade; por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
+    "tempo estimado ao galpão (ETA por motorista); disponibilidade detalhada e resumida (quem está disponível/indisponível/não respondeu por data); "
+    "quinzena (dias trabalhados); devoluções; histórico de avisos enviados; plano e trial da base; e regras de localização (galpão e raio). "
     "MÁXIMA ATENÇÃO: Se a imagem contiver 6 motoristas, você deve gerar 6 linhas de ACTION_JSON. NUNCA resuma ou ignore motoristas. "
     "Ao falar de DEVOLUÇÕES use SEMPRE este formato: (1) Nome do motorista. (2) 'Total por dia: [data1] X devolução(ões); [data2] Y devolução(ões); ...' (3) Para cada devolução uma linha: 'DD/MM/AAAA HH:MM — N pacote(s). IDs: id1, id2, id3, ...' Não misture 'ID da devolução' no texto; não use lista numerada 1. 2. 3.; use só Total por dia e depois linhas com data hora — pacotes e IDs. "
+    "Ao dar INSIGHTS sobre devoluções, você pode dizer: 'O motorista [Nome] teve X devoluções esta semana, um aumento/queda de Y%'. "
     "Use esses dados para responder com números e nomes reais. "
     "Mantenha o contexto da conversa: se o usuário confirmar algo (ex: 'confirmado', 'sim'), interprete com base nas mensagens anteriores. "
     "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app. "
@@ -476,7 +486,7 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None) -> Optional[str]:
+def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None, user_name: str = "Usuário", user_role: str = "Membro") -> Optional[str]:
     """Usa OpenAI GPT-4o-mini. Suporta visão (imagem base64) + texto e histórico de conversa."""
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
@@ -490,6 +500,10 @@ def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Op
     system_instruction = _SYSTEM_PROMPT
     if context_base and context_base.strip():
         system_instruction += "\n\nDADOS DA BASE (use para responder): " + context_base.strip()
+
+    # Adiciona contexto de identidade ao prompt do sistema
+    identity_context = f"\n\nIDENTIDADE DO USUÁRIO:\nNome: {user_name}\nPapel: {user_role}\n"
+    system_instruction += identity_context
 
     messages = [{"role": "system", "content": system_instruction}]
 
@@ -557,6 +571,8 @@ def assistente_chat():
 
         base_id = data.get('baseId')
         text = (data.get('text') or "").strip()
+        user_name = data.get('userName', 'Usuário')
+        user_role = data.get('userRole', 'Membro')
         image_b64 = data.get('imageBase64')
         history = data.get('history')
         if history is not None and not isinstance(history, list):
@@ -573,7 +589,10 @@ def assistente_chat():
             return jsonify({"error": "Imagem muito grande. Use uma foto menor (menos de ~5 MB)."}), 400
 
         contexto_base = reader.get_contexto_base_para_assistente(base_id) if reader else ""
-        result_text = _assistente_via_openai(text, image_b64, context_base=contexto_base, history=history)
+        result_text = _assistente_via_openai(
+            text, image_b64, context_base=contexto_base, history=history,
+            user_name=user_name, user_role=user_role
+        )
 
         if result_text is None or result_text == "":
             return jsonify({
