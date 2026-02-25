@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.NotificationApiService
+import com.controleescalas.app.data.NotificationManager
 import com.controleescalas.app.data.NotificationService
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -52,12 +53,15 @@ class ControleEscalasMessagingService : FirebaseMessagingService() {
 
     /**
      * Lidar com mensagens de dados
+     * Usa NotificationManager para debounce (evita duplicata com DriverViewModel/Firestore)
      */
     private fun handleDataMessage(data: Map<String, String>) {
         // Suportar "tipo" (API Python) e "type" (legado)
         val type = data["tipo"] ?: data["type"] ?: return
         val title = data["title"] ?: "Controle de Escalas"
-        val message = data["message"] ?: ""
+        val message = data["message"] ?: data["body"] ?: ""
+        
+        val notificationManager = NotificationManager.getInstance(this)
         
         when (type) {
             "request_location" -> {
@@ -69,20 +73,22 @@ class ControleEscalasMessagingService : FirebaseMessagingService() {
                 val motoristaNome = data["motorista_nome"] ?: "Motorista"
                 val vaga = data["vaga"] ?: ""
                 val rota = data["rota"] ?: ""
-                NotificationService(this).sendMotoristaChamadaNotification(
+                notificationManager.sendMotoristaChamadaNotification(
                     motoristaNome, vaga, rota
                 )
             }
             "chamada_estacionamento" -> {
-                NotificationService(this).sendLocalNotification(
-                    title = "🅿️ Chamada para Estacionamento",
-                    message = "Vá para o ESTACIONAMENTO e aguarde",
-                    type = NotificationService.TYPE_CHAMADA_MOTORISTA
-                )
+                notificationManager.sendMotoristaEstacionamentoNotification("Motorista")
             }
             "status_update" -> {
                 val status = data["status"] ?: ""
-                NotificationService(this).sendStatusUpdateNotification(status, message)
+                if (status == "CONCLUIDO") {
+                    notificationManager.sendConclusaoNotification(
+                        mensagem = message.ifEmpty { "Carregamento finalizado com sucesso!" }
+                    )
+                } else {
+                    notificationManager.sendStatusUpdateNotification(status, message)
+                }
             }
             "escala_update" -> {
                 val motoristaId = data["motoristaId"] ?: ""

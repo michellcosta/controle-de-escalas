@@ -23,20 +23,25 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.luminance
+import com.controleescalas.app.ui.components.PremiumBackground
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Check
 import java.util.Calendar
 import androidx.lifecycle.viewmodel.compose.viewModel
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -87,176 +92,19 @@ fun DriverAppScaffold(
     val navController = rememberNavController()
     val viewModel: DriverViewModel = viewModel()
     val motoristaNome by viewModel.motoristaNome.collectAsState()
-    val context = LocalContext.current
     
-    // Estado para controlar o diálogo explicativo de background location
-    var showBackgroundLocationDialog by remember { mutableStateOf(false) }
-    
-    // Launcher para solicitar permissões de localização em foreground
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            android.util.Log.d("DriverAppScaffold", "✅ Permissões de localização (foreground) concedidas")
-            println("✅ DriverAppScaffold: Permissões de localização (foreground) concedidas")
-            
-            // Verificar se já tem background location
-            val hasBackgroundLocation = ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-            
-            if (!hasBackgroundLocation) {
-                // Mostrar diálogo explicativo antes de solicitar background location
-                android.util.Log.d("DriverAppScaffold", "📱 Mostrando diálogo para solicitar background location")
-                showBackgroundLocationDialog = true
-            } else {
-                // Já tem todas as permissões, carregar dados
-                android.util.Log.d("DriverAppScaffold", "✅ Todas as permissões de localização concedidas")
-                viewModel.loadDriverData(motoristaId, baseId)
-            }
-        } else {
-            android.util.Log.w("DriverAppScaffold", "⚠️ Permissões de localização negadas")
-            println("⚠️ DriverAppScaffold: Permissões de localização negadas")
-        }
-    }
-    
-    // Launcher para solicitar permissão de background location
-    val backgroundLocationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        showBackgroundLocationDialog = false
-        if (granted) {
-            android.util.Log.d("DriverAppScaffold", "✅ Permissão de background location concedida")
-            println("✅ DriverAppScaffold: Permissão de background location concedida")
-            // Recarregar dados para iniciar monitoramento completo
-            viewModel.loadDriverData(motoristaId, baseId)
-        } else {
-            android.util.Log.w("DriverAppScaffold", "⚠️ Permissão de background location negada - geofencing pode não funcionar em segundo plano")
-            println("⚠️ DriverAppScaffold: Permissão de background location negada")
-            // Mesmo assim, tentar carregar dados (funcionará em foreground)
-            viewModel.loadDriverData(motoristaId, baseId)
-        }
-    }
-    
-    // Observar nome do motorista, escala e status em tempo real
+    // Permissões centralizadas na MainActivity - carregar dados diretamente
     LaunchedEffect(motoristaId, baseId) {
-        android.util.Log.d("DriverAppScaffold", "🚀 Iniciando observação para motoristaId=$motoristaId, baseId=$baseId")
-        println("🚀 DriverAppScaffold: Iniciando observação para motoristaId=$motoristaId, baseId=$baseId")
+        android.util.Log.i("DriverAppScaffold", "🚀 [MOTORISTA] Iniciando - motoristaId=$motoristaId, baseId=$baseId")
         viewModel.observeMotoristaNome(motoristaId, baseId)
         viewModel.observeEscalaMotorista(motoristaId, baseId)
         viewModel.observeStatusMotorista(motoristaId, baseId)
-        
-        // Verificar permissões de localização antes de carregar dados
-        val hasFineLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        
-        val hasCoarseLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        
-        val hasBackgroundLocation = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_BACKGROUND_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasFineLocation || hasCoarseLocation) {
-            if (hasBackgroundLocation) {
-                // Todas as permissões já concedidas, carregar dados normalmente
-                android.util.Log.d("DriverAppScaffold", "✅ Todas as permissões de localização já concedidas")
-                viewModel.loadDriverData(motoristaId, baseId)
-            } else {
-                // Tem foreground mas não tem background - mostrar diálogo
-                android.util.Log.d("DriverAppScaffold", "📱 Tem foreground location, mas falta background location")
-                showBackgroundLocationDialog = true
-            }
-        } else {
-            // Solicitar permissões de foreground primeiro
-            android.util.Log.d("DriverAppScaffold", "🔐 Solicitando permissões de localização (foreground)")
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
+        viewModel.loadDriverData(motoristaId, baseId)
     }
     
-    // Debug: verificar o valor do nome
     DisposableEffect(motoristaNome) {
         android.util.Log.d("DriverAppScaffold", "📝 motoristaNome mudou para: $motoristaNome")
-        println("📝 DriverAppScaffold: motoristaNome mudou para: $motoristaNome")
         onDispose { }
-    }
-    
-    // Diálogo explicativo para solicitar permissão de background location
-    if (showBackgroundLocationDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showBackgroundLocationDialog = false
-                // Mesmo se cancelar, tentar carregar dados (funcionará em foreground)
-                viewModel.loadDriverData(motoristaId, baseId)
-            },
-            title = {
-                Text(
-                    text = "Localização Sempre Ativa",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Para que o app funcione corretamente, é necessário permitir o acesso à localização mesmo quando o app estiver em segundo plano.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = "Isso permite que o sistema detecte automaticamente quando você:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "• Entra ou sai do galpão\n• Chega ao estacionamento\n• Recebe chamados para vagas",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        text = "Por favor, selecione \"Permitir o tempo todo\" na próxima tela.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showBackgroundLocationDialog = false
-                        backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                    }
-                ) {
-                    Text("Continuar")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showBackgroundLocationDialog = false
-                        // Mesmo se cancelar, tentar carregar dados (funcionará em foreground)
-                        viewModel.loadDriverData(motoristaId, baseId)
-                    }
-                ) {
-                    Text("Depois")
-                }
-            }
-        )
     }
     
     Scaffold(
@@ -268,7 +116,7 @@ fun DriverAppScaffold(
                         android.util.Log.d("DriverAppScaffold", "🎨 Renderizando TopAppBar com texto: $displayText")
                         Text(
                             text = displayText,
-                            color = TextWhite,
+                            color = MaterialTheme.colorScheme.onBackground,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
@@ -289,7 +137,8 @@ fun DriverAppScaffold(
         },
         bottomBar = {
             DriverBottomNavigationBar(navController = navController)
-        }
+        },
+        containerColor = Color.Transparent
     ) { paddingValues ->
         NavHost(
             navController = navController,
@@ -478,49 +327,109 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
         DriverNavItem.Config
     )
     
-    NavigationBar(
-        containerColor = DarkSurface,
-        contentColor = Color.White,
-        tonalElevation = 8.dp
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        val navBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = navBackStackEntry?.destination?.route
-        
-        items.forEach { item ->
-            NavigationBarItem(
-                icon = { 
-                    Icon(
-                        imageVector = item.icon,
-                        contentDescription = item.label
-                    ) 
-                },
-                label = { 
-                    Text(
-                        text = item.label,
-                        style = MaterialTheme.typography.labelSmall
-                    ) 
-                },
-                selected = currentRoute == item.route,
-                onClick = {
-                    navController.navigate(item.route) {
-                        // Pop até o início para evitar pilha de navegação
-                        popUpTo(navController.graph.startDestinationId) {
-                            saveState = true
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            border = BorderStroke(
+                width = 0.5.dp,
+                color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.15f)
+            ),
+            shadowElevation = 12.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEach { item ->
+                    val isSelected = currentRoute == item.route
+                    
+                    val animatedWeight by animateFloatAsState(
+                        targetValue = if (isSelected) 2.2f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
+                        label = "weight"
+                    )
+                    
+                    val animatedColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else TextGray,
+                        label = "color"
+                    )
+
+                    val animatedScale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.1f else 1.0f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "scale"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(animatedWeight)
+                            .height(48.dp)
+                            .padding(horizontal = 2.dp)
+                            .clip(CircleShape)
+                            .background(
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) 
+                                        else Color.Transparent
+                            )
+                            .clickable {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = animatedColor,
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .scale(animatedScale)
+                            )
+                            
+                            if (isSelected) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = item.label,
+                                    color = animatedColor,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.2.sp,
+                                        fontSize = 11.sp
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Visible
+                                )
+                            }
                         }
-                        // Evita múltiplas cópias da mesma tela
-                        launchSingleTop = true
-                        // Restaura estado salvo
-                        restoreState = true
                     }
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    selectedTextColor = NeonGreen,
-                    indicatorColor = NeonGreen.copy(alpha = 0.2f),
-                    unselectedIconColor = TextGray,
-                    unselectedTextColor = TextGray
-                )
-            )
+                }
+            }
         }
     }
 }
@@ -554,41 +463,45 @@ fun DriverHomeContent(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
     ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center),
-                color = NeonGreen
-            )
-        } else {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // STATUS PRINCIPAL - Destaque
-                // Só mostrar StatusCard se houver escala (motorista escalado)
-                // Isso garante que quando o motorista for removido da escala, o status não será exibido
-                if (escalaInfo != null) {
-                    StatusCard(
-                        statusInfo = statusInfo,
-                        onConfirmarChamada = {
-                            viewModel.confirmarChamada(motoristaId, baseId)
-                        },
-                        onConcluirCarregamento = {
-                            viewModel.concluirCarregamento(motoristaId, baseId)
-                        }
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        color = NeonGreen
                     )
                 }
-                
-                // ESCALA DO DIA - Compacta
-                EscalaCompactCard(escalaInfo = escalaInfo)
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    // STATUS PRINCIPAL - Destaque
+                    // Só mostrar StatusCard se houver escala (motorista escalado)
+                    // Isso garante que quando o motorista for removido da escala, o status não será exibido
+                    if (escalaInfo != null) {
+                        StatusCard(
+                            statusInfo = statusInfo,
+                            onConfirmarChamada = {
+                                viewModel.confirmarChamada(motoristaId, baseId)
+                            },
+                            onConcluirCarregamento = {
+                                viewModel.concluirCarregamento(motoristaId, baseId)
+                            }
+                        )
+                    }
+                    
+                    // ESCALA DO DIA - Compacta
+                    EscalaCompactCard(escalaInfo = escalaInfo)
+                }
             }
         }
         
         error?.let { errorMessage ->
             Snackbar(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp, start = 16.dp, end = 16.dp),
                 containerColor = Color.Red,
                 contentColor = TextWhite
             ) {
@@ -619,55 +532,58 @@ fun DriverAvailabilityScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Card de disponibilidade atual
-            minhaDisponibilidade?.let { disp ->
-                DisponibilidadeCard(
-                    data = disponibilidade?.data ?: "",
-                    jaRespondeu = disp.disponivel != null,
-                    disponivel = disp.disponivel,
-                    onMarcarDisponivel = {
-                        viewModel.marcarDisponibilidade(
-                            baseId, motoristaId, true
-                        )
-                    },
-                    onMarcarIndisponivel = {
-                        viewModel.marcarDisponibilidade(
-                            baseId, motoristaId, false
-                        )
-                    }
-                )
-            } ?: run {
-                // Não há solicitação pendente
-                GlassCard {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = TextGray,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            text = "Nenhuma solicitação de disponibilidade",
-                            color = TextGray,
-                            style = MaterialTheme.typography.bodyLarge,
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            text = "Quando o administrador solicitar sua disponibilidade, ela aparecerá aqui.",
-                            color = TextGray.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center
-                        )
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                // Card de disponibilidade atual
+                minhaDisponibilidade?.let { disp ->
+                    DisponibilidadeCard(
+                        data = disponibilidade?.data ?: "",
+                        jaRespondeu = disp.disponivel != null,
+                        disponivel = disp.disponivel,
+                        onMarcarDisponivel = {
+                            viewModel.marcarDisponibilidade(
+                                baseId, motoristaId, true
+                            )
+                        },
+                        onMarcarIndisponivel = {
+                            viewModel.marcarDisponibilidade(
+                                baseId, motoristaId, false
+                            )
+                        }
+                    )
+                } ?: run {
+                    // Não há solicitação pendente
+                    GlassCard {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = TextGray,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                text = "Nenhuma solicitação de disponibilidade",
+                                color = TextGray,
+                                style = MaterialTheme.typography.bodyLarge,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Quando o administrador solicitar sua disponibilidade, ela aparecerá aqui.",
+                                color = TextGray.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
@@ -676,7 +592,7 @@ fun DriverAvailabilityScreen(
         // Snackbar para mensagens
         message?.let { msg ->
             Snackbar(
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp, start = 16.dp, end = 16.dp),
                 containerColor = NeonGreen,
                 contentColor = Color.Black
             ) {
@@ -829,117 +745,119 @@ fun DriverQuinzenaScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (onBack != null) 0.dp else 16.dp)
         ) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                    color = NeonGreen
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.padding(if (onBack != null) 16.dp else 0.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp)
-                ) {
-                    // Título do Mês com navegação
-                    item {
-                        GlassCard {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Botão anterior
-                                IconButton(
-                                    onClick = { irParaMesAnterior() }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.ArrowBack,
-                                        contentDescription = "Mês anterior",
-                                        tint = NeonBlue
-                                    )
-                                }
-                                
-                                // Nome do mês e ano (compacto)
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = nomeMes,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        color = TextWhite,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = anoSelecionado.toString(),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = TextGray
-                                    )
-                                }
-                                
-                                // Botão de informação e navegação
+            PremiumBackground(modifier = Modifier.fillMaxSize()) {
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            color = NeonGreen
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        // Título do Mês com navegação
+                        item {
+                            GlassCard {
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Ícone de informação
+                                    // Botão anterior
                                     IconButton(
-                                        onClick = { showInfoDialog = true }
+                                        onClick = { irParaMesAnterior() }
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Info,
-                                            contentDescription = "Informações sobre a quinzena",
-                                            tint = NeonGreen
+                                            imageVector = Icons.Default.ArrowBack,
+                                            contentDescription = "Mês anterior",
+                                            tint = NeonBlue
                                         )
                                     }
                                     
-                                    // Botão próximo
-                                    IconButton(
-                                        onClick = { irParaProximoMes() }
+                                    // Nome do mês e ano (compacto)
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ArrowForward,
-                                            contentDescription = "Próximo mês",
-                                            tint = NeonBlue
+                                        Text(
+                                            text = nomeMes,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Bold
                                         )
+                                        Text(
+                                            text = anoSelecionado.toString(),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = TextGray
+                                        )
+                                    }
+                                    
+                                    // Botão de informação e navegação
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Ícone de informação
+                                        IconButton(
+                                            onClick = { showInfoDialog = true }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Info,
+                                                contentDescription = "Informações sobre a quinzena",
+                                                tint = NeonGreen
+                                            )
+                                        }
+                                        
+                                        // Botão próximo
+                                        IconButton(
+                                            onClick = { irParaProximoMes() }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowForward,
+                                                contentDescription = "Próximo mês",
+                                                tint = NeonBlue
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    
-                    // Primeiro Calendário: Primeira Quinzena (01 a 15)
-                    item {
-                        QuinzenaCalendarSection(
-                            titulo = "Primeira Quinzena",
-                            diasInicio = 1,
-                            diasFim = 15,
-                            mes = mesSelecionado + 1, // Calendar usa 0-11, precisamos 1-12
-                            ano = anoSelecionado,
-                            datasTrabalhadas = datasTrabalhadas,
-                            datasEscaladas = datasEscaladas,
-                            cor = NeonBlue,
-                            isEditable = isEditable,
-                            onDayClick = if (isEditable) onDayClick else null
-                        )
-                    }
-                    
-                    // Segundo Calendário: Segunda Quinzena (16 até o último dia)
-                    item {
-                        QuinzenaCalendarSection(
-                            titulo = "Segunda Quinzena",
-                            diasInicio = 16,
-                            diasFim = ultimoDiaMes,
-                            mes = mesSelecionado + 1,
-                            ano = anoSelecionado,
-                            datasTrabalhadas = datasTrabalhadas,
-                            datasEscaladas = datasEscaladas,
-                            cor = NeonBlue,
-                            isEditable = isEditable,
-                            onDayClick = if (isEditable) onDayClick else null
-                        )
+                        
+                        // Primeiro Calendário: Primeira Quinzena (01 a 15)
+                        item {
+                            QuinzenaCalendarSection(
+                                titulo = "Primeira Quinzena",
+                                diasInicio = 1,
+                                diasFim = 15,
+                                mes = mesSelecionado + 1, // Calendar usa 0-11, precisamos 1-12
+                                ano = anoSelecionado,
+                                datasTrabalhadas = datasTrabalhadas,
+                                datasEscaladas = datasEscaladas,
+                                cor = NeonBlue,
+                                isEditable = isEditable,
+                                onDayClick = if (isEditable) onDayClick else null
+                            )
+                        }
+                        
+                        // Segundo Calendário: Segunda Quinzena (16 até o último dia)
+                        item {
+                            QuinzenaCalendarSection(
+                                titulo = "Segunda Quinzena",
+                                diasInicio = 16,
+                                diasFim = ultimoDiaMes,
+                                mes = mesSelecionado + 1,
+                                ano = anoSelecionado,
+                                datasTrabalhadas = datasTrabalhadas,
+                                datasEscaladas = datasEscaladas,
+                                cor = NeonBlue,
+                                isEditable = isEditable,
+                                onDayClick = if (isEditable) onDayClick else null
+                            )
+                        }
                     }
                 }
             }
@@ -1003,13 +921,13 @@ fun DriverQuinzenaScreen(
                 ) {
                     Text(
                         text = "Esta página mostra os dias trabalhados durante o mês, divididos em duas quinzenas (1ª quinzena: dias 1-15, 2ª quinzena: dias 16 até o fim do mês).",
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     
                     Text(
                         text = "Legenda das cores:",
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyLarge
                     )
@@ -1034,7 +952,7 @@ fun DriverQuinzenaScreen(
                         )
                         Text(
                             text = "Laranja: Dia concluído 1 vez",
-                            color = TextWhite,
+                            color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -1059,7 +977,7 @@ fun DriverQuinzenaScreen(
                         )
                         Text(
                             text = "Vermelho: Dia marcado 2 vezes",
-                            color = TextWhite,
+                            color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -1084,7 +1002,7 @@ fun DriverQuinzenaScreen(
                         )
                         Text(
                             text = "Azul: Dia não concluído",
-                            color = TextWhite,
+                            color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -1199,7 +1117,7 @@ fun QuinzenaCalendarSection(
                                     Text(
                                         text = dia.toString().padStart(2, '0'),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = TextWhite,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         // Apenas concluído tem texto em negrito
                                         fontWeight = if (concluido) FontWeight.Bold else FontWeight.Normal
                                     )
@@ -1254,7 +1172,7 @@ fun SobreAppDialog(onDismiss: () -> Unit) {
         title = {
             Text(
                 "Sobre o App",
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
@@ -1265,7 +1183,7 @@ fun SobreAppDialog(onDismiss: () -> Unit) {
                 Text(
                     "Controle de Escalas",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -1309,7 +1227,7 @@ fun NotificacoesDialog(onDismiss: () -> Unit) {
         title = {
             Text(
                 "Notificações não aparecem?",
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
@@ -1368,7 +1286,7 @@ fun AjudaDialog(onDismiss: () -> Unit) {
         title = {
             Text(
                 "Ajuda",
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
@@ -1379,7 +1297,7 @@ fun AjudaDialog(onDismiss: () -> Unit) {
                 Text(
                     "Como usar o app:",
                     style = MaterialTheme.typography.titleSmall,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -1418,7 +1336,7 @@ fun TermosDialog(onDismiss: () -> Unit) {
         title = {
             Text(
                 "Termos de Uso",
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },

@@ -72,34 +72,24 @@ async function sendPushNotification(motoristaId, baseId, title, body, data = {})
       return;
     }
     
+    // Data-only: evita duplicação (sistema não exibe automaticamente; app controla via onMessageReceived)
     const message = {
-      notification: {
+      data: {
         title,
         body,
-      },
-      data: {
+        message: body,
         ...data,
+        tipo: data.type || 'status_update',
         type: data.type || 'status_update',
         click_action: 'FLUTTER_NOTIFICATION_CLICK',
       },
       token: fcmToken,
       android: {
         priority: 'high',
-        notification: {
-          channelId: 'controle_escalas_channel',
-          sound: 'default',
-          priority: 'high',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-          defaultLightSettings: true,
-          visibility: 'public',
-        },
       },
       apns: {
         payload: {
           aps: {
-            sound: 'default',
-            badge: 1,
             contentAvailable: true,
           },
         },
