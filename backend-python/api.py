@@ -13,11 +13,13 @@ Ou com gunicorn (produção):
 
 import os
 import json
+from datetime import datetime, timezone
 import requests as http_requests
 import openai
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from firebase_admin import auth, firestore
+from google.cloud.firestore_v1.transforms import Increment
 from firestore_reader import FirestoreReader
 from fcm_sender import FCMSender
 from typing import Optional, Tuple
@@ -579,8 +581,23 @@ _SYSTEM_PROMPT = (
     "(3) Se o usuário pedir para ADICIONAR/COLOCAR um motorista que AINDA NÃO ESTÁ na escala: você PRECISA de rota (e opcionalmente sacas). Se o usuário só disser 'adicionar Brendon na vaga 1' sem rota, NÃO emita ACTION_JSON; pergunte: 'Qual a rota do Brendon? Tem sacas?' e espere a resposta. Quando tiver rota (e sacas se aplicável), aí sim emita: {\"type\":\"add_to_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"01\",\"rota\":\"G9\",\"sacas\":null ou número}. "
     "(4) Só use add_to_scale para motoristas que NÃO aparecem na escala. Para quem já está escalado, use sempre update_in_scale. vaga sempre 2 dígitos (01, 02). rota em maiúsculas."
     "(5) CRIAÇÃO DO ZERO: Se não existirem ondas criadas (DADOS DA BASE vazios), você ainda deve emitir ACTION_JSON para adicionar os motoristas. O app criará as ondas automaticamente começando da '1ª ONDA' (ondaIndex: 0)."
-    "\n\nTURNO (AM/PM): Em DADOS DA BASE você vê o turno selecionado no app. SEMPRE verifique se a informação (na foto ou texto) corresponde ao turno atual. "
-    "Se o usuário enviar uma foto ou comando mas você não conseguir identificar se é para o turno AM ou PM, e os dados da base estiverem vazios ou ambíguos, PERGUNTE: 'Esta escala é para o turno AM ou PM?'. Só prossiga com ACTION_JSON após a confirmação do turno ou se estiver claro."
+    "\n\nTURNO (AM/PM) - REGRAS OBRIGATÓRIAS: "
+    "(1) Se o usuário pedir 'montar a escala no AM', 'montar escala AM', 'escala do turno AM' ou similar → use SEMPRE o turno AM. "
+    "(2) Se o usuário pedir 'montar a escala no PM', 'montar escala PM', 'escala do turno PM' ou similar → use SEMPRE o turno PM. "
+    "(3) Se o usuário pedir APENAS 'montar a escala' ou 'montar escala' SEM especificar AM ou PM → NUNCA assuma um turno. PERGUNTE: 'Para qual turno deseja montar a escala? AM ou PM?' e espere a resposta antes de emitir ACTION_JSON. "
+    "(4) Em DADOS DA BASE você vê os dados de ambos os turnos. O campo TURNO ATUAL indica qual aba o usuário está no app (contexto). "
+    "(5) Se o usuário enviar uma foto sem especificar turno e os dados estiverem ambíguos, PERGUNTE: 'Esta escala é para o turno AM ou PM?' antes de prosseguir."
+    "\n\nSINÔNIMOS E VARIAÇÕES DE LINGUAGEM (interprete todas como equivalentes): "
+    "• MONTAR ESCALA: 'montar a escala', 'fazer a escala', 'organizar a escala', 'montar escala', 'fazer escala', 'arrumar a escala', 'preparar a escala'. "
+    "• STATUS/LOCALIZAÇÃO: 'quem está carregando', 'quem está na vaga', 'quem subiu', 'quem já carregou', 'status do [nome]', 'onde está o [nome]', 'como está o [nome]', 'situação do [nome]'. "
+    "• CHAMAR/AVISAR: 'chamar o [nome]', 'avisar o [nome]', 'mandar o [nome] subir', 'notificar o [nome]', 'avisa a [onda]'. "
+    "• ADICIONAR NA ESCALA: 'colocar', 'adicionar', 'incluir', 'escalar', 'botar na escala', 'entrar na onda'. "
+    "• ALTERAR: 'trocar', 'mudar', 'alterar', 'atualizar' (vaga, rota ou sacas). "
+    "• DEVOLUÇÕES: 'devoluções', 'devolução', 'quem devolveu', 'pacotes devolvidos'. "
+    "• DISPONIBILIDADE: 'quem está disponível', 'quem pode trabalhar', 'disponibilidade de amanhã', 'quem respondeu'. "
+    "• QUINZENA: 'dias trabalhados', 'quinzena', 'quantos dias o [nome] trabalhou'. "
+    "• ONDAS/TURNOS: 'primeira onda' = '1ª onda' = 'onda 1'; 'manhã' = 'AM'; 'tarde' = 'PM'. "
+    "Quando o usuário usar qualquer uma dessas variações, interprete e responda adequadamente."
     "\n\nQUANDO RECEBER UMA FOTO: Você tem visão total para fotos. "
     "Se a imagem contiver uma escala, identifique não só os motoristas, mas também as ONDAS (ex: 1ª Onda, 2ª Onda, 3ª Onda). "
     "Use o campo ondaIndex (0 para a 1ª onda, 1 para a 2ª, etc.) de acordo com a ordem das ondas identificadas na foto. "
@@ -593,7 +610,7 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None, user_name: str = "Usuário", user_role: str = "Membro") -> Optional[str]:
+def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None, user_name: str = "Usuário", user_role: str = "Membro", turno: Optional[str] = None) -> Optional[str]:
     """Usa OpenAI GPT-4o-mini. Suporta visão (imagem base64) + texto e histórico de conversa."""
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
@@ -611,6 +628,8 @@ def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Op
     # Adiciona contexto de identidade ao prompt do sistema
     identity_context = f"\n\nIDENTIDADE DO USUÁRIO:\nNome: {user_name}\nPapel: {user_role}\n"
     system_instruction += identity_context
+    if turno and str(turno).strip().upper() in ("AM", "PM"):
+        system_instruction += f"\nTURNO ATUAL (aba selecionada no app): {turno.strip().upper()}\n"
 
     messages = [{"role": "system", "content": system_instruction}]
 
@@ -658,6 +677,20 @@ def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Op
         return None
 
 
+def _is_super_admin(user_role: str, user_id: str) -> bool:
+    """Super admin não tem limite de perguntas."""
+    if user_role and str(user_role).strip().lower() == "superadmin":
+        return True
+    superadmin_uids = (os.getenv("SUPERADMIN_UIDS") or "").strip()
+    if not superadmin_uids:
+        return False
+    uids = [u.strip() for u in superadmin_uids.split(",") if u.strip()]
+    return user_id and str(user_id).strip() in uids
+
+
+LIMITE_PERGUNTAS_POR_BASE = 15
+
+
 @app.route('/assistente/chat', methods=['POST'])
 def assistente_chat():
     """
@@ -665,6 +698,7 @@ def assistente_chat():
     Usa apenas Hugging Face (HUGGINGFACE_TOKEN ou HF_TOKEN).
     Body: { "baseId": "...", "text": "...", "imageBase64": "..." (opcional) }
     Header: Authorization: Bearer <Firebase ID Token>
+    Limite: 15 perguntas por base por dia (super admin sem limite).
     """
     try:
         initialize_services()
@@ -680,6 +714,10 @@ def assistente_chat():
         text = (data.get('text') or "").strip()
         user_name = data.get('userName', 'Usuário')
         user_role = data.get('userRole', 'Membro')
+        user_id = data.get('userId') or ""
+        turno = (data.get('turno') or "").strip().upper()
+        if turno not in ("AM", "PM"):
+            turno = None
         image_b64 = data.get('imageBase64')
         history = data.get('history')
         if history is not None and not isinstance(history, list):
@@ -695,10 +733,21 @@ def assistente_chat():
         if image_b64 and len(image_b64) > 6_700_000:
             return jsonify({"error": "Imagem muito grande. Use uma foto menor (menos de ~5 MB)."}), 400
 
+        # Super admin: sem limite. Demais usuários: verificar limite diário
+        if not _is_super_admin(user_role, user_id):
+            hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            uso_ref = reader.db.collection("bases").document(base_id).collection("assistente_uso").document(hoje)
+            uso_doc = uso_ref.get()
+            contagem = uso_doc.to_dict().get("contagem", 0) if uso_doc.exists else 0
+            if contagem >= LIMITE_PERGUNTAS_POR_BASE:
+                return jsonify({
+                    "error": "Limite diário de 15 perguntas atingido para esta base. Tente novamente amanhã."
+                }), 429
+
         contexto_base = reader.get_contexto_base_para_assistente(base_id) if reader else ""
         result_text = _assistente_via_openai(
             text, image_b64, context_base=contexto_base, history=history,
-            user_name=user_name, user_role=user_role
+            user_name=user_name, user_role=user_role, turno=turno
         )
 
         if result_text is None or result_text == "":
@@ -761,6 +810,19 @@ def assistente_chat():
                     if key in ("ondalndex", "onda_index"):
                         a["ondaIndex"] = a.pop(key)
                         break
+
+        # Incrementar contador de uso (apenas para não-super-admin)
+        if not _is_super_admin(user_role, user_id):
+            try:
+                hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                uso_ref = reader.db.collection("bases").document(base_id).collection("assistente_uso").document(hoje)
+                uso_ref.set({
+                    "data": hoje,
+                    "contagem": Increment(1),
+                    "ultimaAtualizacao": firestore.SERVER_TIMESTAMP
+                }, merge=True)
+            except Exception as inc_err:
+                print(f"⚠️ Erro ao incrementar contador assistente: {inc_err}")
 
         resp_data = {"text": result_text.strip() or "Feito.", "ok": True}
         if actions:
