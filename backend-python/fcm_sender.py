@@ -77,62 +77,36 @@ class FCMSender:
         
         return self.credentials.token
     
-    def _build_message(self, token: str, title: str, body: str, data: Optional[Dict] = None) -> Dict:
+    def _build_message_data_only(self, token: str, title: str, body: str, data: Optional[Dict] = None) -> Dict:
         """
-        Constrói a mensagem FCM no formato HTTP v1
-        
-        Args:
-            token: Token FCM do dispositivo
-            title: Título da notificação
-            body: Corpo da notificação
-            data: Dados adicionais (opcional)
-        
-        Returns:
-            Dicionário com a mensagem formatada
+        Constrói mensagem FCM data-only (sem notification payload).
+        Evita duplicação: o sistema NÃO exibe automaticamente; o app recebe e exibe UMA notificação.
+        Inclui title e body no data para o app exibir via handleDataMessage.
         """
-        message = {
+        data_merged = dict(data) if data else {}
+        data_merged["title"] = title
+        data_merged["message"] = body  # app usa data["message"]
+        if "tipo" not in data_merged:
+            data_merged["tipo"] = data_merged.get("type", "notification")  # app usa tipo ou type
+        payload = {str(k): str(v) for k, v in data_merged.items()}
+        return {
             "message": {
                 "token": token,
-                "notification": {
-                    "title": title,
-                    "body": body
-                },
-                "android": {
-                    "priority": "high",
-                    "notification": {
-                        "channelId": "controle_escalas_channel",
-                        "sound": "default",
-                        "notification_priority": "PRIORITY_HIGH",
-                        "defaultSound": True,
-                        "defaultVibrateTimings": True,
-                        "defaultLightSettings": True,
-                        "visibility": "public"
-                    }
-                },
+                "data": payload,
+                "android": {"priority": "high"},
                 "apns": {
-                    "headers": {
-                        "apns-priority": "10"
-                    },
-                    "payload": {
-                        "aps": {
-                            "alert": {
-                                "title": title,
-                                "body": body
-                            },
-                            "sound": "default"
-                        }
-                    }
+                    "headers": {"apns-priority": "10"},
+                    "payload": {"aps": {"contentAvailable": True}}
                 }
             }
         }
-        
-        # Adicionar dados se fornecidos
-        if data:
-            message["message"]["data"] = {
-                str(k): str(v) for k, v in data.items()
-            }
-        
-        return message
+
+    def _build_message(self, token: str, title: str, body: str, data: Optional[Dict] = None) -> Dict:
+        """
+        Constrói a mensagem FCM data-only (evita duplicação no app).
+        Usa _build_message_data_only para enviar apenas via data.
+        """
+        return self._build_message_data_only(token, title, body, data)
     
     def send_to_token(self, token: str, title: str, body: str, data: Optional[Dict] = None) -> Tuple[bool, Optional[str]]:
         """

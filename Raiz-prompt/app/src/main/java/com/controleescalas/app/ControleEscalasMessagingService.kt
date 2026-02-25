@@ -39,10 +39,14 @@ class ControleEscalasMessagingService : FirebaseMessagingService() {
             handleDataMessage(remoteMessage.data)
         }
 
-        // Verificar se a mensagem contém notificação
-        remoteMessage.notification?.let {
-            Log.d(TAG, "Message Notification Body: ${it.body}")
-            handleNotificationMessage(it.title ?: "Controle de Escalas", it.body ?: "")
+        // Só exibir via notification payload quando NÃO há data (evita duplicação).
+        // Backend Python envia data-only; quando tem data, handleDataMessage já exibiu 1 notificação.
+        if (remoteMessage.data.isEmpty() && remoteMessage.notification != null) {
+            Log.d(TAG, "Message Notification Body: ${remoteMessage.notification!!.body}")
+            handleNotificationMessage(
+                remoteMessage.notification!!.title ?: "Controle de Escalas",
+                remoteMessage.notification!!.body ?: ""
+            )
         }
     }
 
