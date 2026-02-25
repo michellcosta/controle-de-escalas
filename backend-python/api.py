@@ -240,6 +240,113 @@ def notify_base():
         return jsonify({"error": f"Erro interno: {str(e)}"}), 500
 
 
+@app.route('/notify/status-change', methods=['POST'])
+def notify_status_change():
+    """
+    Notifica motorista e admins quando o status do motorista muda.
+    Substitui Cloud Function onMotoristaStatusChanged (sem plano Blaze).
+
+    Body JSON esperado:
+    {
+        "baseId": "xvtFbdOurhdNKVY08rDw",
+        "motoristaId": "abc123",
+        "status": "CHEGUEI",
+        "motoristaNome": "João Silva"  // opcional; se vazio, busca no Firestore
+    }
+    """
+    try:
+        initialize_services()
+
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Body JSON é obrigatório"}), 400
+
+        base_id = data.get('baseId')
+        motorista_id = data.get('motoristaId')
+        status = (data.get('status') or '').strip()
+        motorista_nome = (data.get('motoristaNome') or '').strip()
+
+        if not all([base_id, motorista_id, status]):
+            return jsonify({
+                "error": "Campos obrigatórios: baseId, motoristaId, status"
+            }), 400
+
+        # Buscar nome do motorista se não fornecido
+        if not motorista_nome:
+            token_info = reader.get_motorista_token(base_id, motorista_id)
+            motorista_nome = (token_info or {}).get('nome', 'Motorista')
+
+        # Mensagens para o motorista (como na Cloud Function)
+        status_messages = {
+            "A_CAMINHO": "Você está a caminho do galpão",
+            "CHEGUEI": "Você chegou ao galpão. O admin foi notificado. Aguarde instruções.",
+            "PROXIMO": "Você está próximo",
+            "IR_ESTACIONAMENTO": "Vá para o ESTACIONAMENTO e aguarde",
+            "ESTACIONAMENTO": "Você está no estacionamento",
+            "CARREGANDO": "Subir agora para carregar",
+            "CONCLUIDO": "Carregamento concluído! Ótimo trabalho!",
+        }
+        mensagem_motorista = status_messages.get(status) or f"Status atualizado para {status}"
+
+        titulos = {
+            "IR_ESTACIONAMENTO": "🅿️ Chamada para Estacionamento",
+            "CARREGANDO": "🚚 Chamada para Carregamento",
+            "CONCLUIDO": "✅ Carregamento Concluído",
+            "CHEGUEI": "📍 Chegou ao Galpão",
+            "ESTACIONAMENTO": "🅿️ No Estacionamento",
+        }
+        titulo_motorista = titulos.get(status) or "📍 Status Atualizado"
+
+        # 1. Notificar motorista
+        token_info = reader.get_motorista_token(base_id, motorista_id)
+        if token_info:
+            success, error = sender.send_to_token(
+                token=token_info['fcmToken'],
+                title=titulo_motorista,
+                body=mensagem_motorista,
+                data={"type": "status_update", "status": status}
+            )
+            if success:
+                print(f"✅ Notificação enviada para motorista {motorista_nome} ({status})")
+            else:
+                print(f"⚠️ Falha ao notificar motorista: {error}")
+        else:
+            print(f"⚠️ Motorista {motorista_id} sem FCM token, pulando notificação")
+
+        # 2. Notificar admins em CHEGUEI e CONCLUIDO
+        status_para_admin = ["CHEGUEI", "CONCLUIDO"]
+        if status in status_para_admin:
+            admin_msg = (
+                f"{motorista_nome} chegou ao galpão" if status == "CHEGUEI"
+                else f"{motorista_nome} concluiu o carregamento"
+            )
+            admin_tokens = reader.get_admins_tokens(base_id)
+            if admin_tokens:
+                resultado = sender.send_to_multiple_tokens(
+                    tokens=admin_tokens,
+                    title="📢 Atualização de Motorista",
+                    body=admin_msg,
+                    data={"type": "motorista_update", "motoristaId": motorista_id, "status": status}
+                )
+                print(f"✅ Notificação para {resultado['sucessos']} admin(s): {admin_msg}")
+            else:
+                print(f"⚠️ Nenhum admin com FCM token na base {base_id}")
+
+        return jsonify({
+            "success": True,
+            "message": f"Notificações de status {status} processadas",
+            "motoristaNome": motorista_nome
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        print(f"❌ Erro notify/status-change: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/motorista/token', methods=['GET'])
 def get_motorista_token():
     """
@@ -676,6 +783,7 @@ if __name__ == '__main__':
     print("   GET  /health                    - Health check")
     print("   POST /notify/motorista          - Notificar motorista específico")
     print("   POST /notify/base               - Notificar todos da base")
+    print("   POST /notify/status-change      - Notificar mudança de status (motorista + admins)")
     print("   GET  /motorista/token           - Verificar token de motorista")
     print("   POST /location/request          - Pedir localização/ETA (admin)")
     print("   POST /location/receive          - Receber coordenadas (motorista)")

@@ -1,0 +1,15 @@
+# Render Blueprint - Deploy do backend Python
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: controle-de-escalas
+    runtime: python
+    region: oregon
+    rootDir: backend-python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 --timeout 120 -b 0.0.0.0:$PORT api:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.0"
+      # FIREBASE_SERVICE_ACCOUNT_JSON deve ser configurado no dashboard do Render
+      # OPENAI_API_KEY, ORS_API_KEY, SUPERADMIN_UIDS conforme necessário

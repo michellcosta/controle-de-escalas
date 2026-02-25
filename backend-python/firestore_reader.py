@@ -88,6 +88,31 @@ class FirestoreReader:
         print(f"\n📊 Total de tokens encontrados: {len(tokens)}")
         return tokens
     
+    def get_admins_tokens(self, base_id: str) -> List[Dict[str, str]]:
+        """
+        Busca tokens FCM de admins, auxiliares e superadmins da base.
+        Usado para notificar quando motorista muda status (ex: CHEGUEI, CONCLUIDO).
+
+        Returns:
+            Lista de dicionários com motorista_id, fcmToken e nome
+        """
+        motoristas_ref = self.db.collection('bases').document(base_id).collection('motoristas')
+        docs = motoristas_ref.stream()
+        tokens = []
+        for doc in docs:
+            data = doc.to_dict()
+            papel = (data.get('papel') or '').strip().lower()
+            if papel not in ('admin', 'auxiliar', 'superadmin', 'ajudante'):
+                continue
+            fcm_token = data.get('fcmToken')
+            if fcm_token and isinstance(fcm_token, str) and len(fcm_token) > 0:
+                tokens.append({
+                    "motorista_id": doc.id,
+                    "fcmToken": fcm_token,
+                    "nome": data.get('nome', 'Admin')
+                })
+        return tokens
+
     def get_motorista_token(self, base_id: str, motorista_id: str) -> Optional[Dict[str, str]]:
         """
         Busca o token FCM de um motorista específico
