@@ -63,7 +63,7 @@
     <div class="container">
         <h1>Política de Privacidade</h1>
         
-        <p><strong>Última atualização:</strong> 2026</p>
+        <p><strong>Última atualização:</strong> 2025</p>
         
         <h2>1. Introdução</h2>
         <p>
@@ -90,8 +90,13 @@
         <ul>
             <li><strong>Localização GPS em tempo real:</strong> Coletamos sua localização precisamente (coordenadas de latitude e longitude) 
             para permitir funcionalidades de geofencing (detecção de entrada/saída de áreas específicas como galpões e estacionamentos)</li>
+            <li><strong>Quando coletamos:</strong> A coleta de localização <strong>só ocorre quando o motorista possui um status ativo na escala</strong> 
+            (por exemplo: a caminho, chegou, em estacionamento, carregando). Quando não há status definido ou quando o status é marcado como 
+            <strong>concluído</strong>, o aplicativo <strong>não monitora</strong> a localização</li>
             <li><strong>Localização em segundo plano:</strong> O aplicativo solicita permissão para acessar sua localização mesmo quando 
-            o aplicativo está em segundo plano, necessário para monitoramento contínuo de geofences e atualização automática de status</li>
+            o aplicativo está em segundo plano, necessário para monitoramento contínuo de geofences e atualização automática de status. 
+            O uso da localização em segundo plano cessa automaticamente quando o status do motorista é marcado como <strong>concluído</strong> 
+            ou quando <strong>não há status definido</strong>, sem necessidade de ação do usuário</li>
         </ul>
         
         <h3>2.3. Dados de Uso do Aplicativo</h3>
@@ -114,8 +119,8 @@
             <li><strong>Gestão de Escalas:</strong> Gerenciar e exibir suas escalas de trabalho, turnos, vagas e rotas atribuídas</li>
             <li><strong>Geofencing e Monitoramento de Localização:</strong> Detectar automaticamente quando você entra ou sai de áreas específicas 
             (galpões, estacionamentos) para atualizar seu status de forma automática e fornecer informações contextuais</li>
-            <li><strong>Notificações Push:</strong> Enviar notificações sobre chamados para vagas, alterações em escalas, atualizações de status 
-            e outras informações relevantes relacionadas ao seu trabalho</li>
+            <li><strong>Notificações Push:</strong> Enviar notificações sobre chamadas para vagas, chegada ao galpão, entrada no estacionamento, 
+            conclusão da jornada, alterações em escalas e outras informações relevantes relacionadas ao seu trabalho</li>
             <li><strong>Melhorias do Aplicativo:</strong> Analisar padrões de uso para melhorar a experiência do usuário e desenvolver novas funcionalidades</li>
             <li><strong>Comunicação:</strong> Permitir comunicação entre administradores e motoristas através do sistema de notificações</li>
         </ul>
@@ -173,7 +178,8 @@
         <p>O aplicativo solicita as seguintes permissões do Android:</p>
         <ul>
             <li><strong>Localização Precisa (Foreground e Background):</strong> Necessária para funcionalidades de geofencing e detecção automática 
-            de entrada/saída de áreas. Você pode revogar essa permissão a qualquer momento nas configurações do dispositivo, 
+            de entrada/saída de áreas. O uso em segundo plano cessa automaticamente quando o status do motorista é marcado como concluído 
+            ou quando não há status definido. Você pode revogar essa permissão a qualquer momento nas configurações do dispositivo, 
             mas isso pode afetar o funcionamento de algumas funcionalidades do aplicativo</li>
             <li><strong>Notificações:</strong> Para enviar notificações push sobre chamados, alterações de escala e outras informações importantes</li>
             <li><strong>Internet e Rede:</strong> Para sincronizar dados com os servidores e receber atualizações em tempo real</li>
@@ -211,7 +217,7 @@
         </div>
         
         <div class="last-updated">
-            <p><strong>Última atualização:</strong> 2026</p>
+            <p><strong>Última atualização:</strong> 2025</p>
             <p><strong>Aplicativo:</strong> Controle de Escalas</p>
             <p><strong>Desenvolvedor:</strong> Michell Oliveira</p>
         </div>

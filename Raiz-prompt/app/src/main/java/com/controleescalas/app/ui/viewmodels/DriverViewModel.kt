@@ -67,6 +67,7 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
     
     private var motoristaNomeListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var statusListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var configListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var escalaListeners: List<com.google.firebase.firestore.ListenerRegistration> = emptyList()
     
     // Armazenar status anterior para detectar mudanças
@@ -97,11 +98,16 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     fun loadDriverData(motoristaId: String, baseId: String) {
+        android.util.Log.i("DriverViewModel", "📥 [MOTORISTA] loadDriverData - motoristaId=$motoristaId, baseId=$baseId")
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             
             try {
+                // Sempre observar config da base (mesmo quando não escalado)
+                // Assim o motorista recebe atualizações do galpão quando o admin salva
+                startConfigListener(motoristaId, baseId, _statusInfo.value?.estado ?: "A_CAMINHO")
+                
                 // Nome do motorista é carregado via listener em observeMotoristaNome()
                 // Carregar escala do dia PRIMEIRO
                 val escala = escalaRepository.getEscalaDoDia(baseId, motoristaId)
@@ -110,7 +116,7 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 // ✅ Verificar se motorista está escalado antes de iniciar serviços
                 if (escala == null) {
                     println("ℹ️ DriverViewModel: Motorista não está escalado, não iniciando serviços de localização")
-                    // Garantir que serviços estão parados
+                    // Garantir que serviços estão parados (mantém config listener ativo)
                     geofencingService.stopLocationUpdates()
                     stopStatusMonitoringService()
                     _isLoading.value = false
@@ -180,6 +186,7 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 
                 // Iniciar WorkManager para verificação periódica APENAS se estiver escalado e não estiver CONCLUIDO
                 startStatusCheckWork(motoristaId, baseId, it.estado)
+                // Config listener já iniciado no início de loadDriverData
             } ?: run {
                 println("⚠️ DriverViewModel: Status não encontrado, não foi possível iniciar monitoramento")
             }
@@ -614,11 +621,23 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 println("   📋 Status anterior: estado=${statusAnterior?.estado}, mensagem=${statusAnterior?.mensagem}")
                 println("   📋 Status novo: estado=${statusInfo?.estado}, mensagem=${statusInfo?.mensagem}")
                 
-                // Se o status for null, verificar se o motorista foi excluído
+                // Se o status for null: parar monitoramento (regra: sem status = não monitorar)
                 if (statusInfo == null) {
-                    println("⚠️ DriverViewModel: Status retornou null, verificando se motorista foi excluído")
+                    println("🛑 DriverViewModel: Status null detectado, parando monitoramento de localização")
+                    geofencingService.stopLocationUpdates()
+                    geofencingService.removeAllGeofences()
+                    stopStatusMonitoringService()
+                    stopStatusCheckWork()
+                    _statusInfo.value = null
+                    statusAnterior = null
                     checkMotoristaExcluido(motoristaId, baseId)
                     return@observeStatusMotorista
+                }
+                
+                // Se status mudou de null para válido (não CONCLUIDO): iniciar monitoramento
+                if (statusAnterior == null && statusInfo.estado != "CONCLUIDO" && _escalaInfo.value != null) {
+                    println("✅ DriverViewModel: Status criado (${statusInfo.estado}), iniciando monitoramento de localização")
+                    loadDriverData(motoristaId, baseId)
                 }
                 
                 // Detectar mudança de status ou mensagem (não notificar na primeira carga)
@@ -696,17 +715,14 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                                         mensagem = status.mensagem.ifEmpty { "Status atualizado" }
                                     )
                                     println("🔔 DriverViewModel: Notificação de mudança de status enviada: ${status.estado}")
-                                } else if (status.estado == "A_CAMINHO" && (mensagemMudou || mensagemEscalacao)) {
-                                    // Se o status é A_CAMINHO e a mensagem mudou OU é mensagem de escalação, notificar
+                                } else if (status.estado == "A_CAMINHO" && mensagemEscalacao) {
+                                    // Apenas mensagem de escalação (ex: "Você foi escalado") - reset de status
+                                    // já notifica via NotifyMotoristaWorker, evitar duplicata
                                     notificationManager.sendStatusUpdateNotification(
-                                        status = if (mensagemEscalacao) "🚛 Você foi escalado!" else "Status Atualizado",
-                                        mensagem = if (mensagemEscalacao && status.mensagem.isNotEmpty()) {
-                                            status.mensagem
-                                        } else {
-                                            status.mensagem.ifEmpty { "Status atualizado" }
-                                        }
+                                        status = "🚛 Você foi escalado!",
+                                        mensagem = status.mensagem.ifEmpty { "Status atualizado" }
                                     )
-                                    println("🔔 DriverViewModel: Notificação enviada (A_CAMINHO - mensagem mudou: $mensagemMudou, mensagem escalação: $mensagemEscalacao)")
+                                    println("🔔 DriverViewModel: Notificação enviada (A_CAMINHO - escalação)")
                                 }
                             }
                         }
@@ -730,10 +746,11 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 statusInfo?.let {
                     geofencingService.updateCurrentStatus(it.estado)
                     
-                    // ✅ Parar serviços se status for CONCLUIDO
+                    // ✅ Parar serviços e geofencing se status for CONCLUIDO
                     if (it.estado == "CONCLUIDO") {
-                        println("🛑 DriverViewModel: Status CONCLUIDO detectado, parando serviços de localização")
+                        println("🛑 DriverViewModel: Status CONCLUIDO detectado, parando geofencing e serviços")
                         geofencingService.stopLocationUpdates()
+                        geofencingService.removeAllGeofences()
                         stopStatusMonitoringService()
                         // Cancelar WorkManager imediatamente
                         stopStatusCheckWork()
@@ -978,11 +995,56 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
         super.onCleared()
         stopStatusMonitoringService()
         stopStatusCheckWork()
+        stopConfigListener()
         motoristaNomeListener?.remove()
         motoristaNomeListener = null
         statusListener?.remove()
         statusListener = null
         escalaListeners.forEach { it.remove() }
         escalaListeners = emptyList()
+    }
+    
+    /**
+     * Observar mudanças na configuração da base (raio do galpão) em tempo real.
+     * Quando o admin altera o raio e o motorista já está dentro, atualiza para CHEGUEI imediatamente.
+     */
+    private fun startConfigListener(motoristaId: String, baseId: String, currentStatus: String) {
+        stopConfigListener()
+        android.util.Log.i("DriverViewModel", "🎧 [MOTORISTA] Listener config - baseId=$baseId")
+        val configRepository = ConfigRepository()
+        configListener = configRepository.observeConfiguracaoBase(
+            baseId = baseId,
+            onUpdate = { config ->
+                android.util.Log.d("DriverViewModel", "📥 Config recebida via listener - baseId=$baseId, galpao.lat=${config?.galpao?.lat}, galpao.lng=${config?.galpao?.lng}, galpao.raio=${config?.galpao?.raio}m")
+                if (config != null && config.galpao.lat != 0.0 && config.galpao.lng != 0.0) {
+                    android.util.Log.d("DriverViewModel", "🔄 Config do galpão atualizada - raio: ${config.galpao.raio}m, aplicando geofences...")
+                    val status = _statusInfo.value?.estado ?: currentStatus
+                    geofencingService.setMotoristaInfo(motoristaId, baseId, status)
+                    geofencingService.createGalpaoGeofence(
+                        config.galpao.lat,
+                        config.galpao.lng,
+                        config.galpao.raio.toDouble()
+                    )
+                    if (config.estacionamento.lat != 0.0 && config.estacionamento.lng != 0.0) {
+                        geofencingService.createEstacionamentoGeofence(
+                            config.estacionamento.lat,
+                            config.estacionamento.lng,
+                            config.estacionamento.raio.toDouble()
+                        )
+                    }
+                } else {
+                    android.util.Log.d("DriverViewModel", "⚠️ Config recebida mas galpão inválido (lat=${config?.galpao?.lat}, lng=${config?.galpao?.lng}) - ignorando")
+                }
+            },
+            onError = { e ->
+                android.util.Log.e("DriverViewModel", "❌ Erro no listener de config: ${e.message}")
+            }
+        )
+    }
+    
+    private fun stopConfigListener() {
+        configListener?.remove()
+        configListener = null
+        android.util.Log.d("DriverViewModel", "🛑 Listener de config parado")
     }
 }

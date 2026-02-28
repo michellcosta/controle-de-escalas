@@ -1,23 +1,32 @@
 package com.controleescalas.app.data
 
+import android.Manifest
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.controleescalas.app.MainActivity
+import androidx.core.content.ContextCompat
 import com.controleescalas.app.R
-import com.controleescalas.app.data.repositories.MotoristaRepository
+import com.controleescalas.app.data.repositories.ConfigRepository
 import com.controleescalas.app.data.repositories.EscalaRepository
+import com.controleescalas.app.data.repositories.MotoristaRepository
 import com.controleescalas.app.ui.screens.DriverStatusInfo
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
 
 /**
  * Foreground Service para monitorar mudanças de status do motorista
@@ -29,6 +38,7 @@ class StatusMonitoringService : Service() {
         private const val TAG = "StatusMonitoringService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "status_monitoring_channel"
+        private const val ACCENT_COLOR = 0xFF10B981.toInt() // NeonGreen - padrão do app
         
         const val ACTION_START = "com.controleescalas.app.START_MONITORING"
         const val ACTION_STOP = "com.controleescalas.app.STOP_MONITORING"
@@ -44,14 +54,21 @@ class StatusMonitoringService : Service() {
     private var lastStatus: String? = null
     private var notificationService: NotificationService? = null
     private var periodicCheckJob: kotlinx.coroutines.Job? = null
+    private var locationCheckJob: kotlinx.coroutines.Job? = null
+    private val fusedLocationClient: FusedLocationProviderClient by lazy {
+        LocationServices.getFusedLocationProviderClient(this)
+    }
+    private var lastChegueiUpdateTime = 0L
+    private var lastEstacionamentoUpdateTime = 0L
+    private val MIN_UPDATE_INTERVAL = 30000L // 30 segundos
     
     override fun onCreate() {
         super.onCreate()
         // Inicializar NotificationService aqui, quando o Context já está disponível
         notificationService = NotificationService(this)
-        Log.d(TAG, "🔧 onCreate chamado - criando canal de notificação...")
-        println("🔧 StatusMonitoringService.onCreate: Criando serviço")
         createNotificationChannel()
+        Log.d(TAG, "🔧 onCreate chamado")
+        println("🔧 StatusMonitoringService.onCreate: Criando serviço")
         Log.d(TAG, "✅ StatusMonitoringService criado")
         println("✅ StatusMonitoringService: Serviço criado com sucesso")
     }
@@ -111,38 +128,36 @@ class StatusMonitoringService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Monitoramento de Status",
-                android.app.NotificationManager.IMPORTANCE_LOW // Baixa prioridade para não incomodar
+                "Monitoramento em segundo plano",
+                android.app.NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Monitora mudanças de status do motorista"
+                description = "Monitora localização sem som ou vibração"
                 setShowBadge(false)
+                enableVibration(false)
+                enableLights(false)
+                setSound(null, null)
             }
-            
-            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.createNotificationChannel(channel)
         }
     }
     
     private fun createForegroundNotification(): Notification {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            0,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val bigText = "Detectando sua chegada ao galpão e estacionamento."
         
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Controle de Escalas")
-            .setContentText("Monitorando seu status...")
+            .setContentTitle("📍 Controle de Escalas")
+            .setContentText("Monitorando localização")
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setColor(ACCENT_COLOR)
+            .setColorized(true)
+            .setShowWhen(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
             .build()
     }
     
@@ -197,8 +212,11 @@ class StatusMonitoringService : Service() {
                                 
                                 // ✅ Verificar se status é CONCLUIDO - se for, parar o serviço
                                 if (novoStatus == "CONCLUIDO") {
-                                    Log.d(TAG, "🛑 Status CONCLUIDO detectado, parando serviço...")
-                                    println("🛑 StatusMonitoringService: Status CONCLUIDO, parando serviço")
+                                    Log.d(TAG, "🛑 Status CONCLUIDO detectado, parando geofencing e serviço...")
+                                    println("🛑 StatusMonitoringService: Status CONCLUIDO, parando geofencing e serviço")
+                                    
+                                    // Remover geofences (funciona mesmo com app fechado)
+                                    GeofencingService(this@StatusMonitoringService).removeAllGeofences()
                                     
                                     // Enviar notificação de conclusão antes de parar
                                     val notificationManager = NotificationManager.getInstance(this@StatusMonitoringService)
@@ -257,8 +275,18 @@ class StatusMonitoringService : Service() {
                                 println("ℹ️ StatusMonitoringService: Sem mudança - Último='$lastStatus', Novo='$novoStatus'")
                             }
                         } ?: run {
-                            Log.d(TAG, "⚠️ StatusInfo é null - não há status no Firestore")
-                            println("⚠️ StatusMonitoringService: StatusInfo é null")
+                            // Regra: sem status = não monitorar - parar serviço
+                            Log.d(TAG, "🛑 StatusInfo é null - parando monitoramento (regra: sem status = não monitorar)")
+                            println("🛑 StatusMonitoringService: Status null detectado, parando serviço")
+                            GeofencingService(this@StatusMonitoringService).removeAllGeofences()
+                            stopMonitoring()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                stopForeground(STOP_FOREGROUND_REMOVE)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                stopForeground(true)
+                            }
+                            stopSelf()
                         }
                     },
                     onError = { error: Exception ->
@@ -273,6 +301,9 @@ class StatusMonitoringService : Service() {
                 
                 // ✅ Iniciar verificação periódica (a cada 5 minutos) para garantir que o serviço pare se necessário
                 startPeriodicCheck(mId, bId)
+                
+                // ✅ Iniciar verificação de localização (a cada 30s) - detecta chegada ao raio com app em background/fechado
+                startLocationCheck(mId, bId)
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Erro ao iniciar monitoramento: ${e.message}", e)
                 println("❌ StatusMonitoringService: Erro ao iniciar monitoramento - ${e.message}")
@@ -314,8 +345,9 @@ class StatusMonitoringService : Service() {
                     // Verificar se status é CONCLUIDO
                     val status = motoristaRepository.getStatusMotorista(motoristaId, baseId)
                     if (status?.estado == "CONCLUIDO") {
-                        Log.d(TAG, "🛑 Verificação periódica: Status é CONCLUIDO, parando serviço")
+                        Log.d(TAG, "🛑 Verificação periódica: Status é CONCLUIDO, parando geofencing e serviço")
                         println("🛑 StatusMonitoringService: Status CONCLUIDO detectado na verificação periódica, parando serviço")
+                        GeofencingService(this@StatusMonitoringService).removeAllGeofences()
                         stopMonitoring()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -336,7 +368,105 @@ class StatusMonitoringService : Service() {
         }
     }
     
+    /**
+     * Verificação de localização a cada 30s - detecta quando motorista entra no raio do galpão/estacionamento.
+     * Funciona com app em background ou "fechado" pois o StatusMonitoringService é foreground.
+     */
+    private fun startLocationCheck(motoristaId: String, baseId: String) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Log.w(TAG, "⚠️ Sem permissão de localização para verificação de raio")
+            return
+        }
+        locationCheckJob?.cancel()
+        locationCheckJob = serviceScope.launch {
+            while (true) {
+                delay(30000L) // 30 segundos
+                try {
+                    val config = ConfigRepository().getConfiguracaoBase(baseId)
+                    if (config == null || config.galpao.lat == 0.0 || config.galpao.lng == 0.0) continue
+                    
+                    val location = try {
+                        val cts = CancellationTokenSource()
+                        fusedLocationClient.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token).await()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "⚠️ Erro ao obter localização: ${e.message}")
+                        null
+                    } ?: continue
+                    
+                    val status = MotoristaRepository().getStatusMotorista(motoristaId, baseId)
+                    val statusAtual = status?.estado ?: "A_CAMINHO"
+                    if (statusAtual == "CONCLUIDO") {
+                        Log.d(TAG, "🛑 Status CONCLUIDO - parando geofencing e verificação de localização")
+                        GeofencingService(this@StatusMonitoringService).removeAllGeofences()
+                        stopMonitoring()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            stopForeground(STOP_FOREGROUND_REMOVE)
+                        } else {
+                            @Suppress("DEPRECATION")
+                            stopForeground(true)
+                        }
+                        stopSelf()
+                        break
+                    }
+                    if (statusAtual == "CARREGANDO") continue
+                    
+                    val galpaoDist = distanceBetween(
+                        location.latitude, location.longitude,
+                        config.galpao.lat, config.galpao.lng
+                    )
+                    val galpaoRaio = config.galpao.raio.toDouble()
+                    
+                    if (galpaoDist <= galpaoRaio && statusAtual != "IR_ESTACIONAMENTO") {
+                        if (statusAtual != "CHEGUEI") {
+                            val now = System.currentTimeMillis()
+                            if (now - lastChegueiUpdateTime > MIN_UPDATE_INTERVAL) {
+                                val ok = MotoristaRepository().updateStatusMotorista(
+                                    motoristaId, baseId, "CHEGUEI", "Chegou ao galpão (automático)"
+                                )
+                                if (ok) {
+                                    lastChegueiUpdateTime = now
+                                    NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "CHEGUEI")
+                                    Log.d(TAG, "✅ [BACKGROUND] Status atualizado para CHEGUEI (dist: ${galpaoDist.toInt()}m)")
+                                }
+                            }
+                        }
+                    } else if (config.estacionamento.lat != 0.0 && config.estacionamento.lng != 0.0) {
+                        val estDist = distanceBetween(
+                            location.latitude, location.longitude,
+                            config.estacionamento.lat, config.estacionamento.lng
+                        )
+                        val estRaio = config.estacionamento.raio.toDouble()
+                        if (estDist <= estRaio && statusAtual == "IR_ESTACIONAMENTO") {
+                            val now = System.currentTimeMillis()
+                            if (now - lastEstacionamentoUpdateTime > MIN_UPDATE_INTERVAL) {
+                                val ok = MotoristaRepository().updateStatusMotorista(
+                                    motoristaId, baseId, "ESTACIONAMENTO", "Chegou ao estacionamento (automático)"
+                                )
+                                if (ok) {
+                                    lastEstacionamentoUpdateTime = now
+                                    NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "ESTACIONAMENTO")
+                                    Log.d(TAG, "✅ [BACKGROUND] Status atualizado para ESTACIONAMENTO (dist: ${estDist.toInt()}m)")
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Erro na verificação de localização: ${e.message}")
+                }
+            }
+        }
+        Log.d(TAG, "📍 Verificação de localização iniciada (a cada 30s)")
+    }
+    
+    private fun distanceBetween(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+        val results = FloatArray(1)
+        Location.distanceBetween(lat1, lng1, lat2, lng2, results)
+        return results[0].toDouble()
+    }
+    
     private fun stopMonitoring() {
+        locationCheckJob?.cancel()
+        locationCheckJob = null
         periodicCheckJob?.cancel()
         periodicCheckJob = null
         statusListener?.remove()

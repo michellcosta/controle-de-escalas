@@ -1,6 +1,6 @@
 # Política de Privacidade - Controle de Escalas
 
-**Última atualização:** 2024
+**Última atualização:** 2025
 
 ## 1. Introdução
 
@@ -21,7 +21,8 @@ Coletamos os seguintes tipos de informações quando você usa nosso aplicativo:
 ### 2.2. Dados de Localização
 
 - **Localização GPS em tempo real:** Coletamos sua localização precisamente (coordenadas de latitude e longitude) para permitir funcionalidades de geofencing (detecção de entrada/saída de áreas específicas como galpões e estacionamentos)
-- **Localização em segundo plano:** O aplicativo solicita permissão para acessar sua localização mesmo quando o aplicativo está em segundo plano, necessário para monitoramento contínuo de geofences e atualização automática de status
+- **Quando coletamos:** A coleta de localização **só ocorre quando o motorista possui um status ativo na escala** (por exemplo: a caminho, chegou, em estacionamento, carregando). Quando não há status definido ou quando o status é marcado como **concluído**, o aplicativo **não monitora** a localização
+- **Localização em segundo plano:** O aplicativo solicita permissão para acessar sua localização mesmo quando o aplicativo está em segundo plano, necessário para monitoramento contínuo de geofences e atualização automática de status. O uso da localização em segundo plano cessa automaticamente quando o status do motorista é marcado como **concluído** ou quando **não há status definido**, sem necessidade de ação do usuário
 
 ### 2.3. Dados de Uso do Aplicativo
 
@@ -41,7 +42,7 @@ Utilizamos as informações coletadas para os seguintes propósitos:
 - **Autenticação e Segurança:** Verificar sua identidade através de telefone e PIN para permitir acesso ao sistema
 - **Gestão de Escalas:** Gerenciar e exibir suas escalas de trabalho, turnos, vagas e rotas atribuídas
 - **Geofencing e Monitoramento de Localização:** Detectar automaticamente quando você entra ou sai de áreas específicas (galpões, estacionamentos) para atualizar seu status de forma automática e fornecer informações contextuais
-- **Notificações Push:** Enviar notificações sobre chamados para vagas, alterações em escalas, atualizações de status e outras informações relevantes relacionadas ao seu trabalho
+- **Notificações Push:** Enviar notificações sobre chamadas para vagas, chegada ao galpão, entrada no estacionamento, conclusão da jornada, alterações em escalas e outras informações relevantes relacionadas ao seu trabalho
 - **Melhorias do Aplicativo:** Analisar padrões de uso para melhorar a experiência do usuário e desenvolver novas funcionalidades
 - **Comunicação:** Permitir comunicação entre administradores e motoristas através do sistema de notificações
 
@@ -89,7 +90,7 @@ Para exercer qualquer um desses direitos, entre em contato conosco através do e
 
 O aplicativo solicita as seguintes permissões do Android:
 
-- **Localização Precisa (Foreground e Background):** Necessária para funcionalidades de geofencing e detecção automática de entrada/saída de áreas. Você pode revogar essa permissão a qualquer momento nas configurações do dispositivo, mas isso pode afetar o funcionamento de algumas funcionalidades do aplicativo
+- **Localização Precisa (Foreground e Background):** Necessária para funcionalidades de geofencing e detecção automática de entrada/saída de áreas. O uso em segundo plano cessa automaticamente quando o status do motorista é marcado como concluído ou quando não há status definido. Você pode revogar essa permissão a qualquer momento nas configurações do dispositivo, mas isso pode afetar o funcionamento de algumas funcionalidades do aplicativo
 - **Notificações:** Para enviar notificações push sobre chamados, alterações de escala e outras informações importantes
 - **Internet e Rede:** Para sincronizar dados com os servidores e receber atualizações em tempo real
 - **Câmera (opcional):** Para funcionalidades de scanner de QR Code/Código de Barras, se disponível
@@ -121,6 +122,6 @@ Faremos o nosso melhor para responder suas solicitações no prazo estabelecido 
 
 ---
 
-**Última atualização:** 2024  
+**Última atualização:** 2025  
 **Aplicativo:** Controle de Escalas  
 **Desenvolvedor:** Michell Oliveira
