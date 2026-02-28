@@ -70,12 +70,12 @@
             android:exported="false"
             android:foregroundServiceType="location" />
         
-        <!-- Status Monitoring Service -->
+        <!-- Status Monitoring Service: dataSync + location para detectar chegada ao raio em background -->
         <service
             android:name=".data.StatusMonitoringService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|location" />
 
         <!-- Geofence Broadcast Receiver -->
         <receiver
@@ -83,9 +83,15 @@
             android:enabled="true"
             android:exported="false" />
         
-        <!-- UCrop Activity para recorte de imagens -->
+        <!-- UCrop Activity para recorte de imagens (padrão da biblioteca) -->
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
+        <!-- CustomCropActivity: título no topo, Cancelar/Confirmar na base -->
+        <activity
+            android:name=".CustomCropActivity"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
         

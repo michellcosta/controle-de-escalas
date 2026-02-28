@@ -49,6 +49,7 @@ class SistemaRepository {
                     dataAtivacaoManual = extrairTimestamp(doc, "dataAtivacaoManual"),
                     ativadoPor = doc.getString("ativadoPor"),
                     ultimaModificacao = doc.getLong("ultimaModificacao") ?: System.currentTimeMillis(),
+                    temaHabilitado = doc.getBoolean("temaHabilitado") ?: false,
                     // ✅ NOVO: Campos adicionais
                     periodoTrialDias = doc.getLong("periodoTrialDias")?.toInt() ?: 30,
                     limiteMotoristasGratuito = doc.getLong("limiteMotoristasGratuito")?.toInt() ?: 5,
@@ -93,6 +94,28 @@ class SistemaRepository {
             true
         } catch (e: Exception) {
             println("❌ SistemaRepository: Erro ao setar planosHabilitados: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Habilitar ou desabilitar exibição do seletor de tema para usuários.
+     */
+    suspend fun setTemaHabilitado(habilitado: Boolean): Boolean {
+        return try {
+            val agora = System.currentTimeMillis()
+            sistemaRef.set(
+                mapOf(
+                    "temaHabilitado" to habilitado,
+                    "ultimaModificacao" to agora
+                ),
+                SetOptions.merge()
+            ).await()
+            invalidateCache()
+            println("✅ SistemaRepository: Tema habilitado = $habilitado")
+            true
+        } catch (e: Exception) {
+            println("❌ SistemaRepository: Erro ao setar temaHabilitado: ${e.message}")
             false
         }
     }

@@ -47,14 +47,17 @@ class LocationConfigViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun saveGalpao(baseId: String, lat: Double, lng: Double, raio: Int) {
+        android.util.Log.d("LocationConfigVM", "📤 Salvando galpão - baseId=$baseId, lat=$lat, lng=$lng, raio=${raio}m")
         viewModelScope.launch {
             _isLoading.value = true
             try {
                 val success = configRepository.saveGeofenceConfig(baseId, "galpao", lat, lng, raio)
                 if (success) {
+                    android.util.Log.d("LocationConfigVM", "✅ Galpão salvo com sucesso em bases/$baseId/configuracao/principal")
                     _galpao.value = GeofenceUi(lat, lng, raio)
                     _message.value = "Configuração do Galpão salva!"
                 } else {
+                    android.util.Log.e("LocationConfigVM", "❌ Falha ao salvar galpão")
                     _message.value = "Erro ao salvar Galpão"
                 }
             } catch (e: Exception) {
@@ -66,6 +69,7 @@ class LocationConfigViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun saveEstacionamento(baseId: String, lat: Double, lng: Double, raio: Int) {
+        android.util.Log.d("LocationConfigVM", "📤 Salvando estacionamento - baseId=$baseId, lat=$lat, lng=$lng, raio=${raio}m")
         viewModelScope.launch {
             _isLoading.value = true
             try {

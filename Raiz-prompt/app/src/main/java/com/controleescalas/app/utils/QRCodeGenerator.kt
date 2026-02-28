@@ -26,26 +26,27 @@ object QRCodeGenerator {
             val finalHeight = height
             
             val hints = hashMapOf<EncodeHintType, Any>().apply {
-                put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H)
+                put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.L) // L = 7% redundância, módulos maiores
                 put(EncodeHintType.CHARACTER_SET, "UTF-8")
-                put(EncodeHintType.MARGIN, 2) // Aumentado de 1 para 2 (mais espaço ao redor)
+                put(EncodeHintType.MARGIN, 4) // Margem maior para leitura mais rápida (padrão apps governo)
             }
             
             val writer = QRCodeWriter()
             val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, finalWidth, finalHeight, hints)
             
-            // Otimização: usar setPixels em vez de setPixel em loop (muito mais rápido)
-            val pixels = IntArray(finalWidth * finalHeight)
-            for (y in 0 until finalHeight) {
-                val offset = y * finalWidth
-                for (x in 0 until finalWidth) {
+            // Usar dimensões reais do BitMatrix (ZXing pode retornar tamanho diferente do solicitado)
+            val matrixWidth = bitMatrix.width
+            val matrixHeight = bitMatrix.height
+            val pixels = IntArray(matrixWidth * matrixHeight)
+            for (y in 0 until matrixHeight) {
+                val offset = y * matrixWidth
+                for (x in 0 until matrixWidth) {
                     pixels[offset + x] = if (bitMatrix[x, y]) Color.BLACK else Color.WHITE
                 }
             }
             
-            // Mudado de RGB_565 para ARGB_8888 para melhor qualidade/precisão de cores
-            val bitmap = Bitmap.createBitmap(finalWidth, finalHeight, Bitmap.Config.ARGB_8888)
-            bitmap.setPixels(pixels, 0, finalWidth, 0, 0, finalWidth, finalHeight)
+            val bitmap = Bitmap.createBitmap(matrixWidth, matrixHeight, Bitmap.Config.ARGB_8888)
+            bitmap.setPixels(pixels, 0, matrixWidth, 0, 0, matrixWidth, matrixHeight)
             
             bitmap
         } catch (e: Exception) {
@@ -73,26 +74,27 @@ object QRCodeGenerator {
             val text = String(bytes, Charsets.ISO_8859_1)
             
             val hints = hashMapOf<EncodeHintType, Any>().apply {
-                put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.H)
+                put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.L) // L = 7% redundância, módulos maiores
                 put(EncodeHintType.CHARACTER_SET, "ISO-8859-1") // Usar ISO-8859-1 para preservar bytes
-                put(EncodeHintType.MARGIN, 2) // Aumentado de 1 para 2
+                put(EncodeHintType.MARGIN, 4) // Margem maior para leitura mais rápida (padrão apps governo)
             }
             
             val writer = QRCodeWriter()
             val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, finalWidth, finalHeight, hints)
             
-            // Otimização: usar setPixels em vez de setPixel em loop (muito mais rápido)
-            val pixels = IntArray(finalWidth * finalHeight)
-            for (y in 0 until finalHeight) {
-                val offset = y * finalWidth
-                for (x in 0 until finalWidth) {
+            // Usar dimensões reais do BitMatrix (ZXing pode retornar tamanho diferente do solicitado)
+            val matrixWidth = bitMatrix.width
+            val matrixHeight = bitMatrix.height
+            val pixels = IntArray(matrixWidth * matrixHeight)
+            for (y in 0 until matrixHeight) {
+                val offset = y * matrixWidth
+                for (x in 0 until matrixWidth) {
                     pixels[offset + x] = if (bitMatrix[x, y]) Color.BLACK else Color.WHITE
                 }
             }
             
-            // Mudado de RGB_565 para ARGB_8888 para melhor qualidade
-            val bitmap = Bitmap.createBitmap(finalWidth, finalHeight, Bitmap.Config.ARGB_8888)
-            bitmap.setPixels(pixels, 0, finalWidth, 0, 0, finalWidth, finalHeight)
+            val bitmap = Bitmap.createBitmap(matrixWidth, matrixHeight, Bitmap.Config.ARGB_8888)
+            bitmap.setPixels(pixels, 0, matrixWidth, 0, 0, matrixWidth, matrixHeight)
             
             println("✅ QRCodeGenerator: QR Code gerado a partir de ${bytes.size} bytes usando ISO-8859-1")
             bitmap

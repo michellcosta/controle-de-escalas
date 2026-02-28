@@ -13,6 +13,7 @@ import com.controleescalas.app.data.repositories.MotoristaRepository
 import com.controleescalas.app.ui.screens.DriverStatusInfo
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -151,10 +152,17 @@ class StatusCheckWorker(
                 return
             }
             
-            // Obter localização atual
+            // Obter localização atual (lastLocation primeiro, getCurrentLocation como fallback)
             val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(applicationContext)
-            val location = fusedLocationClient.lastLocation.await()
-            
+            var location = fusedLocationClient.lastLocation.await()
+            if (location == null) {
+                Log.d(TAG, "ℹ️ lastLocation null, tentando getCurrentLocation...")
+                try {
+                    location = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ getCurrentLocation falhou: ${e.message}")
+                }
+            }
             if (location == null) {
                 Log.d(TAG, "ℹ️ Nenhuma localização disponível, pulando verificação")
                 return
@@ -191,6 +199,7 @@ class StatusCheckWorker(
                     if (success) {
                         Log.d(TAG, "✅ Status atualizado para CHEGUEI em background")
                         statusAtualizado = true
+                        NotifyStatusChangeWorker.enqueue(applicationContext, baseId, motoristaId, "CHEGUEI")
                     } else {
                         Log.e(TAG, "❌ Erro ao atualizar status para CHEGUEI em background")
                     }
@@ -224,6 +233,7 @@ class StatusCheckWorker(
                     
                     if (success) {
                         Log.d(TAG, "✅ Status atualizado para ESTACIONAMENTO em background")
+                        NotifyStatusChangeWorker.enqueue(applicationContext, baseId, motoristaId, "ESTACIONAMENTO")
                     } else {
                         Log.e(TAG, "❌ Erro ao atualizar status para ESTACIONAMENTO em background")
                     }

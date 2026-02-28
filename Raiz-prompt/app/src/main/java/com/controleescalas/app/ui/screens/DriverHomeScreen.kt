@@ -93,7 +93,7 @@ fun DriverHomeScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Minha Jornada", color = TextWhite) },
+                title = { Text("Minha Jornada", color = MaterialTheme.colorScheme.onBackground) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,
                     scrolledContainerColor = Color.Transparent
@@ -302,18 +302,24 @@ fun StatusCard(
             when {
                 isChamadoParaVaga && vaga != null && rota != null -> {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
-                        Text(text = "ROTA $rota", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+                        Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        Text(text = "ROTA $rota", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
                 isChamadoParaVaga && vaga != null -> {
-                    Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+                    Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                 }
                 isChamadoParaEstacionamento -> {
-                    Text(text = "Vá para o estacionamento e aguarde", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+                    Text(text = "Vá para o estacionamento e aguarde", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                 }
                 else -> {
-                    Text(text = statusInfo?.mensagem ?: "Aguardando instruções...", style = MaterialTheme.typography.bodyLarge, color = TextWhite)
+                    Text(
+                        text = statusInfo?.mensagem ?: "Aguardando instruções...",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
             
@@ -376,7 +382,7 @@ fun EscalaCompactCard(
     GlassCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Text("Escala de Hoje", style = MaterialTheme.typography.titleMedium, color = TextWhite)
+                Text("Escala de Hoje", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                 if (escalaInfo != null) {
                     Surface(color = NeonBlue.copy(alpha = 0.2f), shape = MaterialTheme.shapes.small) {
                         Text(escalaInfo.turno, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = NeonBlue, fontWeight = FontWeight.Bold)
@@ -397,7 +403,7 @@ fun EscalaCompactCard(
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Hora", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                            Text(escalaInfo.horarioPlanejado.ifBlank { "Indefinida" }, color = TextWhite, fontWeight = FontWeight.Medium)
+                            Text(escalaInfo.horarioPlanejado.ifBlank { "Indefinida" }, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                         }
                         Box(modifier = Modifier.alpha(if (isChamadoParaVaga) blinkAlpha else 1f)) {
                             InfoItem(label = "Rota", value = escalaInfo.rotaCodigo, corDestaque = corDestaque)
@@ -426,6 +432,6 @@ fun InfoItem(
 ) {
     Column(modifier = modifier) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = TextGray)
-        Text(value, color = corDestaque ?: TextWhite, fontWeight = if (corDestaque != null) FontWeight.Bold else FontWeight.Medium)
+        Text(value, color = corDestaque ?: MaterialTheme.colorScheme.onSurface, fontWeight = if (corDestaque != null) FontWeight.Bold else FontWeight.Medium)
     }
 }

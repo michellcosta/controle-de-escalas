@@ -91,6 +91,54 @@ class NotificationApiService {
     }
     
     /**
+     * Notifica mudança de status do motorista via backend Python.
+     * O backend envia push ao motorista e aos admins (quando CHEGUEI ou CONCLUIDO).
+     *
+     * @param baseId ID da base
+     * @param motoristaId ID do motorista
+     * @param status Novo status (CHEGUEI, ESTACIONAMENTO, CONCLUIDO, etc.)
+     * @param motoristaNome Nome do motorista (opcional; backend busca se vazio)
+     * @return Pair<Boolean, String?> sucesso e mensagem de erro
+     */
+    suspend fun notifyStatusChange(
+        baseId: String,
+        motoristaId: String,
+        status: String,
+        motoristaNome: String = ""
+    ): Pair<Boolean, String?> = withContext(Dispatchers.IO) {
+        try {
+            val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.NOTIFY_STATUS_CHANGE}"
+            val jsonBody = JSONObject().apply {
+                put("baseId", baseId)
+                put("motoristaId", motoristaId)
+                put("status", status)
+                if (motoristaNome.isNotBlank()) put("motoristaNome", motoristaNome)
+            }
+            val requestBody = jsonBody.toString().toRequestBody(jsonMediaType)
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .addHeader("Content-Type", "application/json")
+                .build()
+            Log.d(TAG, "📤 Notificando status change: $status para $motoristaId")
+            val response = client.newCall(request).execute()
+            val responseBody = response.body?.string()
+            if (response.isSuccessful) {
+                Log.d(TAG, "✅ Status change notificado com sucesso")
+                Pair(true, null)
+            } else {
+                val errorMsg = "Erro ${response.code}: $responseBody"
+                Log.e(TAG, "❌ Erro ao notificar status change: $errorMsg")
+                Pair(false, errorMsg)
+            }
+        } catch (e: Exception) {
+            val errorMsg = "Erro ao chamar API: ${e.message}"
+            Log.e(TAG, "❌ $errorMsg", e)
+            Pair(false, errorMsg)
+        }
+    }
+
+    /**
      * Solicita localização do motorista (admin/assistente).
      * Chama o backend Python em vez de Cloud Functions.
      */
@@ -219,7 +267,9 @@ class NotificationApiService {
         idToken: String,
         history: List<Pair<String, String>> = emptyList(),
         userName: String? = null,
-        userRole: String? = null
+        userRole: String? = null,
+        userId: String? = null,
+        turno: String? = null
     ): ChatAssistenteResult = withContext(Dispatchers.IO) {
         try {
             val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.ASSISTENTE_CHAT}"
@@ -238,6 +288,8 @@ class NotificationApiService {
                 if (historyArray.length() > 0) put("history", historyArray)
                 if (userName != null) put("userName", userName)
                 if (userRole != null) put("userRole", userRole)
+                if (userId != null) put("userId", userId)
+                if (turno != null) put("turno", turno)
             }
             val request = Request.Builder()
                 .url(url)

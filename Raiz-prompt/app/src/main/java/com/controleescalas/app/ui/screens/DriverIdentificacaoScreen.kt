@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.yalantis.ucrop.UCrop
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import com.google.accompanist.pager.HorizontalPager
@@ -24,16 +25,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.activity.compose.BackHandler
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.CNHImageManager
@@ -42,6 +54,7 @@ import com.controleescalas.app.data.MotoristaQRCodeManager
 import com.controleescalas.app.data.models.MotoristaQRCode
 import com.controleescalas.app.ui.components.BarcodeScannerScreen
 import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.utils.QRCodeGenerator
 import com.controleescalas.app.utils.QRCodeImageReader
@@ -69,6 +82,7 @@ fun DriverIdentificacaoScreen(
     // Estados
     var selectedTab by remember { mutableStateOf(0) } // 0 = CNH/QR code, 1 = QR do Motorista
     var showScanner by remember { mutableStateOf(false) }
+    var showQRMotoristaZoomModal by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
@@ -138,14 +152,13 @@ fun DriverIdentificacaoScreen(
     LaunchedEffect(qrCodeJson) {
         val currentQRCodeJson = qrCodeJson
         if (currentQRCodeJson != null && currentQRCodeJson.isNotBlank()) {
-            // Obter largura da tela
-            val screenWidth = with(density) {
-                context.resources.displayMetrics.widthPixels.dp.toPx().toInt()
-            }
+            // widthPixels já está em pixels - resolução alta para escaneamento rápido
+            val screenWidthPx = context.resources.displayMetrics.widthPixels
+            val qrSize = (screenWidthPx * 2).coerceIn(1000, 2200)
             
             // Gerar QR Code em background para não bloquear a UI (usando JSON já serializado)
             qrCodeBitmap = withContext(Dispatchers.Default) {
-                QRCodeGenerator.generateQRCode(currentQRCodeJson, screenWidth, screenWidth)
+                QRCodeGenerator.generateQRCode(currentQRCodeJson, qrSize, qrSize)
             }
         } else {
             qrCodeBitmap = null
@@ -178,13 +191,13 @@ fun DriverIdentificacaoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Identificação", color = TextWhite) },
+                title = { Text("Identificação", color = MaterialTheme.colorScheme.onBackground) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
+                    containerColor = Color.Transparent
                 ),
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.ArrowBack, "Voltar", tint = TextWhite)
+                        Icon(Icons.Default.ArrowBack, "Voltar", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 actions = {
@@ -192,13 +205,13 @@ fun DriverIdentificacaoScreen(
                         Icon(
                             Icons.Default.Info,
                             contentDescription = "Informações sobre Identificação",
-                            tint = TextWhite
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
             )
         },
-        containerColor = DarkBackground,
+        containerColor = Color.Transparent,
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { snackbarData ->
                 val messageText = snackbarData.visuals.message
@@ -211,89 +224,106 @@ fun DriverIdentificacaoScreen(
             }
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxSize()
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
             ) {
-                // Tabs
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = DarkSurface,
-                    contentColor = TextWhite
+                Column(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = { Text("CNH/QR code") }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = { Text("QR do Motorista") }
-                    )
+                    // Tabs
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("CNH/QR code", color = if (selectedTab == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text("QR do Motorista", color = if (selectedTab == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+                        )
+                    }
+                    
+                    // Conteúdo das abas
+                    when (selectedTab) {
+                        0 -> {
+                            // Aba CNH/QR code
+                            CNHTab(
+                                motoristaId = motoristaId,
+                                snackbarHostState = snackbarHostState
+                            )
+                        }
+                        1 -> {
+                            // Aba QR do Motorista
+                            QRMotoristaTab(
+                                qrCodeBitmap = qrCodeBitmap,
+                                isLoading = isLoading,
+                                onImageClick = {
+                                    if (qrCodeBitmap != null) showQRMotoristaZoomModal = true
+                                },
+                                onEscanearClick = {
+                                    when {
+                                        ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.CAMERA
+                                        ) == PackageManager.PERMISSION_GRANTED -> {
+                                            showScanner = true
+                                        }
+                                        else -> {
+                                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                        }
+                                    }
+                                },
+                                onAbrirImagemClick = {
+                                    imagePickerLauncher.launch("image/*")
+                                }
+                            )
+                        }
+                    }
                 }
                 
-                // Conteúdo das abas
-                when (selectedTab) {
-                    0 -> {
-                        // Aba CNH/QR code
-                        CNHTab(
-                            motoristaId = motoristaId,
-                            snackbarHostState = snackbarHostState
-                        )
-                    }
-                    1 -> {
-                        // Aba QR do Motorista
-                        QRMotoristaTab(
-                            qrCodeBitmap = qrCodeBitmap,
-                            isLoading = isLoading,
-                            onEscanearClick = {
-                                when {
-                                    ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.CAMERA
-                                    ) == PackageManager.PERMISSION_GRANTED -> {
-                                        showScanner = true
-                                    }
-                                    else -> {
-                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                    }
-                                }
-                            },
-                            onAbrirImagemClick = {
-                                imagePickerLauncher.launch("image/*")
-                            }
-                        )
-                    }
+                BackHandler(enabled = showQRMotoristaZoomModal) {
+                    showQRMotoristaZoomModal = false
                 }
-            }
-            
-            // Scanner de QR Code
-            if (showScanner) {
-                BarcodeScannerScreen(
-                    onBarcodeScanned = { barcodeValue ->
-                        showScanner = false
-                        isLoading = true
-                        errorMessage = null
-                        coroutineScope.launch {
-                            processQRCodeText(barcodeValue, qrCodeManager, coroutineScope, toneGenerator) { error, success ->
-                                errorMessage = error
-                                successMessage = success
-                                isLoading = false
-                            }
-                        }
-                    },
-                    onError = { errorMsg, _ ->
-                        errorMessage = errorMsg
-                    },
-                    onDismiss = { showScanner = false },
-                    snackbarHostState = snackbarHostState,
-                    aceitarJSONCompleto = true // Passar JSON completo para identificação
+                
+                BitmapZoomModal(
+                    bitmap = qrCodeBitmap,
+                    visible = showQRMotoristaZoomModal,
+                    onDismiss = { showQRMotoristaZoomModal = false },
+                    filterQuality = FilterQuality.None,
+                    isQRCode = true
                 )
+                
+                // Scanner de QR Code
+                if (showScanner) {
+                    BarcodeScannerScreen(
+                        onBarcodeScanned = { barcodeValue ->
+                            showScanner = false
+                            isLoading = true
+                            errorMessage = null
+                            coroutineScope.launch {
+                                processQRCodeText(barcodeValue, qrCodeManager, coroutineScope, toneGenerator) { error, success ->
+                                    errorMessage = error
+                                    successMessage = success
+                                    isLoading = false
+                                }
+                            }
+                        },
+                        onError = { errorMsg, _ ->
+                            errorMessage = errorMsg
+                        },
+                        onDismiss = { showScanner = false },
+                        snackbarHostState = snackbarHostState,
+                        aceitarJSONCompleto = true // Passar JSON completo para identificação
+                    )
+                }
             }
         }
         
@@ -337,12 +367,12 @@ fun DriverIdentificacaoScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { showInfoDialog = false }) {
-                        Text("Entendi", color = NeonPurple)
+                        Text("Entendi", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonPurple else NeonPurpleContrast)
                     }
                 },
-                containerColor = DarkBackground,
-                titleContentColor = TextWhite,
-                textContentColor = TextGray
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                textContentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
             )
         }
     }
@@ -388,6 +418,7 @@ suspend fun processQRCodeText(
 fun QRMotoristaTab(
     qrCodeBitmap: Bitmap?,
     isLoading: Boolean,
+    onImageClick: () -> Unit = {},
     onEscanearClick: () -> Unit,
     onAbrirImagemClick: () -> Unit
 ) {
@@ -436,13 +467,22 @@ fun QRMotoristaTab(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        
+                        Text(
+                            text = "Clique para ampliar",
+                            color = TextGray.copy(alpha = 0.8f),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
                         Image(
-                            bitmap = qrCodeBitmap.asImageBitmap(),
+                            painter = BitmapPainter(
+                                image = qrCodeBitmap.asImageBitmap(),
+                                filterQuality = FilterQuality.None
+                            ),
                             contentDescription = "QR Code do Motorista",
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(1f),
+                                .aspectRatio(1f)
+                                .clickable { onImageClick() },
                             contentScale = ContentScale.Fit
                         )
                     }
@@ -541,6 +581,8 @@ fun CNHTab(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
     var showQRCodeScanner by remember { mutableStateOf(false) }
+    var showCnhZoomModal by remember { mutableStateOf(false) }
+    var showCnhQRCodeZoomModal by remember { mutableStateOf(false) }
     
     // Pager state
     val pagerState = rememberPagerState()
@@ -594,26 +636,24 @@ fun CNHTab(
                 java.io.File(context.cacheDir, "cnh_cropped.jpg")
             )
             
-            // Configurar opções do uCrop para permitir ajuste livre pelos cantos
+            // Configurar opções do uCrop
             val options = com.yalantis.ucrop.UCrop.Options()
-            options.setFreeStyleCropEnabled(true) // Permite ajuste livre pelos cantos
-            
-            // Não definir opções de proporção - isso oculta os botões de proporção (1:1, 3:4, etc)
-            // mas mantém os botões de ação visíveis (Girar, ✖ Cancelar, ✔ Confirmar)
-            
-            // Configurar toolbar
+            options.setFreeStyleCropEnabled(true)
+            options.setShowCropFrame(true)
+            options.setShowCropGrid(false)
+            options.setHideBottomControls(true)
             options.setToolbarTitle("Recortar")
             options.setToolbarColor(android.graphics.Color.parseColor("#1A1A1A"))
             options.setStatusBarColor(android.graphics.Color.parseColor("#1A1A1A"))
-            // Definir cor clara para os botões da toolbar (✖ Cancelar, ✔ Confirmar, Girar)
-            // para que fiquem visíveis no fundo escuro
             options.setToolbarWidgetColor(android.graphics.Color.WHITE)
-            
+
             val uCrop = UCrop.of(uri, destinationUri)
                 .withMaxResultSize(2000, 2000)
                 .withOptions(options)
-            
-            cropImageLauncher.launch(uCrop.getIntent(context))
+
+            val intent = uCrop.getIntent(context)
+            intent.setClass(context, com.controleescalas.app.CustomCropActivity::class.java)
+            cropImageLauncher.launch(intent)
         }
     }
     
@@ -658,7 +698,7 @@ fun CNHTab(
                             }
                             
                             // Gerar QR Code dinamicamente a partir do texto salvo
-                            generateQRCodeBitmap(qrCodeText, density, context) { generatedBitmap ->
+                            generateQRCodeBitmap(qrCodeText, context) { generatedBitmap ->
                                 coroutineScope.launch {
                                     if (generatedBitmap != null) {
                                         toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
@@ -697,22 +737,24 @@ fun CNHTab(
                 java.io.File(context.cacheDir, "cnh_qr_code_cropped.jpg")
             )
             
-            // Configurar opções do uCrop para permitir ajuste livre pelos cantos
+            // Configurar opções do uCrop
             val options = com.yalantis.ucrop.UCrop.Options()
-            options.setFreeStyleCropEnabled(true) // Permite ajuste livre pelos cantos
-            
-            // Configurar toolbar
+            options.setFreeStyleCropEnabled(true)
+            options.setShowCropFrame(true)
+            options.setShowCropGrid(false)
+            options.setHideBottomControls(true)
             options.setToolbarTitle("Recortar")
             options.setToolbarColor(android.graphics.Color.parseColor("#1A1A1A"))
             options.setStatusBarColor(android.graphics.Color.parseColor("#1A1A1A"))
-            // Definir cor clara para os botões da toolbar (✖ Cancelar, ✔ Confirmar, Girar)
             options.setToolbarWidgetColor(android.graphics.Color.WHITE)
-            
+
             val uCrop = UCrop.of(uri, destinationUri)
                 .withMaxResultSize(2000, 2000)
                 .withOptions(options)
-            
-            qrCodeCropImageLauncher.launch(uCrop.getIntent(context))
+
+            val intent = uCrop.getIntent(context)
+            intent.setClass(context, com.controleescalas.app.CustomCropActivity::class.java)
+            qrCodeCropImageLauncher.launch(intent)
         }
     }
     
@@ -742,7 +784,7 @@ fun CNHTab(
             coroutineScope.launch {
                 val qrCodeText = cnhQRCodeManager.getQRCodeText()
                 if (qrCodeText != null && qrCodeText.isNotBlank()) {
-                    generateQRCodeBitmap(qrCodeText, density, context) { bitmap ->
+                    generateQRCodeBitmap(qrCodeText, context) { bitmap ->
                         coroutineScope.launch {
                             qrCodeBitmap = bitmap
                         }
@@ -777,9 +819,10 @@ fun CNHTab(
         }
     }
     
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
         // HorizontalPager com 2 páginas
         HorizontalPager(
             count = 2,
@@ -796,6 +839,9 @@ fun CNHTab(
                         isLoading = isLoading,
                         onSelectImageClick = {
                             imagePickerLauncher.launch("image/*")
+                        },
+                        onImageClick = {
+                            if (cnhImageBitmap != null) showCnhZoomModal = true
                         }
                     )
                 }
@@ -806,6 +852,9 @@ fun CNHTab(
                         isLoading = isLoading,
                         onSelectImageClick = {
                             qrCodeImagePickerLauncher.launch("image/*")
+                        },
+                        onImageClick = {
+                            if (qrCodeBitmap != null) showCnhQRCodeZoomModal = true
                         },
                         onScanWithCameraClick = {
                             when {
@@ -825,41 +874,53 @@ fun CNHTab(
             }
         }
         
-        // Texto "Arraste para o lado" com seta que muda conforme a página
-        Row(
+        // Texto "Arraste para o lado" e "Clique para ampliar"
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(top = 4.dp, bottom = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val isPage1 = pagerState.currentPage == 0
-            
-            if (!isPage1) {
-                // Página 2: seta para esquerda antes do texto
-                Icon(
-                    imageVector = Icons.Default.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = TextGray
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val isPage1 = pagerState.currentPage == 0
+                
+                if (!isPage1) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = TextGray
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                
+                Text(
+                    text = "Arraste para o lado",
+                    color = TextGray,
+                    style = MaterialTheme.typography.bodySmall
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+                
+                if (isPage1) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = TextGray
+                    )
+                }
             }
-            
-            Text(
-                text = "Arraste para o lado",
-                color = TextGray,
-                style = MaterialTheme.typography.bodySmall
-            )
-            
-            if (isPage1) {
-                // Página 1: seta para direita depois do texto
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = TextGray
+            if ((pagerState.currentPage == 0 && cnhImageBitmap != null) ||
+                (pagerState.currentPage == 1 && qrCodeBitmap != null)) {
+                Text(
+                    text = "Clique para ampliar",
+                    color = TextGray.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }
@@ -882,7 +943,7 @@ fun CNHTab(
                             }
                             
                             // Gerar QR Code dinamicamente a partir do texto salvo
-                            generateQRCodeBitmap(barcodeValue, density, context) { generatedBitmap ->
+                            generateQRCodeBitmap(barcodeValue, context) { generatedBitmap ->
                                 coroutineScope.launch {
                                     if (generatedBitmap != null) {
                                         toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
@@ -911,8 +972,124 @@ fun CNHTab(
                 aceitarJSONCompleto = true // Aceitar qualquer texto/JSON para QR Code da habilitação
             )
         }
+        
+        }
+        
+        BackHandler(enabled = showCnhZoomModal || showCnhQRCodeZoomModal) {
+            showCnhZoomModal = false
+            showCnhQRCodeZoomModal = false
+        }
+        
+        BitmapZoomModal(
+            bitmap = cnhImageBitmap,
+            visible = showCnhZoomModal,
+            onDismiss = { showCnhZoomModal = false },
+            filterQuality = FilterQuality.Low,
+            isQRCode = false
+        )
+        BitmapZoomModal(
+            bitmap = qrCodeBitmap,
+            visible = showCnhQRCodeZoomModal,
+            onDismiss = { showCnhQRCodeZoomModal = false },
+            filterQuality = FilterQuality.None,
+            isQRCode = true
+        )
     }
     
+}
+
+/**
+ * Modal reutilizável para ampliar imagem/QR Code com animação de zoom
+ * @param isQRCode Quando true, exibe fundo branco ao redor (zona de silêncio) para leitura mais rápida
+ */
+@Composable
+fun BitmapZoomModal(
+    bitmap: Bitmap?,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    filterQuality: FilterQuality = FilterQuality.Low,
+    isQRCode: Boolean = false
+) {
+    if (!visible || bitmap == null) return
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        val view = LocalView.current
+        DisposableEffect(Unit) {
+            (view as? android.view.View)?.let { v ->
+                try {
+                    val getWindow = android.view.View::class.java.getMethod("getWindow")
+                    (getWindow.invoke(v.rootView) as? android.view.Window)?.setBackgroundDrawable(
+                        android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+                    )
+                } catch (_: Exception) { }
+            }
+            onDispose { }
+        }
+        var targetScale by remember { mutableStateOf(0.8f) }
+        LaunchedEffect(Unit) {
+            targetScale = 1f
+        }
+        val scale by animateFloatAsState(
+            targetValue = targetScale,
+            animationSpec = tween(300),
+            label = "scale"
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (isQRCode) Color(0xFFF5F5F5) else Color.Black.copy(alpha = 0.6f))
+                .clickable(onClick = onDismiss)
+        ) {
+            if (isQRCode) {
+                // QR Code: fundo cinza claro (como app governo) - módulos maiores com padding mínimo
+                Image(
+                    painter = BitmapPainter(
+                        image = bitmap.asImageBitmap(),
+                        filterQuality = filterQuality
+                    ),
+                    contentDescription = "QR Code ampliado",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                // Foto: layout original
+                Image(
+                    painter = BitmapPainter(
+                        image = bitmap.asImageBitmap(),
+                        filterQuality = filterQuality
+                    ),
+                    contentDescription = "Imagem ampliada",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        },
+                    contentScale = ContentScale.Fit
+                )
+            }
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+            ) {
+                Icon(
+                    Icons.Default.Close,
+                    contentDescription = "Fechar",
+                    tint = if (isQRCode) Color.Black else Color.White
+                )
+            }
+        }
+    }
 }
 
 /**
@@ -922,13 +1099,13 @@ fun CNHTab(
 fun CNHImagePage(
     cnhImageBitmap: Bitmap?,
     isLoading: Boolean,
-    onSelectImageClick: () -> Unit
+    onSelectImageClick: () -> Unit,
+    onImageClick: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-            .padding(bottom = 0.dp),
+            .padding(horizontal = 8.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
@@ -940,9 +1117,10 @@ fun CNHImagePage(
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Imagem da CNH ocupando todo o card
+                // Imagem da CNH ocupando todo o card (clique para ampliar)
                 GlassCard(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    onClick = onImageClick
                 ) {
                     Image(
                         bitmap = cnhImageBitmap.asImageBitmap(),
@@ -1018,12 +1196,13 @@ fun CNHQRCodePage(
     qrCodeBitmap: Bitmap?,
     isLoading: Boolean,
     onSelectImageClick: () -> Unit,
+    onImageClick: () -> Unit = {},
     onScanWithCameraClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 16.dp)
+            .padding(horizontal = 8.dp, vertical = 8.dp)
             .padding(bottom = 0.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -1053,10 +1232,10 @@ fun CNHQRCodePage(
                         // Texto "QR Code CNH" acima do QR Code
                         Text(
                             text = "QR Code CNH",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleSmall,
                             color = Color.Black,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                         )
                         
                         // QR Code
@@ -1064,11 +1243,15 @@ fun CNHQRCodePage(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth()
-                                .padding(horizontal = 32.dp, vertical = 16.dp), // Mais espaço ao redor para melhor legibilidade
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .clickable { onImageClick() },
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
-                                bitmap = qrCodeBitmap.asImageBitmap(),
+                                painter = BitmapPainter(
+                                    image = qrCodeBitmap.asImageBitmap(),
+                                    filterQuality = FilterQuality.None
+                                ),
                                 contentDescription = "QR Code da Habilitação",
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Fit
@@ -1082,7 +1265,7 @@ fun CNHQRCodePage(
                     onClick = onScanWithCameraClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = NeonGreen,
                         contentColor = Color.Black
@@ -1138,20 +1321,18 @@ fun CNHQRCodePage(
  */
 suspend fun generateQRCodeBitmap(
     text: String,
-    density: androidx.compose.ui.unit.Density,
     context: android.content.Context,
     onResult: (Bitmap?) -> Unit
 ) {
     kotlinx.coroutines.withContext(Dispatchers.Default) {
-        val screenWidth = with(density) {
-            context.resources.displayMetrics.widthPixels.dp.toPx().toInt()
-        }
+        // widthPixels já está em pixels - usar diretamente (evitar conversão dp.toPx incorreta)
+        val screenWidthPx = context.resources.displayMetrics.widthPixels
         
-        // Calcular tamanho ideal: usar 1.5x da tela, mas limitado entre 800 e 1200 pixels
-        // Isso garante boa legibilidade sem consumir muita memória
-        val desiredSize = (screenWidth * 1.5).toInt()
-        val minSize = 800  // Tamanho mínimo para boa legibilidade
-        val maxSize = 1200 // Tamanho máximo para evitar OutOfMemory
+        // Resolução maior para escaneamento igual ao app do governo (CNH digital)
+        // 2x da tela, limitado entre 1000 e 2200 pixels
+        val desiredSize = (screenWidthPx * 2).toInt()
+        val minSize = 1000  // Tamanho mínimo para boa legibilidade
+        val maxSize = 2200  // Resolução alta para leitura rápida
         val qrCodeSize = desiredSize.coerceIn(minSize, maxSize)
         
         // Detectar se é Base64 e decodificar para bytes originais

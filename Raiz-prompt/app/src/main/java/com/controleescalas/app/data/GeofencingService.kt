@@ -239,14 +239,14 @@ class GeofencingService(private val context: Context) {
                 lastIsInside = false
                 updateGeofenceStatus(it)
             } ?: run {
-                Log.d("GeofencingService", "ℹ️ Nenhuma localização conhecida ainda, aguardando primeira atualização...")
-                // Se não há localização conhecida, resetar lastIsInside para garantir detecção na primeira atualização
+                Log.d("GeofencingService", "ℹ️ Nenhuma localização conhecida ainda, solicitando atualização única...")
                 lastIsInside = false
+                requestOneTimeLocationUpdate()
             }
         }.addOnFailureListener { exception ->
             Log.w("GeofencingService", "⚠️ Erro ao obter última localização: ${exception.message}")
-            // Em caso de erro, resetar lastIsInside para garantir detecção na primeira atualização
             lastIsInside = false
+            requestOneTimeLocationUpdate()
         }
     }
 
@@ -288,6 +288,59 @@ class GeofencingService(private val context: Context) {
     }
 
     /**
+     * Verificar localização atual imediatamente e atualizar status se motorista já estiver dentro do raio.
+     * Usado quando o admin altera o raio - motorista que já está dentro deve aparecer como CHEGUEI.
+     * Se lastLocation for null, solicita uma atualização temporária de alta precisão.
+     */
+    fun checkCurrentLocationImmediately() {
+        if (!hasLocationPermissions() || motoristaId == null || baseId == null) return
+        if (galpaoLat == null || galpaoLng == null) return
+        
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                Log.d("GeofencingService", "📍 Checagem imediata: localização obtida, verificando se dentro do raio")
+                lastIsInside = false
+                updateGeofenceStatus(location)
+            } else {
+                Log.d("GeofencingService", "📍 Checagem imediata: lastLocation null, solicitando atualização temporária")
+                requestOneTimeLocationUpdate()
+            }
+        }.addOnFailureListener { e ->
+            Log.w("GeofencingService", "⚠️ Erro ao obter localização para checagem imediata: ${e.message}")
+            requestOneTimeLocationUpdate()
+        }
+    }
+    
+    /**
+     * Solicitar uma única atualização de localização (fallback quando lastLocation é null)
+     */
+    private fun requestOneTimeLocationUpdate() {
+        if (!hasLocationPermissions()) return
+        
+        val oneTimeRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            5000L
+        ).setMaxUpdates(1).build()
+        
+        val oneTimeCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { location ->
+                    Log.d("GeofencingService", "📍 Atualização única obtida, verificando se dentro do raio")
+                    fusedLocationClient.removeLocationUpdates(this)
+                    lastIsInside = false
+                    updateGeofenceStatus(location)
+                }
+            }
+        }
+        
+        try {
+            fusedLocationClient.requestLocationUpdates(oneTimeRequest, oneTimeCallback, null)
+        } catch (e: SecurityException) {
+            Log.w("GeofencingService", "⚠️ Permissões não concedidas para requestOneTimeLocationUpdate")
+        }
+    }
+    
+    /**
      * Criar geofence para galpão
      */
     fun createGalpaoGeofence(latitude: Double, longitude: Double, radius: Double = GEOFENCE_RADIUS_METERS) {
@@ -318,6 +371,9 @@ class GeofencingService(private val context: Context) {
         val pendingIntent = createGeofencePendingIntent()
 
         // Remover geofences existentes antes de criar novos (evita erro 1004)
+        // Checagem imediata: se motorista já está dentro do novo raio, atualizar para CHEGUEI
+        checkCurrentLocationImmediately()
+        
         geofencingClient.removeGeofences(listOf(GEOFENCE_GALPAO_ID))
             .addOnSuccessListener {
                 Log.d("GeofencingService", "✅ Geofences antigos removidos, criando novo geofence do galpão...")
@@ -632,6 +688,7 @@ class GeofencingService(private val context: Context) {
                 if (success) {
                     currentStatus = "CHEGUEI"
                     Log.d("GeofencingService", "✅ Status atualizado para CHEGUEI automaticamente")
+                    NotifyStatusChangeWorker.enqueue(context, baseId, motoristaId, "CHEGUEI")
                 } else {
                     Log.e("GeofencingService", "❌ Erro ao atualizar status para CHEGUEI")
                 }
@@ -660,6 +717,7 @@ class GeofencingService(private val context: Context) {
                 if (success) {
                     currentStatus = "ESTACIONAMENTO"
                     Log.d("GeofencingService", "✅ Status atualizado para ESTACIONAMENTO automaticamente")
+                    NotifyStatusChangeWorker.enqueue(context, baseId, motoristaId, "ESTACIONAMENTO")
                 } else {
                     Log.e("GeofencingService", "❌ Erro ao atualizar status para ESTACIONAMENTO")
                 }

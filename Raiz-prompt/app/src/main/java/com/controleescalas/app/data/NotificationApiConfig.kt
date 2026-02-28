@@ -32,6 +32,7 @@ object NotificationApiConfig {
      */
     object Endpoints {
         const val NOTIFY_MOTORISTA = "/notify/motorista"
+        const val NOTIFY_STATUS_CHANGE = "/notify/status-change"
         const val HEALTH = "/health"
         const val LOCATION_REQUEST = "/location/request"
         const val LOCATION_RECEIVE = "/location/receive"

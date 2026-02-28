@@ -19,6 +19,7 @@ import com.controleescalas.app.data.NetworkUtils
 import com.controleescalas.app.data.RetryUtils
 import com.controleescalas.app.data.NotificationApiService
 import com.controleescalas.app.data.NotifyMotoristaWorker
+import com.controleescalas.app.data.NotifyStatusChangeWorker
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -283,7 +284,15 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 )
                 
                 if (success) {
-                    // Notificar admin sobre conclusão
+                    // Notificar motorista e admins via backend Python
+                    NotifyStatusChangeWorker.enqueue(
+                        getApplication(),
+                        currentBaseId,
+                        motorista.motoristaId,
+                        "CONCLUIDO",
+                        motorista.nome
+                    )
+                    // Notificar admin localmente
                     notificationService.sendAdminNotification(
                         motoristaNome = motorista.nome,
                         acao = "concluiu o carregamento"
@@ -327,6 +336,13 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 )
                 
                 if (success) {
+                    NotifyStatusChangeWorker.enqueue(
+                        getApplication(),
+                        currentBaseId,
+                        motorista.motoristaId,
+                        "CONCLUIDO",
+                        motorista.nome
+                    )
                     _message.value = "${motorista.nome} marcado como concluído"
                     Log.d("OperationalViewModel", "✅ Motorista ${motorista.nome} marcado como concluído pelo admin")
                     
@@ -360,7 +376,6 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun resetarStatusMotorista(motorista: OndaItem) {
         viewModelScope.launch {
             try {
-                // ✅ Usar retry com backoff para operações de escrita
                 val success = RetryUtils.retryWithBackoff(maxRetries = 3) {
                     motoristaRepository.updateStatusMotorista(
                         motoristaId = motorista.motoristaId,
@@ -371,6 +386,27 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 }
                 
                 if (success) {
+                    val title = "Status Atualizado"
+                    val body = "Status resetado. Continue aguardando instruções."
+                    val data = mapOf("tipo" to "status_reset", "estado" to "A_CAMINHO")
+                    // Enviar push direto (igual chamada estacionamento/vaga) para resposta imediata
+                    val (sent, _) = notificationApiService.notifyMotorista(
+                        baseId = currentBaseId,
+                        motoristaId = motorista.motoristaId,
+                        title = title,
+                        body = body,
+                        data = data
+                    )
+                    if (!sent) {
+                        NotifyMotoristaWorker.enqueue(
+                            context = getApplication(),
+                            baseId = currentBaseId,
+                            motoristaId = motorista.motoristaId,
+                            title = title,
+                            body = body,
+                            data = data
+                        )
+                    }
                     _message.value = "Status de ${motorista.nome} resetado para A_CAMINHO"
                     Log.d("OperationalViewModel", "✅ Status de ${motorista.nome} resetado pelo admin")
                 } else {
@@ -511,6 +547,14 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 )
                 
                 if (success) {
+                    NotifyMotoristaWorker.enqueue(
+                        context = getApplication(),
+                        baseId = currentBaseId,
+                        motoristaId = motorista.motoristaId,
+                        title = "Status Atualizado",
+                        body = "A caminho do galpão",
+                        data = mapOf("tipo" to "status_reset", "estado" to "A_CAMINHO")
+                    )
                     _message.value = "${motorista.nome} voltou para A CAMINHO"
                 } else {
                     _error.value = "Erro ao resetar status"

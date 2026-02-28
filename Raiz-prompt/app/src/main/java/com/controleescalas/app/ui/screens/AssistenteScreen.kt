@@ -67,6 +67,8 @@ import android.Manifest
 @Composable
 fun AssistenteScreen(
     baseId: String,
+    userId: String = "",
+    userRole: String = "",
     onBack: () -> Unit = {},
     onAddToScaleAction: OnAddToScaleAction? = null,
     onUpdateInScaleAction: OnUpdateInScaleAction? = null,
@@ -82,6 +84,9 @@ fun AssistenteScreen(
     LaunchedEffect(onBulkActions) { viewModel.setOnBulkActions(onBulkActions) }
     LaunchedEffect(onSendNotification) { viewModel.setOnSendNotification(onSendNotification) }
     LaunchedEffect(turno) { viewModel.setCurrentTurno(turno) }
+    LaunchedEffect(userId, userRole) {
+        viewModel.setUserIdentity(userId, userRole)
+    }
     val messages by viewModel.messages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     var inputText by remember { mutableStateOf("") }
@@ -285,103 +290,135 @@ fun AssistenteScreen(
                 }
 
                 // Barra de Entrada Flutuante
-                Surface(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .imePadding()
-                        .padding(horizontal = 16.dp, vertical = 20.dp),
-                    color = DarkSurface.copy(alpha = 0.8f),
-                    shape = RoundedCornerShape(32.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
-                    shadowElevation = 12.dp
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    Column(
+                    // Linha de Ações (fora da barra de texto)
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(4.dp)
+                            .padding(start = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Row(
+                        IconButton(
+                            onClick = { launchCamera() },
+                            enabled = !isLoading,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(DarkSurface.copy(alpha = 0.6f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.CameraAlt, "Câmera", tint = if (isLoading) TextGray else TextWhite, modifier = Modifier.size(20.dp))
+                        }
+                        IconButton(
+                            onClick = { pickImageLauncher.launch("image/*") },
+                            enabled = !isLoading,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(DarkSurface.copy(alpha = 0.6f), CircleShape)
+                        ) {
+                            Icon(Icons.Default.AddPhotoAlternate, "Galeria", tint = if (isLoading) TextGray else TextWhite, modifier = Modifier.size(20.dp))
+                        }
+                        IconButton(
+                            onClick = { startSpeechRecognition() },
+                            enabled = !isLoading,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(DarkSurface.copy(alpha = 0.6f), CircleShape)
+                        ) {
+                            Icon(
+                                Icons.Default.Mic,
+                                if (isListening) "Ouvindo..." else "Falar",
+                                tint = if (isListening) NeonGreen else if (isLoading) TextGray else TextWhite,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = DarkSurface.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(32.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
+                        shadowElevation = 12.dp
+                    ) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(4.dp)
                         ) {
-                            IconButton(onClick = { launchCamera() }, enabled = !isLoading) {
-                                Icon(Icons.Default.CameraAlt, "Câmera", tint = if (isLoading) TextGray else TextWhite)
-                            }
-                            IconButton(onClick = { pickImageLauncher.launch("image/*") }, enabled = !isLoading) {
-                                Icon(Icons.Default.AddPhotoAlternate, "Galeria", tint = if (isLoading) TextGray else TextWhite)
-                            }
-                            IconButton(onClick = { startSpeechRecognition() }, enabled = !isLoading) {
-                                Icon(
-                                    Icons.Default.Mic,
-                                    if (isListening) "Ouvindo..." else "Falar",
-                                    tint = if (isListening) NeonGreen else if (isLoading) TextGray else TextWhite
-                                )
-                            }
-
-                            BasicTextField(
-                                value = inputText,
-                                onValueChange = { inputText = it },
+                            Row(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .focusRequester(focusRequester)
-                                    .onFocusChanged { onInputFocusChange(it.isFocused) }
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),
-                                cursorBrush = SolidColor(NeonGreen),
-                                keyboardOptions = KeyboardOptions(
-                                capitalization = KeyboardCapitalization.Sentences
-                            ),
-                            decorationBox = { inner ->
-                                    Box(modifier = Modifier.fillMaxWidth()) {
-                                        if (inputText.isEmpty() && selectedImageUri == null) {
-                                            Text("Fale com o assistente...", color = TextGray, style = MaterialTheme.typography.bodyLarge)
-                                        }
-                                        inner()
-                                    }
-                                }
-                            )
-
-                            val canSend = !isLoading && (inputText.isNotBlank() || selectedImageUri != null)
-                            FloatingActionButton(
-                                onClick = {
-                                    if (canSend) {
-                                        selectedImageUri?.let { uri ->
-                                            viewModel.sendMessageWithImage(baseId, inputText.ifBlank { null }, uri)
-                                            selectedImageUri = null
-                                            inputText = ""
-                                        } ?: run {
-                                            viewModel.sendMessage(inputText, baseId)
-                                            inputText = ""
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                BasicTextField(
+                                    value = inputText,
+                                    onValueChange = { inputText = it },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(focusRequester)
+                                        .onFocusChanged { onInputFocusChange(it.isFocused) }
+                                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),
+                                    cursorBrush = SolidColor(NeonGreen),
+                                    keyboardOptions = KeyboardOptions(
+                                        capitalization = KeyboardCapitalization.Sentences
+                                    ),
+                                    decorationBox = { inner ->
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            if (inputText.isEmpty() && selectedImageUri == null) {
+                                                Text("Fale com o assistente...", color = TextGray, style = MaterialTheme.typography.bodyLarge)
+                                            }
+                                            inner()
                                         }
                                     }
-                                },
-                                modifier = Modifier.size(44.dp),
-                                shape = CircleShape,
-                                containerColor = if (canSend) NeonGreen else DarkSurfaceVariant,
-                                contentColor = if (canSend) DarkBackground else TextGray,
-                                elevation = FloatingActionButtonDefaults.elevation(0.dp)
-                            ) {
-                                Icon(Icons.Default.Send, "Enviar", modifier = Modifier.size(20.dp))
-                            }
-                        }
+                                )
 
-                        if (selectedImageUri != null) {
-                            Surface(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                                shape = RoundedCornerShape(16.dp),
-                                color = NeonGreen.copy(alpha = 0.15f)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                val canSend = !isLoading && (inputText.isNotBlank() || selectedImageUri != null)
+                                FloatingActionButton(
+                                    onClick = {
+                                        if (canSend) {
+                                            selectedImageUri?.let { uri ->
+                                                viewModel.sendMessageWithImage(baseId, inputText.ifBlank { null }, uri)
+                                                selectedImageUri = null
+                                                inputText = ""
+                                            } ?: run {
+                                                viewModel.sendMessage(inputText, baseId)
+                                                inputText = ""
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.size(44.dp),
+                                    shape = CircleShape,
+                                    containerColor = if (canSend) NeonGreen else DarkSurfaceVariant,
+                                    contentColor = if (canSend) DarkBackground else TextGray,
+                                    elevation = FloatingActionButtonDefaults.elevation(0.dp)
                                 ) {
-                                    Icon(Icons.Default.AddPhotoAlternate, null, tint = NeonGreen, modifier = Modifier.size(18.dp))
-                                    Text("Imagem anexada", color = TextWhite, style = MaterialTheme.typography.bodySmall)
-                                    IconButton(onClick = { selectedImageUri = null }, modifier = Modifier.size(24.dp)) {
-                                        Icon(Icons.Default.Close, "Remover", tint = TextGray, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Default.Send, "Enviar", modifier = Modifier.size(20.dp))
+                                }
+                            }
+
+                            if (selectedImageUri != null) {
+                                Surface(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = NeonGreen.copy(alpha = 0.15f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(Icons.Default.AddPhotoAlternate, null, tint = NeonGreen, modifier = Modifier.size(18.dp))
+                                        Text("Imagem anexada", color = TextWhite, style = MaterialTheme.typography.bodySmall)
+                                        IconButton(onClick = { selectedImageUri = null }, modifier = Modifier.size(24.dp)) {
+                                            Icon(Icons.Default.Close, "Remover", tint = TextGray, modifier = Modifier.size(14.dp))
+                                        }
                                     }
                                 }
                             }

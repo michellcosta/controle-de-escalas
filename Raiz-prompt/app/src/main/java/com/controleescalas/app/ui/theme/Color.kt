@@ -34,15 +34,29 @@ val DarkSurfaceVariant = Color(0xFF1E1E1E) // Surface2
 val Surface3 = Color(0xFF2A2A2A)
 val Surface4 = Color(0xFF363636)
 
+// Cores de Fundo (Light Mode) - Ajustadas para serem mais suaves e menos cansativas
+val LightBackground = Color(0xFFE9ECEF) // Cinza azulado mais profundo (era 0xFFF1F3F5)
+val LightSurface = Color(0xFFF1F3F5)    // Surface um pouco mais clara que o fundo (era 0xFFF8F9FA)
+val LightSurfaceVariant = Color(0xFFDEE2E6) // Variante mais escura para contraste (era 0xFFE9ECEF)
+
 // Cores Glass (Efeito Vidro)
 val GlassBlack = Color(0x80000000)
 val GlassDark = Color(0x40FFFFFF)
 
 // Cores de Texto
 val TextWhite = Color(0xFFFFFFFF)
+val TextBlack = Color(0xFF121212) // Preto quase puro para máximo contraste (era 0xFF1A1A1A)
 val TextGray = Color(0xFFA0A0A0)
 val TextGrayLight = Color(0xFFC0C0C0)
 val TextGrayDark = Color(0xFF808080)
+val TextGrayLightMode = Color(0xFF495057) // Cinza escuro para textos secundários (era 0xFF6C757D)
+val TextGrayMediumLightMode = Color(0xFF343A40) // Cinza intermediário para labels
+
+// Cores de Destaque Adaptativas (Light Mode)
+val NeonBlueContrast = Color(0xFF007BFF) // Azul mais escuro para contraste no modo claro
+val NeonOrangeContrast = Color(0xFFD94800) // Laranja mais escuro para contraste no modo claro
+val NeonPurpleContrast = Color(0xFF8A2BE2) // Roxo mais escuro para contraste no modo claro
+val NeonGreenContrast = Color(0xFF065F46) // Verde mais escuro para contraste no modo claro
 
 // Cores Semânticas (Status)
 val StatusSuccess = Color(0xFF10B981) // Verde mais sóbrio para sucesso/concluído

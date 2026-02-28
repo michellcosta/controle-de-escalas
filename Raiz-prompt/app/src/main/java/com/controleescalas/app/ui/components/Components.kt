@@ -62,17 +62,79 @@ import com.controleescalas.app.ui.theme.NeonBlue
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.isSystemInDarkTheme
+import com.controleescalas.app.ui.theme.DeepBlue
+import com.controleescalas.app.ui.theme.DarkBackground
+import com.controleescalas.app.ui.theme.LightBackground
+import com.controleescalas.app.ui.theme.LightSurface
 
 /**
- * GlassCard - Card com efeito de vidro, borda sutil e reflexo de quina
+ * PremiumBackground - Background com gradiente e textura de malha (dot grid)
  */
+@Composable
+fun PremiumBackground(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                if (isDarkMode) {
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            DeepBlue,
+                            DarkBackground,
+                            DarkBackground
+                        )
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            LightBackground,
+                            LightSurface,
+                            LightSurface
+                        )
+                    )
+                }
+            )
+            .drawBehind {
+                // Desenha uma malha de pontos sutis (Dot Grid) para textura
+                val dotSize = 1.dp.toPx()
+                val spacing = 32.dp.toPx()
+                val paintAlpha = if (isDarkMode) 0.05f else 0.15f
+                val dotColor = if (isDarkMode) Color.White else Color.Black
+                
+                val columns = (size.width / spacing).toInt()
+                val rows = (size.height / spacing).toInt()
+                
+                for (x in 0..columns) {
+                    for (y in 0..rows) {
+                        drawCircle(
+                            color = dotColor.copy(alpha = paintAlpha),
+                            radius = dotSize / 2f,
+                            center = Offset(x.toFloat() * spacing, y.toFloat() * spacing)
+                        )
+                    }
+                }
+            }
+    ) {
+        content()
+    }
+}
+
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    containerColor: Color = DarkSurface.copy(alpha = 0.4f),
+    containerColor: Color = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
     content: @Composable () -> Unit
 ) {
+    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
@@ -81,11 +143,11 @@ fun GlassCard(
         ),
         // Borda assimétrica para simular reflexo de luz (Light Edge)
         border = BorderStroke(
-            width = 1.dp,
+            width = (if (isDarkMode) 1.dp else 1.5.dp),
             brush = Brush.linearGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = 0.2f),
-                    Color.White.copy(alpha = 0.05f),
+                    (if (isDarkMode) Color.White else Color.Black).copy(alpha = if (isDarkMode) 0.2f else 0.15f),
+                    (if (isDarkMode) Color.White else Color.Black).copy(alpha = if (isDarkMode) 0.05f else 0.05f),
                     Color.Transparent
                 ),
                 start = Offset(0f, 0f),
@@ -185,50 +247,6 @@ fun NeonButton(
 }
 
 /**
- * PremiumBackground - Background com gradiente e textura de malha (dot grid)
- */
-@Composable
-fun PremiumBackground(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        com.controleescalas.app.ui.theme.DeepBlue,
-                        com.controleescalas.app.ui.theme.DarkBackground,
-                        com.controleescalas.app.ui.theme.DarkBackground
-                    )
-                )
-            )
-            .drawBehind {
-                // Desenha uma malha de pontos sutis (Dot Grid) para textura
-                val dotSize = 1.dp.toPx()
-                val spacing = 32.dp.toPx()
-                val paintAlpha = 0.05f
-                
-                val columns = (size.width / spacing).toInt()
-                val rows = (size.height / spacing).toInt()
-                
-                for (x in 0..columns) {
-                    for (y in 0..rows) {
-                        drawCircle(
-                            color = Color.White.copy(alpha = paintAlpha),
-                            radius = dotSize / 2f,
-                            center = Offset(x.toFloat() * spacing, y.toFloat() * spacing)
-                        )
-                    }
-                }
-            }
-    ) {
-        content()
-    }
-}
-
-/**
  * CustomTextField - Input estilizado para dark mode
  */
 @Composable
@@ -250,11 +268,15 @@ fun CustomTextField(
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = NeonGreen,
-            unfocusedBorderColor = TextGray.copy(alpha = 0.5f),
+            unfocusedBorderColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) 
+                TextGray.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.3f),
             focusedLabelColor = NeonGreen,
-            unfocusedLabelColor = TextGray,
+            unfocusedLabelColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) 
+                TextGray else Color.Black.copy(alpha = 0.6f),
             cursorColor = NeonGreen,
-            errorBorderColor = MaterialTheme.colorScheme.error
+            errorBorderColor = MaterialTheme.colorScheme.error,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         ),
         leadingIcon = if (leadingIcon != null) {
             { Icon(imageVector = leadingIcon, contentDescription = null, tint = if (isError) MaterialTheme.colorScheme.error else NeonGreen) }
@@ -281,13 +303,13 @@ fun SectionHeader(title: String) {
             modifier = Modifier
                 .width(4.dp)
                 .height(24.dp)
-                .background(NeonGreen, RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
-            color = TextWhite
+            color = MaterialTheme.colorScheme.onBackground
         )
     }
 }
@@ -326,7 +348,7 @@ fun ConnectionStatusIndicator(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = DarkSurface.copy(alpha = 0.7f)
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
         ),
         border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
     ) {
@@ -347,7 +369,7 @@ fun ConnectionStatusIndicator(
                 Text(
                     text = connectionState.connectionMessage,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Medium
                 )
                 if (connectionState.isUsingCache) {

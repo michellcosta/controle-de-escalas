@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -67,13 +68,13 @@ fun DisponibilidadeCard(
                         Text(
                             text = "Disponibilidade",
                             style = MaterialTheme.typography.titleSmall,
-                            color = TextWhite,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = dataFormatada,
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
                         )
                     }
                 }
@@ -122,7 +123,7 @@ fun DisponibilidadeCard(
                     Text(
                         text = "Você pode alterar sua resposta a qualquer momento",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGray.copy(alpha = 0.7f),
+                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.7f) else TextGrayMediumLightMode,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -130,7 +131,7 @@ fun DisponibilidadeCard(
                 Text(
                     text = "Você está disponível para trabalhar amanhã?",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )

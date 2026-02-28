@@ -9,14 +9,14 @@ plugins {
 
 android {
     namespace = "com.controleescalas.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.controleescalas.app"
         minSdk = 24
-        targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0-mvp"
+        targetSdk = 35
+        versionCode = 3
+        versionName = "1.1-beta"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -30,6 +30,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = false
@@ -71,7 +72,7 @@ dependencies {
 
     // Material3
     implementation("androidx.compose.material3:material3")
-    
+
     // Material Icons Extended (para ícones como Help)
     implementation("androidx.compose.material:material-icons-extended")
 
@@ -87,10 +88,10 @@ dependencies {
 
     // DataStore for preferences (session persistence)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
-    
+
     // WorkManager for background tasks
     implementation("androidx.work:work-runtime-ktx:2.9.0")
-    
+
     // Kotlinx Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
 
@@ -101,42 +102,42 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx:22.3.1")
     implementation("com.google.firebase:firebase-analytics-ktx:21.5.1")
     implementation("com.google.firebase:firebase-functions-ktx:20.3.1")
-    
+
     // Coroutines para Firebase
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Location
     implementation("com.google.android.gms:play-services-location:21.0.1")
-    
+
     // OpenStreetMap (Free alternative to Google Maps)
     implementation("org.osmdroid:osmdroid-android:6.1.18")
-    
+
     // ML Kit Barcode Scanning
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
-    
+
     // ML Kit Text Recognition (OCR para escala por foto)
     implementation("com.google.mlkit:text-recognition:16.0.0")
-    
+
     // ZXing for QR Code generation
     implementation("com.google.zxing:core:3.5.2")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
-    
+
     // OkHttp para chamadas HTTP à API Python
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    
+
     // CameraX for barcode scanner
     val cameraxVersion = "1.3.1"
     implementation("androidx.camera:camera-core:${cameraxVersion}")
     implementation("androidx.camera:camera-camera2:${cameraxVersion}")
     implementation("androidx.camera:camera-lifecycle:${cameraxVersion}")
     implementation("androidx.camera:camera-view:${cameraxVersion}")
-    
+
     // HorizontalPager for swipe between pages (Accompanist)
     implementation("com.google.accompanist:accompanist-pager:0.32.0")
-    
+
     // Image Cropper - usando uCrop (mais simples e confiável)
     implementation("com.github.yalantis:ucrop:2.2.8")
-    
+
     // Google Play Billing para assinaturas
     implementation("com.android.billingclient:billing-ktx:7.1.1")
 }

@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
@@ -32,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.tasks.await
 import androidx.compose.runtime.DisposableEffect
+import com.controleescalas.app.ui.components.PremiumBackground
 
 sealed class SuperAdminNavItem(
     val route: String,
@@ -205,7 +207,7 @@ fun SuperAdminAppScaffold(
                 title = { 
                     Text(
                         "Super Admin",
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -214,13 +216,13 @@ fun SuperAdminAppScaffold(
                         Icon(
                             Icons.Default.MoreVert,
                             contentDescription = "Menu",
-                            tint = TextWhite
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
-                        modifier = Modifier.background(DarkSurface)
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                     ) {
                         // Feedbacks (com badge de novos)
                         DropdownMenuItem(
@@ -237,10 +239,10 @@ fun SuperAdminAppScaffold(
                                         Icon(
                                             Icons.Default.Feedback,
                                             contentDescription = null,
-                                            tint = TextWhite,
+                                            tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonCyan else Color(0xFF00838F),
                                             modifier = Modifier.size(20.dp)
                                         )
-                                        Text("Feedbacks", color = TextWhite)
+                                        Text("Feedbacks", color = MaterialTheme.colorScheme.onSurface)
                                     }
                                     if (novosFeedbacksCount > 0) {
                                         Badge(
@@ -262,7 +264,7 @@ fun SuperAdminAppScaffold(
                             }
                         )
                         
-                        HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                        HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
                         
                         // Configurações do Sistema
                         DropdownMenuItem(
@@ -274,10 +276,10 @@ fun SuperAdminAppScaffold(
                                     Icon(
                                         Icons.Default.Settings,
                                         contentDescription = null,
-                                        tint = TextWhite,
+                                        tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                    Text("Configurações", color = TextWhite)
+                                    Text("Configurações", color = MaterialTheme.colorScheme.onSurface)
                                 }
                             },
                             onClick = {
@@ -296,10 +298,10 @@ fun SuperAdminAppScaffold(
                                     Icon(
                                         Icons.Default.History,
                                         contentDescription = null,
-                                        tint = TextWhite,
+                                        tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonPurple else NeonPurpleContrast,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                    Text("Histórico", color = TextWhite)
+                                    Text("Histórico", color = MaterialTheme.colorScheme.onSurface)
                                 }
                             },
                             onClick = {
@@ -318,10 +320,10 @@ fun SuperAdminAppScaffold(
                                     Icon(
                                         Icons.Default.Person,
                                         contentDescription = null,
-                                        tint = TextWhite,
+                                        tint = NeonGreen,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                    Text("Minha Conta", color = TextWhite)
+                                    Text("Minha Conta", color = MaterialTheme.colorScheme.onSurface)
                                 }
                             },
                             onClick = {
@@ -330,7 +332,7 @@ fun SuperAdminAppScaffold(
                             }
                         )
                         
-                        HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                        HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
                         
                         // Sair da Conta
                         DropdownMenuItem(
@@ -356,14 +358,14 @@ fun SuperAdminAppScaffold(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent
                 )
             )
         },
         bottomBar = {
             NavigationBar(
-                containerColor = DarkSurface,
-                contentColor = TextWhite
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                contentColor = MaterialTheme.colorScheme.onSurface
             ) {
                 listOf(
                     SuperAdminNavItem.Dashboard,
@@ -410,144 +412,143 @@ fun SuperAdminAppScaffold(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = NeonGreen,
                             selectedTextColor = NeonGreen,
-                            unselectedIconColor = TextGray,
-                            unselectedTextColor = TextGray
+                            unselectedIconColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                            unselectedTextColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                            indicatorColor = NeonGreen.copy(alpha = 0.15f)
                         )
                     )
                 }
             }
-        }
+        },
+        containerColor = Color.Transparent
     ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = SuperAdminNavItem.Dashboard.route,
-            modifier = Modifier.padding(paddingValues)
-        ) {
-            composable(SuperAdminNavItem.Dashboard.route) {
-                SuperAdminDashboardScreen(
-                    superAdminId = superAdminId,
-                    onNavigateToTransportadoras = { filtro ->
-                        val route = if (filtro != null) {
-                            "${SuperAdminNavItem.Transportadoras.route}?status=$filtro"
-                        } else {
-                            SuperAdminNavItem.Transportadoras.route
-                        }
-                        navController.navigate(route)
-                    },
-                    onNavigateToUsuarios = {
-                        navController.navigate(SuperAdminNavItem.Usuarios.route)
-                    },
-                    onNavigateToRelatorios = { filtro ->
-                        val route = if (filtro != null) {
-                            "${SuperAdminNavItem.Relatorios.route}?tab=$filtro"
-                        } else {
-                            SuperAdminNavItem.Relatorios.route
-                        }
-                        navController.navigate(route)
-                    },
-                    onNavigateToFeedbacks = { navController.navigate("superadmin_feedbacks") },
-                    onNavigateToConfiguracoes = { navController.navigate("superadmin_configuracoes") }
-                )
-            }
-            
-            composable(
-                route = "${SuperAdminNavItem.Transportadoras.route}?status={status}",
-                arguments = listOf(
-                    navArgument("status") {
-                        type = androidx.navigation.NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    }
-                )
-            ) { backStackEntry ->
-                var showDetalhes by remember { mutableStateOf<String?>(null) }
-                val statusFilter = backStackEntry.arguments?.getString("status")
-                
-                if (showDetalhes != null) {
-                    SuperAdminBaseDetalhesScreen(
-                        baseId = showDetalhes!!,
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = SuperAdminNavItem.Dashboard.route,
+                modifier = Modifier.padding(paddingValues)
+            ) {
+                composable(SuperAdminNavItem.Dashboard.route) {
+                    SuperAdminDashboardScreen(
                         superAdminId = superAdminId,
-                        onBack = { showDetalhes = null },
-                        onNavigateToBase = { baseId ->
-                            onNavigateToBase(baseId)
-                        }
-                    )
-                } else {
-                    SuperAdminTransportadorasScreen(
-                        superAdminId = superAdminId,
-                        onNavigateToBase = { baseId ->
-                            onNavigateToBase(baseId)
+                        onNavigateToTransportadoras = { filtro ->
+                            val route = if (filtro != null) {
+                                "${SuperAdminNavItem.Transportadoras.route}?status=$filtro"
+                            } else {
+                                SuperAdminNavItem.Transportadoras.route
+                            }
+                            navController.navigate(route)
                         },
-                        onVerDetalhes = { baseId ->
-                            showDetalhes = baseId
+                        onNavigateToUsuarios = {
+                            navController.navigate(SuperAdminNavItem.Usuarios.route)
                         },
-                        initialStatusFilter = statusFilter
+                        onNavigateToRelatorios = { filtro ->
+                            val route = if (filtro != null) {
+                                "${SuperAdminNavItem.Relatorios.route}?tab=$filtro"
+                            } else {
+                                SuperAdminNavItem.Relatorios.route
+                            }
+                            navController.navigate(route)
+                        },
+                        onNavigateToFeedbacks = { navController.navigate("superadmin_feedbacks") },
+                        onNavigateToConfiguracoes = { navController.navigate("superadmin_configuracoes") }
                     )
                 }
-            }
-            
-            composable(
-                route = "${SuperAdminNavItem.Relatorios.route}?tab={tab}",
-                arguments = listOf(
-                    navArgument("tab") {
-                        type = androidx.navigation.NavType.StringType
-                        nullable = true
-                        defaultValue = null
+                
+                composable(
+                    route = "${SuperAdminNavItem.Transportadoras.route}?status={status}",
+                    arguments = listOf(
+                        navArgument("status") {
+                            type = androidx.navigation.NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        }
+                    )
+                ) { backStackEntry ->
+                    var showDetalhes by remember { mutableStateOf<String?>(null) }
+                    val statusFilter = backStackEntry.arguments?.getString("status")
+                    
+                    if (showDetalhes != null) {
+                        SuperAdminBaseDetalhesScreen(
+                            baseId = showDetalhes!!,
+                            superAdminId = superAdminId,
+                            onBack = { showDetalhes = null },
+                            onNavigateToBase = { baseId ->
+                                onNavigateToBase(baseId)
+                            }
+                        )
+                    } else {
+                        SuperAdminTransportadorasScreen(
+                            superAdminId = superAdminId,
+                            onNavigateToBase = { baseId ->
+                                onNavigateToBase(baseId)
+                            },
+                            onVerDetalhes = { baseId ->
+                                showDetalhes = baseId
+                            },
+                            initialStatusFilter = statusFilter
+                        )
                     }
-                )
-            ) { backStackEntry ->
-                val tab = backStackEntry.arguments?.getString("tab")
-                SuperAdminRelatoriosScreen(
-                    superAdminId = superAdminId,
-                    initialTab = when (tab) {
-                        "financeiro" -> "financeiro"
-                        "operacional" -> "operacional"
-                        else -> null
-                    }
-                )
-            }
-            
-            composable(SuperAdminNavItem.Usuarios.route) {
-                SuperAdminUsuariosScreen(superAdminId = superAdminId)
-            }
-            
-            // Rotas do menu superior (não aparecem na bottom bar)
-            composable("superadmin_configuracoes") {
-                SistemaConfigScreen(
-                    superAdminId = superAdminId,
-                    onBack = { navController.popBackStack() },
-                    onNavigateToFeedbacks = {
-                        navController.navigate("superadmin_feedbacks")
-                    }
-                )
-            }
-            
-            composable("superadmin_feedbacks") {
-                SuperAdminFeedbackScreen(
-                    superAdminId = superAdminId,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            
-            composable(SuperAdminNavItem.Usuarios.route) {
-                SuperAdminUsuariosScreen(superAdminId = superAdminId)
-            }
-            
-            composable("superadmin_conta") {
-                SuperAdminContaScreen(
-                    superAdminId = superAdminId,
-                    onBack = { navController.popBackStack() },
-                    onLogout = onLogout
-                )
-            }
-            
-            composable("superadmin_historico") {
-                SuperAdminHistoricoScreen(
-                    superAdminId = superAdminId,
-                    onBack = { navController.popBackStack() }
-                )
+                }
+                
+                composable(
+                    route = "${SuperAdminNavItem.Relatorios.route}?tab={tab}",
+                    arguments = listOf(
+                        navArgument("tab") {
+                            type = androidx.navigation.NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        }
+                    )
+                ) { backStackEntry ->
+                    val tab = backStackEntry.arguments?.getString("tab")
+                    SuperAdminRelatoriosScreen(
+                        superAdminId = superAdminId,
+                        initialTab = when (tab) {
+                            "financeiro" -> "financeiro"
+                            "operacional" -> "operacional"
+                            else -> null
+                        }
+                    )
+                }
+                
+                composable(SuperAdminNavItem.Usuarios.route) {
+                    SuperAdminUsuariosScreen(superAdminId = superAdminId)
+                }
+                
+                // Rotas do menu superior (não aparecem na bottom bar)
+                composable("superadmin_configuracoes") {
+                    SistemaConfigScreen(
+                        superAdminId = superAdminId,
+                        onBack = { navController.popBackStack() },
+                        onNavigateToFeedbacks = {
+                            navController.navigate("superadmin_feedbacks")
+                        }
+                    )
+                }
+                
+                composable("superadmin_feedbacks") {
+                    SuperAdminFeedbackScreen(
+                        superAdminId = superAdminId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                
+                composable("superadmin_conta") {
+                    SuperAdminContaScreen(
+                        superAdminId = superAdminId,
+                        onBack = { navController.popBackStack() },
+                        onLogout = onLogout
+                    )
+                }
+                
+                composable("superadmin_historico") {
+                    SuperAdminHistoricoScreen(
+                        superAdminId = superAdminId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
             }
         }
     }
 }
-

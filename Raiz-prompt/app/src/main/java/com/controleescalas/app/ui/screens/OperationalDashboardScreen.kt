@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -241,12 +242,12 @@ fun OperationalDashboardScreen(
     }
     
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
                 title = { 
                     Column {
-                        Text("Operações do Dia", color = TextWhite)
+                        Text("Operações do Dia", color = MaterialTheme.colorScheme.onBackground)
                         Text(
                             java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
                                 .format(java.util.Date()),
@@ -261,7 +262,7 @@ fun OperationalDashboardScreen(
                             Icon(
                                 Icons.Default.Chat,
                                 contentDescription = "Assistente",
-                                tint = TextWhite
+                                tint = MaterialTheme.colorScheme.onBackground
                             )
                         }
                     }
@@ -629,7 +630,7 @@ fun FillDriverDetailsDialog(
             Column {
                 Text(
                     "Adicionar ${motorista.nome} à $targetName",
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -697,10 +698,10 @@ fun FillDriverDetailsDialog(
                     isError = erroVaga != null,
                     supportingText = erroVaga?.let { { Text(it, color = Color(0xFFEF4444)) } },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedContainerColor = DarkSurfaceVariant,
-                        unfocusedContainerColor = DarkSurfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else NeonGreen,
                         unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else TextGray
                     ),
@@ -742,10 +743,10 @@ fun FillDriverDetailsDialog(
                     isError = erroRota != null,
                     supportingText = erroRota?.let { { Text(it, color = Color(0xFFEF4444)) } },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedContainerColor = DarkSurfaceVariant,
-                        unfocusedContainerColor = DarkSurfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else NeonBlue,
                         unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else TextGray
                     ),
@@ -763,10 +764,10 @@ fun FillDriverDetailsDialog(
                     placeholder = { Text("Ex: 12", color = TextGray.copy(alpha = 0.5f)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedContainerColor = DarkSurfaceVariant,
-                        unfocusedContainerColor = DarkSurfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedBorderColor = NeonOrange,
                         unfocusedBorderColor = TextGray
                     ),
@@ -853,7 +854,7 @@ fun AddDriverDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = MaterialTheme.colorScheme.surface,
         title = { 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -862,7 +863,7 @@ fun AddDriverDialog(
             ) {
                 Text(
                     "Adicionar Motorista à $targetName", 
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(
@@ -896,8 +897,8 @@ fun AddDriverDialog(
                     },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedBorderColor = NeonGreen,
                         unfocusedBorderColor = TextGray,
                         focusedLabelColor = NeonGreen,
@@ -968,7 +969,7 @@ fun AddDriverDialog(
                                     Icon(Icons.Default.Person, null, tint = NeonGreen)
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text(motorista.nome, color = TextWhite, fontWeight = FontWeight.Bold)
+                                        Text(motorista.nome, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                                         Text(motorista.telefone, color = TextGray, style = MaterialTheme.typography.bodySmall)
                                         // Badge Modalidade
                                         Surface(
@@ -1119,6 +1120,8 @@ fun TurnoSelector(
     ondasCountAM: Int,
     ondasCountPM: Int
 ) {
+    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1129,8 +1132,8 @@ fun TurnoSelector(
             onClick = { onTurnoChange("AM") },
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (turnoAtual == "AM") NeonGreen else DarkSurface,
-                contentColor = if (turnoAtual == "AM") Color.Black else TextGray
+                containerColor = if (turnoAtual == "AM") (if (isDarkMode) NeonGreen else LightSurfaceVariant) else if (isDarkMode) DarkSurface else LightSurface,
+                contentColor = if (turnoAtual == "AM") (if (isDarkMode) Color.Black else TextBlack) else if (isDarkMode) TextGray else TextGrayLightMode
             )
         ) {
             Text("TURNO AM", fontWeight = FontWeight.Bold)
@@ -1140,8 +1143,8 @@ fun TurnoSelector(
             onClick = { onTurnoChange("PM") },
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (turnoAtual == "PM") NeonBlue else DarkSurface,
-                contentColor = if (turnoAtual == "PM") Color.Black else TextGray
+                containerColor = if (turnoAtual == "PM") (if (isDarkMode) NeonBlue else NeonBlueContrast) else if (isDarkMode) DarkSurface else LightSurface,
+                contentColor = if (turnoAtual == "PM") (if (isDarkMode) Color.Black else Color.White) else if (isDarkMode) TextGray else TextGrayLightMode
             )
         ) {
             Text("TURNO PM", fontWeight = FontWeight.Bold)

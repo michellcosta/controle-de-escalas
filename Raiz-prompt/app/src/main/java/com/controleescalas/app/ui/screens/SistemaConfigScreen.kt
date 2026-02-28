@@ -21,7 +21,9 @@ import android.content.Context
 import com.controleescalas.app.data.models.ModoAtivacao
 import com.controleescalas.app.data.models.SistemaConfig
 import com.controleescalas.app.data.repositories.SistemaRepository
+import androidx.compose.ui.graphics.luminance
 import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -161,527 +163,531 @@ fun SistemaConfigScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Configurações do Sistema", color = TextWhite) },
+                title = { Text("Configurações do Sistema", color = MaterialTheme.colorScheme.onBackground) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Voltar",
-                            tint = TextWhite
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent
                 )
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.Transparent
     ) { paddingValues ->
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = NeonGreen)
-            }
-        } else {
-            val context = LocalContext.current
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // UID do Firebase (para configurar SUPERADMIN_UIDS no Render)
-                GlassCard {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SectionHeader(title = "Seu UID do Firebase")
-                        Text(
-                            "Para poder solicitar localização no Assistente:\n" +
-                                "1) Render: Environment → SUPERADMIN_UIDS = este UID (copie abaixo).\n" +
-                                "2) Ou no Firestore: coleção sistema, documento config, campo superadminUids (tipo array) com um item igual a este UID.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextGray,
-                            maxLines = 6
-                        )
-                        Text(
-                            superAdminId,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextWhite,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = NeonGreen)
+                }
+            } else {
+                val context = LocalContext.current
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // UID do Firebase (para configurar SUPERADMIN_UIDS no Render)
+                    GlassCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Button(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                                    clipboard?.setPrimaryClip(ClipData.newPlainText("uid", superAdminId))
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("UID copiado! Cole no Render em SUPERADMIN_UIDS.")
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                            SectionHeader(title = "Seu UID do Firebase")
+                            Text(
+                                "Para poder solicitar localização no Assistente:\n" +
+                                    "1) Render: Environment → SUPERADMIN_UIDS = este UID (copie abaixo).\n" +
+                                    "2) Ou no Firestore: coleção sistema, documento config, campo superadminUids (tipo array) com um item igual a este UID.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                maxLines = 6
+                            )
+                            Text(
+                                superAdminId,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Copiar UID")
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    if (registrandoUid) return@OutlinedButton
-                                    registrandoUid = true
-                                    scope.launch {
-                                        sistemaRepository.registerSuperAdminUid(superAdminId)
-                                            .fold(
-                                                onSuccess = {
-                                                    snackbarHostState.showSnackbar("Seu UID foi registrado. Agora você pode solicitar localização no Assistente.")
-                                                },
-                                                onFailure = { e ->
-                                                    snackbarHostState.showSnackbar("Erro ao registrar: ${e.message}")
-                                                }
-                                            )
-                                        registrandoUid = false
-                                    }
-                                },
-                                enabled = !registrandoUid,
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
-                            ) {
-                                if (registrandoUid) {
-                                    CircularProgressIndicator(Modifier.size(18.dp), color = NeonGreen, strokeWidth = 2.dp)
+                                Button(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                        clipboard?.setPrimaryClip(ClipData.newPlainText("uid", superAdminId))
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("UID copiado! Cole no Render em SUPERADMIN_UIDS.")
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen, contentColor = Color.Black)
+                                ) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(8.dp))
+                                    Text("Copiar UID")
                                 }
-                                Text(if (registrandoUid) "Registrando…" else "Registrar meu UID no sistema")
+                                OutlinedButton(
+                                    onClick = {
+                                        if (registrandoUid) return@OutlinedButton
+                                        registrandoUid = true
+                                        scope.launch {
+                                            sistemaRepository.registerSuperAdminUid(superAdminId)
+                                                .fold(
+                                                    onSuccess = {
+                                                        snackbarHostState.showSnackbar("Seu UID foi registrado. Agora você pode solicitar localização no Assistente.")
+                                                    },
+                                                    onFailure = { e ->
+                                                        snackbarHostState.showSnackbar("Erro ao registrar: ${e.message}")
+                                                    }
+                                                )
+                                            registrandoUid = false
+                                        }
+                                    },
+                                    enabled = !registrandoUid,
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonGreen else NeonGreenContrast)
+                                ) {
+                                    if (registrandoUid) {
+                                        CircularProgressIndicator(Modifier.size(18.dp), color = NeonGreen, strokeWidth = 2.dp)
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    Text(if (registrandoUid) "Registrando…" else "Registrar meu UID no sistema")
+                                }
                             }
                         }
                     }
-                }
-                // Status atual
-                GlassCard {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    // Status atual
+                    GlassCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                if (config?.monetizacaoAtiva == true) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                contentDescription = null,
-                                tint = if (config?.monetizacaoAtiva == true) NeonGreen else Color(0xFFEF4444),
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    if (config?.monetizacaoAtiva == true) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                    contentDescription = null,
+                                    tint = if (config?.monetizacaoAtiva == true) NeonGreen else Color(0xFFEF4444),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Column {
+                                    Text(
+                                        if (config?.monetizacaoAtiva == true) "Ativo" else "Desativado",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    config?.modoAtivacao?.let { modo ->
+                                        Text(
+                                            when (modo) {
+                                                ModoAtivacao.MANUAL -> "Modo Manual"
+                                                ModoAtivacao.AUTOMATICA -> "Modo Automático"
+                                            },
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            if (tempoRestante != null) {
+                                HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f))
+                                val dias = tempoRestante / (1000 * 60 * 60 * 24)
+                                val horas = (tempoRestante % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+                                
                                 Text(
-                                    if (config?.monetizacaoAtiva == true) "Ativo" else "Desativado",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.Bold,
+                                    "Ativação em: ${dias}d ${horas}h",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                                config?.modoAtivacao?.let { modo ->
+                                if (dataAgendada != null) {
+                                    val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
                                     Text(
-                                        when (modo) {
-                                            ModoAtivacao.MANUAL -> "Modo Manual"
-                                            ModoAtivacao.AUTOMATICA -> "Modo Automático"
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = TextGray,
+                                        "Data: ${sdf.format(dataAgendada)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
                         }
-                        
-                        if (tempoRestante != null) {
-                            HorizontalDivider(color = TextGray.copy(alpha = 0.3f))
-                            val dias = tempoRestante / (1000 * 60 * 60 * 24)
-                            val horas = (tempoRestante % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+                    }
+                    
+                    // Seção Feedbacks
+                    SectionHeader(title = "Feedbacks")
+
+                    GlassCard {
+                        OutlinedButton(
+                            onClick = onNavigateToFeedbacks,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonCyan else Color(0xFF00838F))
+                        ) {
+                            Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Ver Feedbacks dos Admins", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+
+                    HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
+
+                    // Planos e Assinatura (exibir para clientes)
+                    SectionHeader(title = "Planos e Assinatura")
+
+                    GlassCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Exibir para clientes",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        "Mostra o botão \"Planos e Assinatura\" em Configurações e o banner de trial expirado. Ative após configurar produtos no Play Console.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                                    )
+                                }
+                                Switch(
+                                    checked = config?.planosHabilitados == true,
+                                    onCheckedChange = { checked ->
+                                        scope.launch {
+                                            val repo = SistemaRepository()
+                                            val ok = repo.setPlanosHabilitados(checked)
+                                            if (ok) {
+                                                config = repo.getConfiguracao(forceRefresh = true)
+                                                message = if (checked) "Planos exibidos para clientes" else "Planos ocultos"
+                                            } else {
+                                                error = "Erro ao atualizar"
+                                            }
+                                        }
+                                    },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color.Black,
+                                        checkedTrackColor = NeonGreen
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
+
+                    // Modo de ativação
+                    SectionHeader(title = "Modo de Ativação")
+                    
+                    GlassCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Radio Manual
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = modoSelecionado == ModoAtivacao.MANUAL,
+                                        onClick = {
+                                            modoSelecionado = ModoAtivacao.MANUAL
+                                            dataAgendada = null
+                                        }
+                                    )
+                                    Column {
+                                    Text(
+                                        "Manual",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "Ativar imediatamente",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    }
+                                }
+                            }
                             
+                            HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f))
+                            
+                            // Radio Automática
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = modoSelecionado == ModoAtivacao.AUTOMATICA,
+                                        onClick = {
+                                            modoSelecionado = ModoAtivacao.AUTOMATICA
+                                            mostrarSeletorData = true
+                                        }
+                                    )
+                                    Column {
+                                    Text(
+                                        "Automática",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "Agendar ativação",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    }
+                                }
+                            }
+                            
+                            // Seletor de data (se automática selecionada)
+                            if (modoSelecionado == ModoAtivacao.AUTOMATICA) {
+                                HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                if (dataAgendada != null) {
+                                    val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                                    Text(
+                                        "Data: ${sdf.format(dataAgendada)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonCyan else Color(0xFF00838F),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                
+                                Button(
+                                    onClick = { mostrarSeletorData = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast, contentColor = Color.White)
+                                ) {
+                            Icon(Icons.Default.DateRange, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "Ativação em: ${dias}d ${horas}h",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = NeonOrange,
+                                if (dataAgendada == null) "Selecionar Data" else "Alterar Data",
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (dataAgendada != null) {
-                                val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-                                Text(
-                                    "Data: ${sdf.format(dataAgendada)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                }
                             }
                         }
                     }
-                }
-                
-                // Seção Feedbacks
-                SectionHeader(title = "Feedbacks")
-
-                GlassCard {
-                    OutlinedButton(
-                        onClick = onNavigateToFeedbacks,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan)
-                    ) {
-                        Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Ver Feedbacks dos Admins", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-
-                // Planos e Assinatura (exibir para clientes)
-                SectionHeader(title = "Planos e Assinatura")
-
-                GlassCard {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Exibir para clientes",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = TextWhite
-                                )
-                                Text(
-                                    "Mostra o botão \"Planos e Assinatura\" em Configurações e o banner de trial expirado. Ative após configurar produtos no Play Console.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextGray
-                                )
-                            }
-                            Switch(
-                                checked = config?.planosHabilitados == true,
-                                onCheckedChange = { checked ->
-                                    scope.launch {
-                                        val repo = SistemaRepository()
-                                        val ok = repo.setPlanosHabilitados(checked)
-                                        if (ok) {
-                                            config = repo.getConfiguracao(forceRefresh = true)
-                                            message = if (checked) "Planos exibidos para clientes" else "Planos ocultos"
-                                        } else {
-                                            error = "Erro ao atualizar"
+                    
+                    // Toggle para ativação manual imediata
+                    if (config?.monetizacaoAtiva != true) {
+                        SectionHeader(title = "Ação Rápida")
+                        GlassCard {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Ativar Manualmente",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "Sobrescreve agendamento",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Switch(
+                                    checked = false,
+                                    onCheckedChange = { ativar ->
+                                        if (ativar) {
+                                            mostrarConfirmacaoAtivacao = true
                                         }
                                     }
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.Black,
-                                    checkedTrackColor = NeonGreen
                                 )
-                            )
+                            }
                         }
-                    }
-                }
-
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-
-                // Modo de ativação
-                SectionHeader(title = "Modo de Ativação")
-                
-                GlassCard {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        // Radio Manual
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
+                    } else {
+                        SectionHeader(title = "Ação Rápida")
+                        GlassCard {
                             Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                RadioButton(
-                                    selected = modoSelecionado == ModoAtivacao.MANUAL,
-                                    onClick = {
-                                        modoSelecionado = ModoAtivacao.MANUAL
-                                        dataAgendada = null
-                                    }
-                                )
-                                Column {
-                                Text(
-                                    "Manual",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = TextWhite,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    "Ativar imediatamente",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Desativar Monetização",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "Desativa regras de monetização",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Button(
+                                    onClick = { desativar() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFEF4444),
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("Desativar")
                                 }
                             }
                         }
-                        
-                        HorizontalDivider(color = TextGray.copy(alpha = 0.3f))
-                        
-                        // Radio Automática
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                RadioButton(
-                                    selected = modoSelecionado == ModoAtivacao.AUTOMATICA,
-                                    onClick = {
-                                        modoSelecionado = ModoAtivacao.AUTOMATICA
-                                        mostrarSeletorData = true
-                                    }
-                                )
-                                Column {
-                                Text(
-                                    "Automática",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = TextWhite,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    "Agendar ativação",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                }
-                            }
-                        }
-                        
-                        // Seletor de data (se automática selecionada)
-                        if (modoSelecionado == ModoAtivacao.AUTOMATICA) {
-                            HorizontalDivider(color = TextGray.copy(alpha = 0.3f))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            if (dataAgendada != null) {
-                                val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-                                Text(
-                                    "Data: ${sdf.format(dataAgendada)}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = NeonCyan,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            
-                            Button(
-                                onClick = { mostrarSeletorData = true },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                        Icon(Icons.Default.DateRange, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            if (dataAgendada == null) "Selecionar Data" else "Alterar Data",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                            }
-                        }
                     }
-                }
-                
-                // Toggle para ativação manual imediata
-                if (config?.monetizacaoAtiva != true) {
-                    SectionHeader(title = "Ação Rápida")
-                    GlassCard {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Ativar Manualmente",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    "Sobrescreve agendamento",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Switch(
-                                checked = false,
-                                onCheckedChange = { ativar ->
-                                    if (ativar) {
-                                        mostrarConfirmacaoAtivacao = true
-                                    }
-                                }
-                            )
-                        }
-                    }
-                } else {
-                    SectionHeader(title = "Ação Rápida")
-                    GlassCard {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Desativar Monetização",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    "Desativa regras de monetização",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Button(
-                                onClick = { desativar() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFEF4444)
-                                )
-                            ) {
-                                Text("Desativar")
-                            }
-                        }
-                    }
-                }
-                
-                // Aviso
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = NeonOrange.copy(alpha = 0.2f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    
+                    // Aviso
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange.copy(alpha = 0.2f) else NeonOrangeContrast.copy(alpha = 0.1f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = null,
-                            tint = NeonOrange,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Text(
-                            "Ao ativar, todas as bases seguirão as regras de monetização (limite de 5 motoristas no plano gratuito).",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextGray,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                
-                // Botões de ação
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (modoSelecionado != null || config?.dataAtivacaoAutomatica != null) {
-                        OutlinedButton(
-                            onClick = { salvarConfiguracao() },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast,
+                                modifier = Modifier.size(24.dp)
+                            )
                             Text(
-                                "Salvar",
-                                maxLines = 1,
+                                "Ao ativar, todas as bases seguirão as regras de monetização (limite de 5 motoristas no plano gratuito).",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 3,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                     
-                    if (config?.dataAtivacaoAutomatica != null && !config!!.monetizacaoAtiva) {
-                        OutlinedButton(
-                            onClick = {
-                                scope.launch {
-                                    sistemaRepository.cancelarAgendamento(superAdminId)
-                                    message = "Agendamento cancelado"
-                                    config = sistemaRepository.getConfiguracao()
-                                    dataAgendada = null
-                                    modoSelecionado = null
-                                }
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                    // Botões de ação
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (modoSelecionado != null || config?.dataAtivacaoAutomatica != null) {
+                            OutlinedButton(
+                                onClick = { salvarConfiguracao() },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonGreen else NeonGreenContrast)
+                            ) {
+                                Text(
+                                    "Salvar",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        
+                        if (config?.dataAtivacaoAutomatica != null && !config!!.monetizacaoAtiva) {
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        sistemaRepository.cancelarAgendamento(superAdminId)
+                                        message = "Agendamento cancelado"
+                                        config = sistemaRepository.getConfiguracao()
+                                        dataAgendada = null
+                                        modoSelecionado = null
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                            ) {
+                                Text(
+                                    "Cancelar",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Mensagens
+                    message?.let { msg ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = NeonGreen),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                "Cancelar",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                msg,
+                                modifier = Modifier.padding(16.dp),
+                                color = Color.Black
                             )
                         }
                     }
-                }
-                
-                // Mensagens
-                message?.let { msg ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = NeonGreen),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            msg,
-                            modifier = Modifier.padding(16.dp),
-                            color = Color.Black
-                        )
-                    }
-                }
-                
-                error?.let { err ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            err,
-                            modifier = Modifier.padding(16.dp),
-                            color = Color.White
-                        )
+                    
+                    error?.let { err ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                err,
+                                modifier = Modifier.padding(16.dp),
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }

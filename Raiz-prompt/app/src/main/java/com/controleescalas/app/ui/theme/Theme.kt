@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
@@ -17,6 +18,22 @@ val HorizontalPadding = 24.dp
 val SpacingSmall = 8.dp
 val SpacingMedium = 16.dp
 val SpacingLarge = 24.dp
+
+// ColorScheme para Light Mode
+private val LightColorScheme = lightColorScheme(
+    primary = NeonGreen,
+    secondary = NeonBlue,
+    tertiary = NeonPurple,
+    background = LightBackground,
+    surface = LightSurface,
+    surfaceVariant = LightSurfaceVariant,
+    onPrimary = Color.White,
+    onSecondary = Color.Black,
+    onTertiary = Color.White,
+    onBackground = TextBlack,
+    onSurface = TextBlack,
+    onSurfaceVariant = TextGrayMediumLightMode
+)
 
 // Forçando Dark Mode para o Design Premium
 private val DarkColorScheme = darkColorScheme(
@@ -36,19 +53,21 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun ControleEscalasTheme(
-    darkTheme: Boolean = true, // Sempre Dark por padrão para o estilo Premium
+    darkTheme: Boolean = true, // Mantém dark como padrão
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val view = LocalView.current
     
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = DarkBackground.toArgb()
-            window.navigationBarColor = DarkBackground.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+            window.statusBarColor = colorScheme.background.toArgb()
+            window.navigationBarColor = colorScheme.background.toArgb()
+            
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

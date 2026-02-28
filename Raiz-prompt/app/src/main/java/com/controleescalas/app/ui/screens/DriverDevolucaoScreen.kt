@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -23,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.components.BarcodeScannerScreen
 import com.controleescalas.app.ui.components.GlassCard
 import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
 import kotlinx.coroutines.delay
@@ -77,270 +79,274 @@ fun DriverDevolucaoScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Devolução", color = TextWhite) },
+                title = { Text("Devolução", color = MaterialTheme.colorScheme.onBackground) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
+                    containerColor = Color.Transparent
                 ),
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.ArrowBack, "Voltar", tint = TextWhite)
+                        Icon(Icons.Default.ArrowBack, "Voltar", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 actions = {
                     IconButton(onClick = { showInfoDialog = true }) {
-                        Icon(Icons.Default.Info, "Informações", tint = NeonBlue)
+                        Icon(Icons.Default.Info, "Informações", tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast)
                     }
                 }
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.Transparent
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-        ) {
-            Column(
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(paddingValues)
+                    .padding(16.dp)
             ) {
-                // Card de formulário
-                GlassCard {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Campo ID do Pacote
-                        OutlinedTextField(
-                            value = idPacote,
-                            onValueChange = { 
-                                // Permitir apenas números
-                                if (it.all { char -> char.isDigit() }) {
-                                    idPacote = it
-                                }
-                            },
-                            label = { Text("ID do Pacote *", color = TextGray) },
-                            placeholder = { Text("12345678912", color = TextGray.copy(alpha = 0.5f)) },
-                            leadingIcon = {
-                                Icon(Icons.Default.QrCode, null, tint = NeonGreen)
-                            },
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = {
-                                        // Verificar permissão de câmera
-                                        when {
-                                            ContextCompat.checkSelfPermission(
-                                                context,
-                                                Manifest.permission.CAMERA
-                                            ) == PackageManager.PERMISSION_GRANTED -> {
-                                                showScanner = true
-                                            }
-                                            else -> {
-                                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Card de formulário
+                    GlassCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // Campo ID do Pacote
+                            OutlinedTextField(
+                                value = idPacote,
+                                onValueChange = { 
+                                    // Permitir apenas números
+                                    if (it.all { char -> char.isDigit() }) {
+                                        idPacote = it
+                                    }
+                                },
+                                label = { Text("ID do Pacote *", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode) },
+                                placeholder = { Text("12345678912", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.5f) else TextGrayLightMode.copy(alpha = 0.5f)) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.QrCode, null, tint = NeonGreen)
+                                },
+                                trailingIcon = {
+                                    IconButton(
+                                        onClick = {
+                                            // Verificar permissão de câmera
+                                            when {
+                                                ContextCompat.checkSelfPermission(
+                                                    context,
+                                                    Manifest.permission.CAMERA
+                                                ) == PackageManager.PERMISSION_GRANTED -> {
+                                                    showScanner = true
+                                                }
+                                                else -> {
+                                                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                                                }
                                             }
                                         }
+                                    ) {
+                                        Icon(Icons.Default.CameraAlt, "Escanear", tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast)
                                     }
-                                ) {
-                                    Icon(Icons.Default.CameraAlt, "Escanear", tint = NeonBlue)
-                                }
-                            },
-                            isError = error != null && idPacote.isNotBlank(),
-                            supportingText = if (error != null && idPacote.isNotBlank()) {
-                                { Text(error ?: "", color = Color(0xFFEF4444)) }
-                            } else {
-                                { Text("Digite 11 dígitos ou escaneie o código", color = TextGray) }
-                            },
-                            singleLine = true,
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedBorderColor = NeonGreen,
-                                unfocusedBorderColor = TextGray,
-                                focusedLabelColor = NeonGreen,
-                                unfocusedLabelColor = TextGray
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        
-                        // Data/Hora atual (não editável)
-                        OutlinedTextField(
-                            value = "$dataAtual - $horaAtual",
-                            onValueChange = {},
-                            label = { Text("Data/Hora Atual", color = TextGray) },
-                            leadingIcon = {
-                                Icon(Icons.Default.AccessTime, null, tint = NeonOrange)
-                            },
-                            enabled = false,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                disabledTextColor = TextGray,
-                                disabledBorderColor = TextGray.copy(alpha = 0.5f),
-                                disabledLabelColor = TextGray.copy(alpha = 0.7f)
-                            ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        
-                        // NOVO: Botão para modo múltiplos scans
-                        OutlinedButton(
-                            onClick = {
-                                modoMultiplosScans = true
-                                pacotesEscaneados = emptyList()
-                                when {
-                                    ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.CAMERA
-                                    ) == PackageManager.PERMISSION_GRANTED -> {
-                                        showScanner = true
-                                    }
-                                    else -> {
-                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
-                        ) {
-                            Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Escanear Pacotes", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        
-                        // Botões
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = { showConfirmDialog = true },
-                                enabled = !isLoading && idPacote.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = NeonGreen,
-                                    contentColor = Color.Black
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .defaultMinSize(minWidth = 0.dp)
-                            ) {
-                                if (isLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        color = Color.Black,
-                                        strokeWidth = 2.dp
-                                    )
+                                },
+                                isError = error != null && idPacote.isNotBlank(),
+                                supportingText = if (error != null && idPacote.isNotBlank()) {
+                                    { Text(error ?: "", color = Color(0xFFEF4444)) }
                                 } else {
-                                    BoxWithConstraints {
-                                        val hasSpace = maxWidth > 120.dp
-                                        if (hasSpace) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.Center
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Check, 
-                                                    null, 
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    "Registrar", 
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        } else {
-                                            if (maxWidth > 60.dp) {
-                                                Text(
-                                                    "Registrar", 
-                                                    fontWeight = FontWeight.Bold,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            } else {
-                                                Icon(
-                                                    Icons.Default.Check, 
-                                                    null, 
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
+                                    { Text("Digite 11 dígitos ou escaneie o código", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode) }
+                                },
+                                singleLine = true,
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    focusedBorderColor = NeonGreen,
+                                    unfocusedBorderColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                    focusedLabelColor = NeonGreen,
+                                    unfocusedLabelColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            // Data/Hora atual (não editável)
+                            OutlinedTextField(
+                                value = "$dataAtual - $horaAtual",
+                                onValueChange = {},
+                                label = { Text("Data/Hora Atual", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode) },
+                                leadingIcon = {
+                                    Icon(Icons.Default.AccessTime, null, tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast)
+                                },
+                                enabled = false,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                    disabledBorderColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.5f) else TextGrayLightMode.copy(alpha = 0.5f),
+                                    disabledLabelColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.7f) else TextGrayLightMode.copy(alpha = 0.7f)
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            // NOVO: Botão para modo múltiplos scans
+                            OutlinedButton(
+                                onClick = {
+                                    modoMultiplosScans = true
+                                    pacotesEscaneados = emptyList()
+                                    when {
+                                        ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.CAMERA
+                                        ) == PackageManager.PERMISSION_GRANTED -> {
+                                            showScanner = true
+                                        }
+                                        else -> {
+                                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                         }
                                     }
-                                }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast)
+                            ) {
+                                Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Escanear Pacotes", style = MaterialTheme.typography.bodyMedium)
                             }
                             
-                            OutlinedButton(
-                                onClick = onDismiss,
-                                enabled = !isLoading,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .defaultMinSize(minWidth = 0.dp)
+                            // Botões
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text(
-                                    "Cancelar", 
-                                    color = TextGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Button(
+                                    onClick = { showConfirmDialog = true },
+                                    enabled = !isLoading && idPacote.isNotBlank(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = NeonGreen,
+                                        contentColor = Color.Black
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minWidth = 0.dp)
+                                ) {
+                                    if (isLoading) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            color = Color.Black,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        BoxWithConstraints {
+                                            val hasSpace = maxWidth > 120.dp
+                                            if (hasSpace) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Check, 
+                                                        null, 
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        "Registrar", 
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            } else {
+                                                if (maxWidth > 60.dp) {
+                                                    Text(
+                                                        "Registrar", 
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                } else {
+                                                    Icon(
+                                                        Icons.Default.Check, 
+                                                        null, 
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                OutlinedButton(
+                                    onClick = onDismiss,
+                                    enabled = !isLoading,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .defaultMinSize(minWidth = 0.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                                    )
+                                ) {
+                                    Text(
+                                        "Cancelar", 
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
+                    
+                    // Botão Ver Histórico
+                    NeonButton(
+                        text = "Ver Histórico",
+                        onClick = onNavigateToHistorico,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
                 
-                // Botão Ver Histórico
-                NeonButton(
-                    text = "Ver Histórico",
-                    onClick = onNavigateToHistorico,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            LaunchedEffect(message) {
-                if (message != null) {
-                    // Limpar campo após sucesso
-                    idPacote = ""
-                    // Mostrar mensagem de sucesso
-                    snackbarHostState.showSnackbar(
-                        message = message!!,
-                        duration = SnackbarDuration.Short
-                    )
-                    // Limpar mensagem após exibir
-                    delay(3500)
-                    viewModel.limparMensagem()
+                LaunchedEffect(message) {
+                    if (message != null) {
+                        // Limpar campo após sucesso
+                        idPacote = ""
+                        // Mostrar mensagem de sucesso
+                        snackbarHostState.showSnackbar(
+                            message = message!!,
+                            duration = SnackbarDuration.Short
+                        )
+                        // Limpar mensagem após exibir
+                        delay(3500)
+                        viewModel.limparMensagem()
+                    }
                 }
-            }
-            
-            LaunchedEffect(error) {
-                if (error != null) {
-                    // Mostrar mensagem de erro
-                    snackbarHostState.showSnackbar(
-                        message = error!!,
-                        duration = SnackbarDuration.Short
-                    )
-                    // Limpar erro após exibir
-                    delay(3500)
-                    viewModel.limparMensagem()
+                
+                LaunchedEffect(error) {
+                    if (error != null) {
+                        // Mostrar mensagem de erro
+                        snackbarHostState.showSnackbar(
+                            message = error!!,
+                            duration = SnackbarDuration.Short
+                        )
+                        // Limpar erro após exibir
+                        delay(3500)
+                        viewModel.limparMensagem()
+                    }
                 }
-            }
-            
-            // Removido LaunchedEffect(scannerError) - agora usamos showSnackbar diretamente no callback
-            
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) { snackbarData ->
-                // Determinar cor baseado no tipo de mensagem
-                val messageText = snackbarData.visuals.message
-                val isError = error != null || messageText.contains("inválido", ignoreCase = true)
-                Snackbar(
-                    snackbarData = snackbarData,
-                    containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                    contentColor = if (isError) TextWhite else Color.Black
-                )
+                
+                // Removido LaunchedEffect(scannerError) - agora usamos showSnackbar diretamente no callback
+                
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) { snackbarData ->
+                    // Determinar cor baseado no tipo de mensagem
+                    val messageText = snackbarData.visuals.message
+                    val isError = error != null || messageText.contains("inválido", ignoreCase = true)
+                    Snackbar(
+                        snackbarData = snackbarData,
+                        containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
+                        contentColor = if (isError) TextWhite else Color.Black
+                    )
+                }
             }
         }
         
@@ -348,17 +354,17 @@ fun DriverDevolucaoScreen(
         if (showConfirmDialog) {
             AlertDialog(
                 onDismissRequest = { showConfirmDialog = false },
-                containerColor = DarkSurface,
+                containerColor = MaterialTheme.colorScheme.surface,
                 title = {
-                    Text("Confirmar Devolução", color = TextWhite, fontWeight = FontWeight.Bold)
+                    Text("Confirmar Devolução", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 },
                 text = {
                     Column {
-                        Text("ID do Pacote: $idPacote", color = TextWhite)
+                        Text("ID do Pacote: $idPacote", color = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Data/Hora: $dataAtual - $horaAtual", color = TextWhite)
+                        Text("Data/Hora: $dataAtual - $horaAtual", color = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Deseja registrar esta devolução?", color = TextGray)
+                        Text("Deseja registrar esta devolução?", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode)
                     }
                 },
                 confirmButton = {
@@ -382,7 +388,7 @@ fun DriverDevolucaoScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showConfirmDialog = false }) {
-                        Text("Cancelar", color = TextGray)
+                        Text("Cancelar", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode)
                     }
                 }
             )
@@ -392,9 +398,9 @@ fun DriverDevolucaoScreen(
         if (showInfoDialog) {
             AlertDialog(
                 onDismissRequest = { showInfoDialog = false },
-                containerColor = DarkSurface,
+                containerColor = MaterialTheme.colorScheme.surface,
                 title = {
-                    Text("Sobre Devoluções", color = TextWhite, fontWeight = FontWeight.Bold)
+                    Text("Sobre Devoluções", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                 },
                 text = {
                     Column(
@@ -409,28 +415,28 @@ fun DriverDevolucaoScreen(
                         Text(
                             "A devolução é o registro de pacotes que você devolve ao galpão. " +
                                     "Este registro serve como segurança para você.",
-                            color = TextWhite
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(
                             "Como usar o scanner?",
-                            color = NeonGreen,
+                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             "1. Clique no ícone de câmera ao lado do campo ID\n" +
                                     "2. Aponte a câmera para o QR Code ou código de barras\n" +
                                     "3. O ID será preenchido automaticamente",
-                            color = TextWhite
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Text(
                             "Como funciona o registro?",
-                            color = NeonGreen,
+                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -438,7 +444,7 @@ fun DriverDevolucaoScreen(
                                     "• Cada ID só pode ser registrado uma vez (globalmente)\n" +
                                     "• A data/hora é registrada automaticamente\n" +
                                     "• Você pode ver seu histórico de devoluções",
-                            color = TextWhite
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 },

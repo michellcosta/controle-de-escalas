@@ -105,19 +105,19 @@ fun PlanosScreen(
                         ) {
                             Icon(Icons.Default.Star, contentDescription = null, tint = NeonGreen)
                             Text(
-                                "Trial ativo",
+                                "Versão Beta",
                                 color = NeonGreen,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
                         Text(
-                            "$diasRestantes dias restantes",
+                            "Acesso gratuito para testes",
                             color = TextGray,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "Escolha um plano antes do fim do trial para continuar usando sem interrupções.",
+                            "Aproveite todos os recursos durante o período de testes.",
                             color = TextGray,
                             style = MaterialTheme.typography.bodySmall
                         )

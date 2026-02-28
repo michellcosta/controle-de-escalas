@@ -15,11 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.Base
 import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.BaseApprovalViewModel
 import kotlinx.coroutines.delay
@@ -76,17 +78,17 @@ fun BaseApprovalScreen(
     }
     
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Gestão de Transportadoras", color = TextWhite) },
+                title = { Text("Gestão de Transportadoras", color = MaterialTheme.colorScheme.onBackground) },
                 actions = {
                     // Menu de 3 pontos
                     IconButton(onClick = { showMenu = true }) {
                         Icon(
                             Icons.Default.MoreVert,
                             contentDescription = "Menu",
-                            tint = TextWhite
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                     
@@ -94,7 +96,7 @@ fun BaseApprovalScreen(
                     DropdownMenu(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false },
-                        modifier = Modifier.background(DarkSurface)
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                     ) {
                         DropdownMenuItem(
                             text = {
@@ -105,12 +107,12 @@ fun BaseApprovalScreen(
                                     Icon(
                                         Icons.Default.Settings,
                                         contentDescription = null,
-                                        tint = NeonBlue,
+                                        tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Text(
                                         "Configurações do Sistema",
-                                        color = TextWhite
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             },
@@ -145,175 +147,172 @@ fun BaseApprovalScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent
                 )
             )
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(DarkBackground, DeepBlue)
-                    )
-                )
-        ) {
-            Column(
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(paddingValues)
             ) {
-                // Mensagens de erro/sucesso
-                error?.let {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = it,
-                            color = Color.White,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                }
-                
-                message?.let {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = NeonGreen),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = it,
-                            color = Color.Black,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                }
-                
-                // Tabs para alternar entre seções
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = DarkSurface,
-                    contentColor = TextWhite
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = { Text("Todas as Transportadoras") }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = { 
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Aprovações")
-                                if (basesPendentes.isNotEmpty()) {
-                                    Surface(
-                                        color = NeonOrange,
-                                        shape = CircleShape
-                                    ) {
-                                        Text(
-                                            text = "${basesPendentes.size}",
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                            color = Color.Black,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
+                    // Mensagens de erro/sucesso
+                    error?.let {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFEF4444)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = it,
+                                color = Color.White,
+                                modifier = Modifier.padding(16.dp)
+                            )
                         }
-                    )
-                }
-                
-                // Conteúdo baseado na aba selecionada
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(color = NeonGreen)
                     }
-                } else {
-                    when (selectedTab) {
-                        0 -> {
-                            // Seção 1: Todas as Transportadoras
-                            if (todasBases.isEmpty()) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
+                    
+                    message?.let {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = NeonGreen),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = it,
+                                color = Color.Black,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+                    
+                    // Tabs para alternar entre seções
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("Todas as Transportadoras", color = if (selectedTab == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { 
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "Nenhuma transportadora encontrada",
-                                        color = TextGray
-                                    )
-                                }
-                            } else {
-                                LazyColumn(
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    items(todasBases) { base ->
-                                        BaseListCard(
-                                            base = base,
-                                            onClick = {
-                                                onNavigateToBase(base.id)
-                                            },
-                                            onExcluir = {
-                                                viewModel.deletarBase(base.id)
-                                            }
-                                        )
+                                    Text("Aprovações", color = if (selectedTab == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (basesPendentes.isNotEmpty()) {
+                                        Surface(
+                                            color = NeonOrange,
+                                            shape = CircleShape
+                                        ) {
+                                            Text(
+                                                text = "${basesPendentes.size}",
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                color = Color.Black,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
+                        )
+                    }
+                    
+                    // Conteúdo baseado na aba selecionada
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = NeonGreen)
                         }
-                        1 -> {
-                            // Seção 2: Aprovações Pendentes
-                            if (basesPendentes.isEmpty()) {
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    } else {
+                        when (selectedTab) {
+                            0 -> {
+                                // Seção 1: Todas as Transportadoras
+                                if (todasBases.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = NeonGreen,
-                                            modifier = Modifier.size(64.dp)
-                                        )
                                         Text(
-                                            text = "Nenhuma aprovação pendente",
-                                            color = TextGray,
-                                            style = MaterialTheme.typography.bodyLarge
+                                            text = "Nenhuma transportadora encontrada",
+                                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
                                         )
                                     }
+                                } else {
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(todasBases) { base ->
+                                            BaseListCard(
+                                                base = base,
+                                                onClick = {
+                                                    onNavigateToBase(base.id)
+                                                },
+                                                onExcluir = {
+                                                    viewModel.deletarBase(base.id)
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
-                            } else {
-                                LazyColumn(
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    items(basesPendentes) { base ->
-                                        BaseApprovalCard(
-                                            base = base,
-                                            onAprovar = {
-                                                viewModel.aprovarBase(base.id, superAdminId)
-                                            },
-                                            onRejeitar = {
-                                                viewModel.rejeitarBase(base.id, superAdminId)
-                                            },
-                                            onEntrar = {
-                                                onNavigateToBase(base.id)
-                                            },
-                                            showAprovarRejeitar = true
-                                        )
+                            }
+                            1 -> {
+                                // Seção 2: Aprovações Pendentes
+                                if (basesPendentes.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.CheckCircle,
+                                                contentDescription = null,
+                                                tint = NeonGreen,
+                                                modifier = Modifier.size(64.dp)
+                                            )
+                                            Text(
+                                                text = "Nenhuma aprovação pendente",
+                                                color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                                style = MaterialTheme.typography.bodyLarge
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        items(basesPendentes) { base ->
+                                            BaseApprovalCard(
+                                                base = base,
+                                                onAprovar = {
+                                                    viewModel.aprovarBase(base.id, superAdminId)
+                                                },
+                                                onRejeitar = {
+                                                    viewModel.rejeitarBase(base.id, superAdminId)
+                                                },
+                                                onEntrar = {
+                                                    onNavigateToBase(base.id)
+                                                },
+                                                showAprovarRejeitar = true
+                                            )
+                                        }
                                     }
                                 }
                             }

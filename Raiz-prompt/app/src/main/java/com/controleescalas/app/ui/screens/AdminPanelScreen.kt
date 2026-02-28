@@ -1,7 +1,10 @@
 package com.controleescalas.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -16,20 +19,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.controleescalas.app.ui.components.CustomTextField
-import com.controleescalas.app.ui.components.DisponibilidadeListDialog
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
-import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.data.SessionManager
+import com.controleescalas.app.ui.components.*
 import com.controleescalas.app.ui.theme.*
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import com.controleescalas.app.ui.viewmodels.AdminViewModel
 import com.controleescalas.app.data.models.AdminMotoristaCardData
-
-
+import com.controleescalas.app.data.repositories.SistemaRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +60,21 @@ fun AdminPanelScreen(
     val error by viewModel.error.collectAsState()
     val message by viewModel.message.collectAsState()
 
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
+    val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
+    val scope = rememberCoroutineScope()
+    
+    val sistemaRepository = remember { SistemaRepository() }
+    var temaHabilitado by remember { mutableStateOf(isSuperAdmin) } // SuperAdmin sempre vê
+
+    LaunchedEffect(Unit) {
+        if (!isSuperAdmin) {
+            val config = sistemaRepository.getConfiguracao()
+            temaHabilitado = config.temaHabilitado
+        }
+    }
+
     // Estados para controlar os diálogos
     var showSobreApp by remember { mutableStateOf(false) }
     var showAjuda by remember { mutableStateOf(false) }
@@ -65,221 +82,300 @@ fun AdminPanelScreen(
     var showNotificationSettings by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
-                title = { Text("Configurações", color = TextWhite) },
+                title = { Text("Configurações", color = MaterialTheme.colorScheme.onBackground) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = Color.Transparent
                 )
             )
         }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Seção de Configurações Gerais
-            SectionHeader(title = "Geral")
-            
-            // Botões de Configuração
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                OutlinedButton(
-                    onClick = onLocationConfigClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                // Seção de Configurações Gerais
+                SectionHeader(title = "Geral")
+                
+                // Toggle de Tema
+                if (temaHabilitado) {
+                    GlassCard {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    if (themeMode == "dark") Icons.Default.DarkMode else Icons.Default.LightMode,
+                                    contentDescription = null,
+                                    tint = if (themeMode == "dark") NeonPurple else NeonOrange
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = if (themeMode == "dark") "Modo Escuro" else "Modo Claro",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                            Switch(
+                                checked = themeMode == "dark",
+                                onCheckedChange = { isDark ->
+                                    scope.launch {
+                                        sessionManager.setThemeMode(if (isDark) "dark" else "light")
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = NeonGreen,
+                                    uncheckedThumbColor = Color.White,
+                                    uncheckedTrackColor = TextGray
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Botões de Configuração
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Local", style = MaterialTheme.typography.bodyMedium)
+                    val isDarkMode = themeMode == "dark"
+                    OutlinedButton(
+                        onClick = onLocationConfigClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isDarkMode) NeonBlue else NeonBlueContrast
+                        ),
+                        border = BorderStroke(1.dp, if (isDarkMode) NeonBlue.copy(alpha = 0.5f) else NeonBlueContrast.copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Local", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    
+                    OutlinedButton(
+                        onClick = onQuinzenaClick,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isDarkMode) NeonCyan else Color(0xFF00838F) // Cyan mais escuro
+                        ),
+                        border = BorderStroke(1.dp, if (isDarkMode) NeonCyan.copy(alpha = 0.5f) else Color(0xFF00838F).copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Quinzena", style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
                 
+                // Botão Devolução
                 OutlinedButton(
-                    onClick = onQuinzenaClick,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan)
+                    onClick = {
+                        println("🔴 AdminPanelScreen: BOTÃO DEVOLUÇÃO CLICADO!")
+                        println("🔴 AdminPanelScreen: Chamando onDevolucaoClick...")
+                        println("🔴 AdminPanelScreen: onDevolucaoClick.toString() = ${onDevolucaoClick.toString()}")
+                        try {
+                            onDevolucaoClick.invoke()
+                            println("🔴 AdminPanelScreen: onDevolucaoClick.invoke() executado")
+                        } catch (e: Exception) {
+                            println("❌ AdminPanelScreen: Erro ao executar onDevolucaoClick: ${e.message}")
+                            e.printStackTrace()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (themeMode == "dark") NeonOrange else NeonOrangeContrast
+                    ),
+                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonOrange.copy(alpha = 0.5f) else NeonOrangeContrast.copy(alpha = 0.5f))
                 ) {
-                    Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Inventory2, contentDescription = "Devolução", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Quinzena", style = MaterialTheme.typography.bodyMedium)
+                    Text("Devolução", style = MaterialTheme.typography.bodyMedium)
                 }
-            }
-            
-            // Botão Devolução
-            OutlinedButton(
-                onClick = {
-                    println("🔴 AdminPanelScreen: BOTÃO DEVOLUÇÃO CLICADO!")
-                    println("🔴 AdminPanelScreen: Chamando onDevolucaoClick...")
-                    println("🔴 AdminPanelScreen: onDevolucaoClick.toString() = ${onDevolucaoClick.toString()}")
-                    try {
-                        onDevolucaoClick.invoke()
-                        println("🔴 AdminPanelScreen: onDevolucaoClick.invoke() executado")
-                    } catch (e: Exception) {
-                        println("❌ AdminPanelScreen: Erro ao executar onDevolucaoClick: ${e.message}")
-                        e.printStackTrace()
+                
+                // Botão Planos (visível apenas quando habilitado pelo Super Admin)
+                if (showPlanosButton) {
+                    OutlinedButton(
+                        onClick = onPlanosClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (themeMode == "dark") NeonGreen else NeonGreenContrast
+                        ),
+                        border = BorderStroke(1.dp, if (themeMode == "dark") NeonGreen.copy(alpha = 0.5f) else NeonGreenContrast.copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Default.Star, contentDescription = "Planos", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Planos e Assinatura", style = MaterialTheme.typography.bodyMedium)
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonOrange)
-            ) {
-                Icon(Icons.Default.Inventory2, contentDescription = "Devolução", modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Devolução", style = MaterialTheme.typography.bodyMedium)
-            }
-            
-            // Botão Planos (visível apenas quando habilitado pelo Super Admin)
-            if (showPlanosButton) {
+                }
+                
+                // Botão Notificações
                 OutlinedButton(
-                    onClick = onPlanosClick,
+                    onClick = { showNotificationSettings = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (themeMode == "dark") NeonGreen else NeonGreenContrast
+                    ),
+                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonGreen.copy(alpha = 0.5f) else NeonGreenContrast.copy(alpha = 0.5f))
                 ) {
-                    Icon(Icons.Default.Star, contentDescription = "Planos", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Notifications, contentDescription = "Notificações", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Planos e Assinatura", style = MaterialTheme.typography.bodyMedium)
+                    Text("Notificações", style = MaterialTheme.typography.bodyMedium)
                 }
-            }
-            
-            // Botão Notificações
-            OutlinedButton(
-                onClick = { showNotificationSettings = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
-            ) {
-                Icon(Icons.Default.Notifications, contentDescription = "Notificações", modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Notificações", style = MaterialTheme.typography.bodyMedium)
-            }
-            
-            HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-            
-            // Seção de Gestão de Equipe (Acesso rápido)
-            SectionHeader(title = "Gestão")
-            
-            OutlinedButton(
-                onClick = onUserManagementClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonPurple)
-            ) {
-                Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Gerenciar Equipe e Motoristas", style = MaterialTheme.typography.bodyMedium)
-            }
-            
-            // Botão de Aprovação de Transportadoras (apenas para Super Admin)
-            if (isSuperAdmin) {
+                
+                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                
+                // Seção de Gestão de Equipe (Acesso rápido)
+                SectionHeader(title = "Gestão")
+                
                 OutlinedButton(
-                    onClick = onBaseApprovalClick,
+                    onClick = onUserManagementClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonOrange)
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (themeMode == "dark") NeonPurple else NeonPurpleContrast
+                    ),
+                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonPurple.copy(alpha = 0.5f) else NeonPurpleContrast.copy(alpha = 0.5f))
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Aprovar Transportadoras", style = MaterialTheme.typography.bodyMedium)
+                    Text("Gerenciar Equipe e Motoristas", style = MaterialTheme.typography.bodyMedium)
                 }
-            }
-
-            HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-
-            // Seção Ajuda e Suporte
-            SectionHeader(title = "Ajuda e Suporte")
-
-            OutlinedButton(
-                onClick = { showSobreApp = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
-            ) {
-                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Sobre o App", style = MaterialTheme.typography.bodyMedium)
-            }
-
-            OutlinedButton(
-                onClick = { showAjuda = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonPurple)
-            ) {
-                Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Ajuda", style = MaterialTheme.typography.bodyMedium)
-            }
-
-            OutlinedButton(
-                onClick = { showTermos = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonOrange)
-            ) {
-                Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Termos de Uso", style = MaterialTheme.typography.bodyMedium)
-            }
-
-            OutlinedButton(
-                onClick = onFeedbackClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan)
-            ) {
-                Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Enviar Feedback", style = MaterialTheme.typography.bodyMedium)
-            }
-
-            HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-            
-            // Seção de Conta
-            SectionHeader(title = "Conta")
-            
-            OutlinedButton(
-                onClick = onLogout,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Sair da Conta", style = MaterialTheme.typography.bodyMedium)
-            }
-
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = NeonGreen)
+                
+                // Botão de Aprovação de Transportadoras (apenas para Super Admin)
+                if (isSuperAdmin) {
+                    OutlinedButton(
+                        onClick = onBaseApprovalClick,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (themeMode == "dark") NeonOrange else NeonOrangeContrast
+                        ),
+                        border = BorderStroke(1.dp, if (themeMode == "dark") NeonOrange.copy(alpha = 0.5f) else NeonOrangeContrast.copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Aprovar Transportadoras", style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
-            }
-            
-            // Feedback Message
-            message?.let { msg ->
-                Snackbar(
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    containerColor = NeonGreen,
-                    contentColor = Color.Black
+
+                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+
+                // Seção Ajuda e Suporte
+                SectionHeader(title = "Ajuda e Suporte")
+
+                OutlinedButton(
+                    onClick = { showSobreApp = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (themeMode == "dark") NeonBlue else NeonBlueContrast
+                    ),
+                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonBlue.copy(alpha = 0.5f) else NeonBlueContrast.copy(alpha = 0.5f))
                 ) {
-                    Text(msg)
+                    Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Sobre o App", style = MaterialTheme.typography.bodyMedium)
                 }
-                LaunchedEffect(msg) {
-                    viewModel.clearMessages()
-                }
-            }
-            
-            error?.let { msg ->
-                Snackbar(
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = Color.White
+
+                OutlinedButton(
+                    onClick = { showAjuda = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (themeMode == "dark") NeonPurple else NeonPurpleContrast
+                    ),
+                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonPurple.copy(alpha = 0.5f) else NeonPurpleContrast.copy(alpha = 0.5f))
                 ) {
-                    Text(msg)
+                    Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Ajuda", style = MaterialTheme.typography.bodyMedium)
                 }
-                LaunchedEffect(msg) {
-                    viewModel.clearMessages()
+
+                OutlinedButton(
+                    onClick = { showTermos = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (themeMode == "dark") NeonOrange else NeonOrangeContrast
+                    ),
+                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonOrange.copy(alpha = 0.5f) else NeonOrangeContrast.copy(alpha = 0.5f))
+                ) {
+                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Termos de Uso", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                OutlinedButton(
+                    onClick = onFeedbackClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (themeMode == "dark") NeonCyan else Color(0xFF00838F)
+                    ),
+                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonCyan.copy(alpha = 0.5f) else Color(0xFF00838F).copy(alpha = 0.5f))
+                ) {
+                    Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Enviar Feedback", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                
+                // Seção de Conta
+                SectionHeader(title = "Conta")
+                
+                OutlinedButton(
+                    onClick = onLogout,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ExitToApp,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Sair da Conta", style = MaterialTheme.typography.bodyMedium)
+                }
+
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = NeonGreen)
+                    }
+                }
+                
+                // Feedback Message
+                message?.let { msg ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Snackbar(
+                            containerColor = NeonGreen,
+                            contentColor = Color.Black
+                        ) {
+                            Text(msg)
+                        }
+                    }
+                    LaunchedEffect(msg) {
+                        viewModel.clearMessages()
+                    }
+                }
+                
+                error?.let { msg ->
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Snackbar(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = Color.White
+                        ) {
+                            Text(msg)
+                        }
+                    }
+                    LaunchedEffect(msg) {
+                        viewModel.clearMessages()
+                    }
                 }
             }
         }
@@ -314,7 +410,7 @@ fun AdminSobreAppDialog(onDismiss: () -> Unit) {
         title = {
             Text(
                 "Sobre o App",
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
@@ -325,7 +421,7 @@ fun AdminSobreAppDialog(onDismiss: () -> Unit) {
                 Text(
                     "Controle de Escalas",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -351,8 +447,8 @@ fun AdminSobreAppDialog(onDismiss: () -> Unit) {
                 Text("Fechar", color = NeonGreen)
             }
         },
-        containerColor = DarkSurface,
-        titleContentColor = TextWhite,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
         textContentColor = TextGray
     )
 }
@@ -367,7 +463,7 @@ fun AdminAjudaDialog(onDismiss: () -> Unit) {
         title = {
             Text(
                 "Ajuda",
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
@@ -378,7 +474,7 @@ fun AdminAjudaDialog(onDismiss: () -> Unit) {
                 Text(
                     "Como usar o app:",
                     style = MaterialTheme.typography.titleSmall,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
@@ -401,8 +497,8 @@ fun AdminAjudaDialog(onDismiss: () -> Unit) {
                 Text("Fechar", color = NeonGreen)
             }
         },
-        containerColor = DarkSurface,
-        titleContentColor = TextWhite,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
         textContentColor = TextGray
     )
 }
@@ -417,7 +513,7 @@ fun AdminTermosDialog(onDismiss: () -> Unit) {
         title = {
             Text(
                 "Termos de Uso",
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
         },
@@ -456,10 +552,8 @@ fun AdminTermosDialog(onDismiss: () -> Unit) {
                 Text("Fechar", color = NeonGreen)
             }
         },
-        containerColor = DarkSurface,
-        titleContentColor = TextWhite,
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
         textContentColor = TextGray
     )
 }
-
-

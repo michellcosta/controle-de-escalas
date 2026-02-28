@@ -32,7 +32,19 @@ import com.controleescalas.app.ui.theme.DarkSurface
 import com.controleescalas.app.ui.theme.NeonGreen
 import com.controleescalas.app.ui.theme.NeonOrange
 import com.controleescalas.app.ui.theme.TextGray
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import com.controleescalas.app.ui.theme.DeepBlue
 import com.controleescalas.app.ui.theme.DarkBackground
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
@@ -43,6 +55,8 @@ import android.util.Log
 @Composable
 fun MainAppScaffold(
     baseId: String,
+    userId: String = "",
+    userRole: String = "",
     onLogout: () -> Unit,
     onNavigateToLocationConfig: () -> Unit,
     onNavigateToUserManagement: () -> Unit
@@ -74,9 +88,10 @@ fun MainAppScaffold(
     Scaffold(
         bottomBar = {
             if (!hideBottomBar) {
-                BottomNavigationBar(navController = navController)
+                PremiumBottomNavigationBar(navController = navController)
             }
-        }
+        },
+        containerColor = Color.Transparent
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize()) {
             // Banner: Trial expirado - faça upgrade (apenas quando planos estão habilitados)
@@ -124,6 +139,8 @@ fun MainAppScaffold(
                         val currentTurno by operationalViewModel.turnoAtual.collectAsState()
                         AssistenteScreen(
                             baseId = baseId,
+                            userId = userId,
+                            userRole = userRole,
                             onBack = { navController.popBackStack(BottomNavItem.Operation.route, false) },
                             onAddToScaleAction = { motoristaId, nome, ondaIndex, vaga, rota, sacas ->
                                 operationalViewModel.addMotoristaToOndaWithDetails(ondaIndex, motoristaId, nome, vaga, rota, sacas)
@@ -244,6 +261,128 @@ fun MainAppScaffold(
 }
 
 @Composable
+fun PremiumBottomNavigationBar(navController: NavHostController) {
+    val items = listOf(
+        BottomNavItem.Operation,
+        BottomNavItem.Availability,
+        BottomNavItem.Configuration
+    )
+    
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            border = BorderStroke(
+                width = 0.5.dp,
+                color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.15f)
+            ),
+            shadowElevation = 12.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEach { item ->
+                    val isSelected = currentRoute == item.route
+                    
+                    val animatedWeight by animateFloatAsState(
+                        targetValue = if (isSelected) 2.2f else 1f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
+                        label = "weight"
+                    )
+                    
+                    val animatedColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else TextGray,
+                        label = "color"
+                    )
+
+                    val animatedScale by animateFloatAsState(
+                        targetValue = if (isSelected) 1.1f else 1.0f,
+                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                        label = "scale"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(animatedWeight)
+                            .height(48.dp)
+                            .padding(horizontal = 2.dp)
+                            .clip(CircleShape)
+                            .background(
+                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) 
+                                        else Color.Transparent
+                            )
+                            .clickable {
+                                if (currentRoute == BottomNavItem.Assistente.route) {
+                                    navController.popBackStack(BottomNavItem.Operation.route, false)
+                                    if (item != BottomNavItem.Operation) {
+                                        navController.navigate(item.route)
+                                    }
+                                } else {
+                                    navController.navigate(item.route) {
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(horizontal = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.label,
+                                tint = animatedColor,
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .scale(animatedScale)
+                            )
+                            
+                            if (isSelected) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = item.label,
+                                    color = animatedColor,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.2.sp,
+                                        fontSize = 11.sp
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Visible
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun BottomNavigationBar(navController: NavHostController) {
     val items = listOf(
         BottomNavItem.Operation,
@@ -252,8 +391,8 @@ fun BottomNavigationBar(navController: NavHostController) {
     )
     
     NavigationBar(
-        containerColor = DarkSurface,
-        contentColor = Color.White
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
@@ -280,9 +419,9 @@ fun BottomNavigationBar(navController: NavHostController) {
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    selectedTextColor = NeonGreen,
-                    indicatorColor = NeonGreen,
+                    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = MaterialTheme.colorScheme.primary,
                     unselectedIconColor = TextGray,
                     unselectedTextColor = TextGray
                 )

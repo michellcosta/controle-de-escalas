@@ -204,6 +204,7 @@ class LocationService(
                 if (success) {
                     currentStatus = "CHEGUEI"
                     Log.d(TAG, "✅ Status atualizado para CHEGUEI automaticamente")
+                    NotifyStatusChangeWorker.enqueue(context, baseId, motoristaId, "CHEGUEI")
                 } else {
                     Log.e(TAG, "❌ Erro ao atualizar status para CHEGUEI")
                 }
@@ -229,6 +230,7 @@ class LocationService(
                 if (success) {
                     currentStatus = "ESTACIONAMENTO"
                     Log.d(TAG, "✅ Status atualizado para ESTACIONAMENTO automaticamente")
+                    NotifyStatusChangeWorker.enqueue(context, baseId, motoristaId, "ESTACIONAMENTO")
                 } else {
                     Log.e(TAG, "❌ Erro ao atualizar status para ESTACIONAMENTO")
                 }

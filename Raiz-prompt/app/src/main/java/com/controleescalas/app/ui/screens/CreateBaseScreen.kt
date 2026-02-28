@@ -236,7 +236,7 @@ fun CreateBaseScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text(
-                            "🎉 30 dias grátis ativados",
+                            "🎉 Versão Beta - Acesso gratuito para testes",
                             color = NeonGreen,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleMedium
@@ -251,7 +251,7 @@ fun CreateBaseScreen(
                         )
                         
                         Text(
-                            "Após o trial, escolha um plano para continuar.",
+                            "Aproveite todos os recursos durante o período de testes.",
                             color = TextGray,
                             style = MaterialTheme.typography.bodySmall
                         )

@@ -19,7 +19,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.data.models.DashboardStats
 import com.controleescalas.app.data.models.FeedbackStatus
+import com.controleescalas.app.data.models.SistemaConfig
 import com.controleescalas.app.data.repositories.FeedbackRepository
+import com.controleescalas.app.data.repositories.SistemaRepository
 import com.controleescalas.app.data.repositories.StatsRepository
 import com.controleescalas.app.ui.components.*
 import com.controleescalas.app.ui.theme.*
@@ -36,15 +38,18 @@ fun SuperAdminDashboardScreen(
 ) {
     val statsRepository = StatsRepository()
     val feedbackRepository = FeedbackRepository()
+    val sistemaRepository = SistemaRepository()
     val scope = rememberCoroutineScope()
     
     var stats by remember { mutableStateOf<DashboardStats?>(null) }
     var novosFeedbacksCount by remember { mutableStateOf(0) }
+    var config by remember { mutableStateOf<SistemaConfig?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     
     LaunchedEffect(Unit) {
         scope.launch {
             stats = statsRepository.getDashboardStats()
+            config = sistemaRepository.getConfiguracao(forceRefresh = true)
             try {
                 val feedbacks = feedbackRepository.getAllFeedbacks()
                 novosFeedbacksCount = feedbacks.count { it.status == FeedbackStatus.NOVO }
@@ -230,47 +235,100 @@ fun SuperAdminDashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { navigateToConfiguracoes() }
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = null,
-                                tint = NeonGreen,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = "Configurações do Sistema",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.Medium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = null,
+                                    tint = NeonGreen,
+                                    modifier = Modifier.size(28.dp)
                                 )
-                                Text(
-                                    text = "Planos, monetização e exibição para clientes",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextGray,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Column {
+                                    Text(
+                                        text = "Configurações do Sistema",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = TextWhite,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "Planos, monetização e exibição para clientes",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextGray,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = TextGray,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
-                        Icon(
-                            Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = TextGray,
-                            modifier = Modifier.size(24.dp)
+                        
+                        // ✅ NOVO: Toggle rápido para Modo Claro/Escuro
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            color = TextGray.copy(alpha = 0.2f)
                         )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    if (config?.temaHabilitado == true) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null,
+                                    tint = if (config?.temaHabilitado == true) NeonBlue else TextGray,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Modo Claro/Escuro",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = TextWhite,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = if (config?.temaHabilitado == true) "Visível para todos os usuários" else "Oculto para usuários (em desenvolvimento)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextGray
+                                    )
+                                }
+                            }
+                            
+                            Switch(
+                                checked = config?.temaHabilitado == true,
+                                onCheckedChange = { isEnabled ->
+                                    scope.launch {
+                                        val success = sistemaRepository.setTemaHabilitado(isEnabled)
+                                        if (success) {
+                                            config = config?.copy(temaHabilitado = isEnabled)
+                                        }
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.Black,
+                                    checkedTrackColor = NeonBlue
+                                )
+                            )
+                        }
                     }
                 }
                 

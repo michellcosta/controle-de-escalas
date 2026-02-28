@@ -46,6 +46,12 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
     private var _currentTurno = "AM"
     fun setCurrentTurno(newTurno: String) { _currentTurno = newTurno }
 
+    private var _userId = ""
+    private var _userRole = ""
+    fun setUserIdentity(userId: String, userRole: String) {
+        _userId = userId
+        _userRole = userRole
+    }
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -200,13 +206,13 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
             val api = NotificationApiService()
             val historyImg = _messages.value.map { it.role to it.text }
 
-            // Buscar dados do usuário para identidade
+            // Buscar dados do usuário para identidade (fallback se não vier da navegação)
             val db = FirebaseManager.firestore
             val userDoc = try {
                 db.collection("usuarios").document(user.uid).get().await()
             } catch (e: Exception) { null }
             val userName = userDoc?.getString("nome")
-            val userRole = userDoc?.getString("papel")
+            val roleToSend = _userRole.ifBlank { userDoc?.getString("papel") }
 
             var chatResult = api.chatWithAssistente(
                 baseId = baseId,
@@ -215,7 +221,9 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                 idToken = idToken,
                 history = historyImg,
                 userName = userName,
-                userRole = userRole
+                userRole = roleToSend,
+                userId = _userId.takeIf { it.isNotBlank() },
+                turno = _currentTurno
             )
             val firstError = chatResult.error
             if (!chatResult.success && firstError != null && "401" in firstError && "Token" in firstError) {
@@ -227,7 +235,9 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                         idToken = freshToken,
                         history = historyImg,
                         userName = userName,
-                        userRole = userRole
+                        userRole = roleToSend,
+                        userId = _userId.takeIf { it.isNotBlank() },
+                        turno = _currentTurno
                     )
                 }
             }
@@ -430,13 +440,13 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                 val api = NotificationApiService()
                 val history = _messages.value.map { it.role to it.text }
 
-                // Buscar dados do usuário para identidade
+                // Buscar dados do usuário para identidade (fallback se não vier da navegação)
                 val db = FirebaseManager.firestore
                 val userDoc = try {
                     db.collection("usuarios").document(user.uid).get().await()
                 } catch (e: Exception) { null }
                 val userName = userDoc?.getString("nome")
-                val userRole = userDoc?.getString("papel")
+                val roleToSend = _userRole.ifBlank { userDoc?.getString("papel") }
 
                 // Envia a imagem persistente se houver, para manter o contexto visual
                 var chatResult = api.chatWithAssistente(
@@ -446,7 +456,9 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                     idToken = idToken,
                     history = history,
                     userName = userName,
-                    userRole = userRole
+                    userRole = roleToSend,
+                    userId = _userId.takeIf { it.isNotBlank() },
+                    turno = _currentTurno
                 )
                 val firstError = chatResult.error
                 if (!chatResult.success && firstError != null && "401" in firstError && "Token" in firstError) {
@@ -458,7 +470,9 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                             idToken = fresh,
                             history = history,
                             userName = userName,
-                            userRole = userRole
+                            userRole = roleToSend,
+                            userId = _userId.takeIf { it.isNotBlank() },
+                            turno = _currentTurno
                         )
                     }
                 }

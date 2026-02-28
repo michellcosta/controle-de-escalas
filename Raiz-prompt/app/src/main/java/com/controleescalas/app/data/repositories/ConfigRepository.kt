@@ -1,8 +1,10 @@
 package com.controleescalas.app.data.repositories
 
+import android.util.Log
 import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.models.ConfiguracaoBase
 import com.controleescalas.app.data.models.GeofenceConfig
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -10,6 +12,30 @@ import kotlinx.coroutines.tasks.await
  */
 class ConfigRepository {
     private val firestore = FirebaseManager.firestore
+    
+    /**
+     * Observar mudanças na configuração da base em tempo real.
+     * Útil para quando o admin altera o raio do galpão - o motorista recebe a nova config imediatamente.
+     */
+    fun observeConfiguracaoBase(
+        baseId: String,
+        onUpdate: (ConfiguracaoBase?) -> Unit,
+        onError: (Exception) -> Unit = {}
+    ): ListenerRegistration {
+        return firestore
+            .collection("bases")
+            .document(baseId)
+            .collection("configuracao")
+            .document("principal")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    onError(Exception(error.message))
+                    return@addSnapshotListener
+                }
+                val config = snapshot?.toObject(ConfiguracaoBase::class.java)
+                onUpdate(config)
+            }
+    }
     
     /**
      * Buscar configuração de uma base
@@ -62,6 +88,8 @@ class ConfigRepository {
                 }
             )
             
+            val path = "bases/$baseId/configuracao/principal"
+            Log.d("ConfigRepository", "💾 Salvando $tipo em $path - lat=$lat, lng=$lng, raio=$raio")
             firestore
                 .collection("bases")
                 .document(baseId)
@@ -69,9 +97,10 @@ class ConfigRepository {
                 .document("principal")
                 .set(config)
                 .await()
-            
+            Log.d("ConfigRepository", "✅ Config salva com sucesso em $path")
             true
         } catch (e: Exception) {
+            Log.e("ConfigRepository", "❌ Erro ao salvar config: ${e.message}", e)
             false
         }
     }
