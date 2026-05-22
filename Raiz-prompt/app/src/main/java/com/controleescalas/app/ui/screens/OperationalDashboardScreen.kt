@@ -455,10 +455,6 @@ fun WavesContent(
             )
         }
 
-        item {
-            PatioCard()
-        }
-
         itemsIndexed(ondasNormais) { idx, onda ->
             val originalIndex = ondas.indexOf(onda)
             WaveOperationCard(

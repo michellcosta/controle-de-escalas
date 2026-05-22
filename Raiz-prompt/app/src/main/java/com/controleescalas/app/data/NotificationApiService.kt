@@ -430,35 +430,6 @@ class NotificationApiService {
         }
     }
     
-    data class PatioMotorista(
-        val transportadora: String,
-        val placa: String,
-        val tempo: String
-    )
-
-    suspend fun getPatioMotoristas(): List<PatioMotorista> = withContext(Dispatchers.IO) {
-        try {
-            val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.PATIO_MOTORISTAS}"
-            val request = Request.Builder().url(url).get().build()
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: return@withContext emptyList()
-            if (!response.isSuccessful) return@withContext emptyList()
-            val json = JSONObject(body)
-            val arr = json.optJSONArray("motoristas") ?: return@withContext emptyList()
-            (0 until arr.length()).mapNotNull { i ->
-                val obj = arr.optJSONObject(i) ?: return@mapNotNull null
-                PatioMotorista(
-                    transportadora = obj.optString("transportadora"),
-                    placa = obj.optString("placa"),
-                    tempo = obj.optString("tempo")
-                )
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Erro ao buscar pátio: ${e.message}")
-            emptyList()
-        }
-    }
-
     companion object {
         private const val TAG = "NotificationApiService"
     }

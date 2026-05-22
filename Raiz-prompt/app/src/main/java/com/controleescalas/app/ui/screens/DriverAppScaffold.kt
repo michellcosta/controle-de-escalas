@@ -497,9 +497,6 @@ fun DriverHomeContent(
                     // ESCALA DO DIA - Compacta
                     EscalaCompactCard(escalaInfo = escalaInfo)
 
-                    // PÁTIO SRJ8
-                    PatioCard()
-
                     Spacer(modifier = Modifier.height(80.dp))
                 }
             }
