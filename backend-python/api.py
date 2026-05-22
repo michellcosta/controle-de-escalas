@@ -856,11 +856,12 @@ def patio_debug():
             try:
                 resp = http_requests.get(url, timeout=15, headers=headers, allow_redirects=True)
                 content_type = resp.headers.get("Content-Type", "")
-                body = resp.text[:3000]  # Primeiros 3000 chars para inspecionar
+                user_html = _extrair_user_html(resp.text)
                 results[url] = {
                     "status": resp.status_code,
                     "content_type": content_type,
-                    "body_preview": body,
+                    "body_preview": resp.text[:1000],
+                    "user_html_preview": user_html[:3000] if user_html else None,
                     "is_json": "json" in content_type.lower(),
                 }
             except Exception as e:
@@ -869,6 +870,80 @@ def patio_debug():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def _extrair_user_html(html_text: str) -> str:
+    """Extrai e decodifica o userHtml embutido na resposta do Google Apps Script."""
+    import re, codecs
+    # O HTML real está dentro de goog.script.init("{ ... \"userHtml\":\"...\" ... }")
+    match = re.search(r'goog\.script\.init\("((?:[^"\\]|\\.)*)"\)', html_text, re.DOTALL)
+    if not match:
+        return ""
+    raw = match.group(1)
+    # Decodificar escapes \xNN para bytes e depois UTF-8
+    try:
+        decoded = codecs.decode(raw.replace('\\x', '%').encode(), 'unicode_escape')
+    except Exception:
+        decoded = raw
+    # Extrair o valor de userHtml do JSON decodificado
+    uh_match = re.search(r'"userHtml"\s*:\s*"((?:[^"\\]|\\.)*)"', decoded, re.DOTALL)
+    if not uh_match:
+        return decoded  # retornar tudo se não encontrar
+    user_html_raw = uh_match.group(1)
+    # Decodificar escapes duplos
+    try:
+        user_html = user_html_raw.encode('utf-8').decode('unicode_escape')
+    except Exception:
+        user_html = user_html_raw
+    return user_html
+
+
+def _parsear_motoristas_do_html(html: str) -> list:
+    """Parseia motoristas de um HTML (tabela ou JSON embutido)."""
+    import re, json as _json
+    from bs4 import BeautifulSoup
+    motoristas = []
+
+    soup = BeautifulSoup(html, "lxml")
+
+    # 1. Tentar tabelas HTML
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        if len(rows) < 2:
+            continue
+        headers = [th.get_text(strip=True).lower() for th in rows[0].find_all(["th", "td"])]
+        for row in rows[1:]:
+            cols = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
+            if not any(cols):
+                continue
+            item = {headers[i]: v for i, v in enumerate(cols) if i < len(headers)}
+            motoristas.append({
+                "transportadora": item.get("transportadora") or item.get("empresa") or item.get("col0") or cols[0] if cols else "",
+                "placa": item.get("placa") or item.get("veículo") or item.get("veiculo") or (cols[1] if len(cols) > 1 else ""),
+                "tempo": item.get("tempo") or item.get("tempo na vaga") or item.get("permanência") or item.get("permanencia") or (cols[2] if len(cols) > 2 else ""),
+            })
+
+    # 2. Tentar JSON embutido em <script>
+    if not motoristas:
+        for script in soup.find_all("script"):
+            text = script.string or ""
+            for pattern in [
+                r'(?:dados|data|veiculos|motoristas|registros)\s*=\s*(\[.*?\])',
+                r'(\[\s*\{[^;]+\}\s*\])',
+            ]:
+                m = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+                if m:
+                    try:
+                        parsed = _json.loads(m.group(1))
+                        if isinstance(parsed, list) and parsed:
+                            motoristas = parsed
+                            break
+                    except Exception:
+                        pass
+            if motoristas:
+                break
+
+    return motoristas
+
+
 @app.route('/patio/motoristas', methods=['GET'])
 def patio_motoristas():
     """
@@ -876,8 +951,6 @@ def patio_motoristas():
     Retorna JSON: { "motoristas": [{"transportadora": "...", "placa": "...", "tempo": "..."}] }
     """
     try:
-        from bs4 import BeautifulSoup
-
         resp = http_requests.get(
             _PATIO_URL,
             timeout=15,
@@ -886,48 +959,15 @@ def patio_motoristas():
         )
         resp.raise_for_status()
 
-        soup = BeautifulSoup(resp.text, "lxml")
-        motoristas = []
+        # O Apps Script embute o HTML real no campo userHtml dentro do wrapper do Google
+        user_html = _extrair_user_html(resp.text)
 
-        # Tentar extrair de tabelas HTML
-        tables = soup.find_all("table")
-        for table in tables:
-            rows = table.find_all("tr")
-            if len(rows) < 2:
-                continue
-            headers = [th.get_text(strip=True).lower() for th in rows[0].find_all(["th", "td"])]
-            for row in rows[1:]:
-                cols = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
-                if not any(cols):
-                    continue
-                item = {}
-                for i, val in enumerate(cols):
-                    if i < len(headers):
-                        item[headers[i]] = val
-                    else:
-                        item[f"col{i}"] = val
-                # Normalizar campos mais comuns
-                motoristas.append({
-                    "transportadora": item.get("transportadora") or item.get("empresa") or item.get("col0") or "",
-                    "placa": item.get("placa") or item.get("veiculo") or item.get("veículo") or item.get("col1") or "",
-                    "tempo": item.get("tempo") or item.get("tempo na vaga") or item.get("permanencia") or item.get("permanência") or item.get("col2") or "",
-                    "extra": {k: v for k, v in item.items() if k not in ("transportadora", "empresa", "placa", "veiculo", "veículo", "tempo", "tempo na vaga", "permanencia", "permanência")},
-                })
+        # Parsear motoristas do HTML real
+        motoristas = _parsear_motoristas_do_html(user_html) if user_html else []
 
-        # Se não encontrou tabela, tentar extrair JSON embutido em tags <script>
+        # Fallback: tentar parsear o HTML bruto se não encontrou nada
         if not motoristas:
-            import re, json as _json
-            for script in soup.find_all("script"):
-                text = script.string or ""
-                match = re.search(r'(?:var\s+\w+\s*=\s*|data\s*=\s*)(\[.*?\])', text, re.DOTALL)
-                if match:
-                    try:
-                        data = _json.loads(match.group(1))
-                        if isinstance(data, list) and data:
-                            motoristas = data
-                            break
-                    except Exception:
-                        pass
+            motoristas = _parsear_motoristas_do_html(resp.text)
 
         return jsonify({"motoristas": motoristas, "total": len(motoristas)}), 200
 
