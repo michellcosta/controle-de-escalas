@@ -6,6 +6,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.delay
+import com.controleescalas.app.data.NotificationApiService
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -185,11 +186,13 @@ fun DriverHomeScreen(
                                             }
                                         )
                                     }
-                                    
+
                                     EscalaCompactCard(
                                         escalaInfo = escalaInfo,
                                         statusInfo = statusInfo
                                     )
+
+                                    PatioCard()
                                 }
                             }
                         }
@@ -279,19 +282,21 @@ fun StatusCard(
                 isChamadoParaVaga -> {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
-                        Text(text = "VAGA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
+                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text(text = "VAGA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                 }
                 isChamadoParaEstacionamento -> {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
-                        Text(text = "ESTACIONAMENTO", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold)
+                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text(text = "ESTACIONAMENTO", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                 }
                 else -> {
@@ -301,16 +306,16 @@ fun StatusCard(
             
             when {
                 isChamadoParaVaga && vaga != null && rota != null -> {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        Text(text = "ROTA $rota", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                        Text(text = "ROTA $rota", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                     }
                 }
                 isChamadoParaVaga && vaga != null -> {
-                    Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = "Vá para VAGA $vaga", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
                 isChamadoParaEstacionamento -> {
-                    Text(text = "Vá para o estacionamento e aguarde", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = "Vá para o estacionamento e aguarde", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
                 else -> {
                     Text(
@@ -433,5 +438,68 @@ fun InfoItem(
     Column(modifier = modifier) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = TextGray)
         Text(value, color = corDestaque ?: MaterialTheme.colorScheme.onSurface, fontWeight = if (corDestaque != null) FontWeight.Bold else FontWeight.Medium)
+    }
+}
+
+@Composable
+fun PatioCard() {
+    val apiService = remember { NotificationApiService() }
+    var motoristas by remember { mutableStateOf<List<NotificationApiService.PatioMotorista>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var erro by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        isLoading = true
+        erro = null
+        try {
+            motoristas = apiService.getPatioMotoristas()
+        } catch (e: Exception) {
+            erro = "Não foi possível carregar o pátio"
+        } finally {
+            isLoading = false
+        }
+    }
+
+    GlassCard(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    "Pátio SRJ8",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = NeonGreen)
+                }
+            }
+
+            when {
+                isLoading -> Unit
+                erro != null -> Text(erro!!, color = TextGray, style = MaterialTheme.typography.bodySmall)
+                motoristas.isEmpty() -> Text("Nenhum veículo no pátio", color = TextGray, style = MaterialTheme.typography.bodySmall)
+                else -> {
+                    // Cabeçalho
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text("Transportadora", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = TextGray)
+                        Text("Placa", modifier = Modifier.weight(0.6f), style = MaterialTheme.typography.labelSmall, color = TextGray)
+                        Text("Tempo", modifier = Modifier.weight(0.6f), style = MaterialTheme.typography.labelSmall, color = TextGray, textAlign = TextAlign.End)
+                    }
+                    motoristas.forEach { m ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(m.transportadora.ifBlank { "—" }, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(m.placa.ifBlank { "—" }, modifier = Modifier.weight(0.6f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+                            Text(m.tempo.ifBlank { "—" }, modifier = Modifier.weight(0.6f), style = MaterialTheme.typography.bodySmall, color = NeonGreen, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

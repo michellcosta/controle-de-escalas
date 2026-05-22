@@ -837,6 +837,109 @@ def assistente_chat():
         return jsonify({"error": str(e)}), 500
 
 
+_PATIO_URL = "https://script.google.com/macros/s/AKfycbxkAXMCEEfd1PHS_KEle8MNeh7iB3nDwfkdrt5qUQHLNck1VB5oEWXBa9y7qqd8sEzi3w/exec"
+
+@app.route('/patio/debug', methods=['GET'])
+def patio_debug():
+    """Debug: retorna o HTML bruto da página do pátio para inspecionar a estrutura."""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; ControleEscalas/1.0)"}
+        results = {}
+        # Tentar URL base e variações comuns de Apps Script com JSON
+        urls_to_try = [
+            _PATIO_URL,
+            _PATIO_URL + "?action=getData",
+            _PATIO_URL + "?format=json",
+            _PATIO_URL + "?type=json",
+        ]
+        for url in urls_to_try:
+            try:
+                resp = http_requests.get(url, timeout=15, headers=headers, allow_redirects=True)
+                content_type = resp.headers.get("Content-Type", "")
+                body = resp.text[:3000]  # Primeiros 3000 chars para inspecionar
+                results[url] = {
+                    "status": resp.status_code,
+                    "content_type": content_type,
+                    "body_preview": body,
+                    "is_json": "json" in content_type.lower(),
+                }
+            except Exception as e:
+                results[url] = {"error": str(e)}
+        return jsonify(results), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/patio/motoristas', methods=['GET'])
+def patio_motoristas():
+    """
+    Busca dados do painel de pátio (SRJ8) e retorna lista de motoristas com tempo na vaga.
+    Retorna JSON: { "motoristas": [{"transportadora": "...", "placa": "...", "tempo": "..."}] }
+    """
+    try:
+        from bs4 import BeautifulSoup
+
+        resp = http_requests.get(
+            _PATIO_URL,
+            timeout=15,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; ControleEscalas/1.0)"},
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
+
+        soup = BeautifulSoup(resp.text, "lxml")
+        motoristas = []
+
+        # Tentar extrair de tabelas HTML
+        tables = soup.find_all("table")
+        for table in tables:
+            rows = table.find_all("tr")
+            if len(rows) < 2:
+                continue
+            headers = [th.get_text(strip=True).lower() for th in rows[0].find_all(["th", "td"])]
+            for row in rows[1:]:
+                cols = [td.get_text(strip=True) for td in row.find_all(["td", "th"])]
+                if not any(cols):
+                    continue
+                item = {}
+                for i, val in enumerate(cols):
+                    if i < len(headers):
+                        item[headers[i]] = val
+                    else:
+                        item[f"col{i}"] = val
+                # Normalizar campos mais comuns
+                motoristas.append({
+                    "transportadora": item.get("transportadora") or item.get("empresa") or item.get("col0") or "",
+                    "placa": item.get("placa") or item.get("veiculo") or item.get("veículo") or item.get("col1") or "",
+                    "tempo": item.get("tempo") or item.get("tempo na vaga") or item.get("permanencia") or item.get("permanência") or item.get("col2") or "",
+                    "extra": {k: v for k, v in item.items() if k not in ("transportadora", "empresa", "placa", "veiculo", "veículo", "tempo", "tempo na vaga", "permanencia", "permanência")},
+                })
+
+        # Se não encontrou tabela, tentar extrair JSON embutido em tags <script>
+        if not motoristas:
+            import re, json as _json
+            for script in soup.find_all("script"):
+                text = script.string or ""
+                match = re.search(r'(?:var\s+\w+\s*=\s*|data\s*=\s*)(\[.*?\])', text, re.DOTALL)
+                if match:
+                    try:
+                        data = _json.loads(match.group(1))
+                        if isinstance(data, list) and data:
+                            motoristas = data
+                            break
+                    except Exception:
+                        pass
+
+        return jsonify({"motoristas": motoristas, "total": len(motoristas)}), 200
+
+    except http_requests.exceptions.Timeout:
+        return jsonify({"error": "Painel de pátio demorou muito para responder"}), 504
+    except Exception as e:
+        print(f"❌ Erro patio/motoristas: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 API FCM - Backend Python")

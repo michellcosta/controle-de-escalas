@@ -50,6 +50,8 @@ import androidx.navigation.compose.rememberNavController
 import com.controleescalas.app.ui.components.DisponibilidadeCard
 import com.controleescalas.app.ui.components.GlassCard
 import com.controleescalas.app.ui.components.SectionHeader
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
 import com.controleescalas.app.ui.viewmodels.QuinzenaViewModel
@@ -476,11 +478,10 @@ fun DriverHomeContent(
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                     modifier = Modifier
                         .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
                         .padding(16.dp)
                 ) {
                     // STATUS PRINCIPAL - Destaque
-                    // Só mostrar StatusCard se houver escala (motorista escalado)
-                    // Isso garante que quando o motorista for removido da escala, o status não será exibido
                     if (escalaInfo != null) {
                         StatusCard(
                             statusInfo = statusInfo,
@@ -492,9 +493,14 @@ fun DriverHomeContent(
                             }
                         )
                     }
-                    
+
                     // ESCALA DO DIA - Compacta
                     EscalaCompactCard(escalaInfo = escalaInfo)
+
+                    // PÁTIO SRJ8
+                    PatioCard()
+
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
         }
