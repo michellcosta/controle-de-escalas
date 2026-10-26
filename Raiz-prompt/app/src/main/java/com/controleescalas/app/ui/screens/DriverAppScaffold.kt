@@ -1194,7 +1194,7 @@ fun SobreAppDialog(onDismiss: () -> Unit) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Versão 1.0.0",
+                    "Versão ${com.controleescalas.app.BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextGray
                 )
