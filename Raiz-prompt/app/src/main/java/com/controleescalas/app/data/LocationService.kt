@@ -34,6 +34,11 @@ class LocationService(
         // Raios de detecção
         private const val GALPAO_RADIUS = 100.0 // metros
         private const val ESTACIONAMENTO_RADIUS = 50.0 // metros
+
+        // Intervalo mínimo entre retentativas de gravação automática de status.
+        // Sem isso, um motorista dentro do raio com a cota do Firestore estourada
+        // tentava gravar a cada tick de GPS (5-10s) - milhares de writes/dia.
+        private const val RETRY_WRITE_INTERVAL_MS = 10 * 60 * 1000L
     }
 
     private var fusedLocationClient: FusedLocationProviderClient? = null
@@ -48,6 +53,9 @@ class LocationService(
     private var motoristaId: String? = null
     private var baseId: String? = null
     private var currentStatus: String? = null
+
+    @Volatile
+    private var ultimaTentativaGravacao = 0L
 
     /**
      * Inicializar serviço de localização
@@ -192,6 +200,11 @@ class LocationService(
      * Atualizar status para CHEGUEI
      */
     private fun updateStatusToCheguei(motoristaId: String, baseId: String) {
+        val agora = System.currentTimeMillis()
+        // Se a gravação falhou (ex.: cota estourada), não re-tentar a cada tick de GPS.
+        if (agora - ultimaTentativaGravacao < RETRY_WRITE_INTERVAL_MS) return
+        ultimaTentativaGravacao = agora
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val success = motoristaRepository.updateStatusMotorista(
@@ -200,9 +213,10 @@ class LocationService(
                     estado = "CHEGUEI",
                     mensagem = "Chegou ao galpão (automático)"
                 )
-                
+
                 if (success) {
                     currentStatus = "CHEGUEI"
+                    ultimaTentativaGravacao = 0L
                     Log.d(TAG, "✅ Status atualizado para CHEGUEI automaticamente")
                     NotifyStatusChangeWorker.enqueue(context, baseId, motoristaId, "CHEGUEI")
                 } else {
@@ -218,6 +232,11 @@ class LocationService(
      * Atualizar status para ESTACIONAMENTO
      */
     private fun updateStatusToEstacionamento(motoristaId: String, baseId: String) {
+        val agora = System.currentTimeMillis()
+        // Mesmo throttle da chegada ao galpão: sem retentativa a cada tick de GPS.
+        if (agora - ultimaTentativaGravacao < RETRY_WRITE_INTERVAL_MS) return
+        ultimaTentativaGravacao = agora
+
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val success = motoristaRepository.updateStatusMotorista(
@@ -226,9 +245,10 @@ class LocationService(
                     estado = "ESTACIONAMENTO",
                     mensagem = "Chegou ao estacionamento (automático)"
                 )
-                
+
                 if (success) {
                     currentStatus = "ESTACIONAMENTO"
+                    ultimaTentativaGravacao = 0L
                     Log.d(TAG, "✅ Status atualizado para ESTACIONAMENTO automaticamente")
                     NotifyStatusChangeWorker.enqueue(context, baseId, motoristaId, "ESTACIONAMENTO")
                 } else {

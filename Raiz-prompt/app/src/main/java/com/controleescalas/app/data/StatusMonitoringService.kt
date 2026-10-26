@@ -52,6 +52,10 @@ class StatusMonitoringService : Service() {
         private const val KEY_MOTORISTA_ID = "motorista_id"
         private const val KEY_BASE_ID = "base_id"
         private const val IDADE_MAXIMA_LOCALIZACAO_MS = 60_000L
+
+        // Intervalo mínimo entre retentativas de gravação automática (a verificação roda
+        // a cada 30s; sem isso, com a cota estourada eram ~2.880 tentativas/dia por motorista).
+        private const val RETRY_WRITE_INTERVAL_MS = 10 * 60 * 1000L
     }
     
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -73,8 +77,8 @@ class StatusMonitoringService : Service() {
     private val fusedLocationClient: FusedLocationProviderClient by lazy {
         LocationServices.getFusedLocationProviderClient(this)
     }
-    private var chegueiSolicitadoNestaPermanencia = false
-    private var estacionamentoSolicitadoNestaPermanencia = false
+    private var chegueiSolicitadoEm = 0L
+    private var estacionamentoSolicitadoEm = 0L
     
     override fun onCreate() {
         super.onCreate()
@@ -502,19 +506,20 @@ class StatusMonitoringService : Service() {
         )
 
         val dentroDoGalpao = galpaoDist <= raioGalpao
+        val agora = System.currentTimeMillis()
         if (!dentroDoGalpao || statusAtual != "A_CAMINHO") {
-            chegueiSolicitadoNestaPermanencia = false
+            chegueiSolicitadoEm = 0L
         }
-        if (dentroDoGalpao && statusAtual == "A_CAMINHO" && !chegueiSolicitadoNestaPermanencia) {
-            chegueiSolicitadoNestaPermanencia = true
+        if (dentroDoGalpao && statusAtual == "A_CAMINHO" && agora - chegueiSolicitadoEm >= RETRY_WRITE_INTERVAL_MS) {
+            // Marca a tentativa antes de gravar: se falhar (ex.: cota estourada), a próxima
+            // tentativa só acontece depois do intervalo, e não a cada 30s.
+            chegueiSolicitadoEm = agora
             val ok = MotoristaRepository().updateStatusMotorista(
                 motoristaId, baseId, "CHEGUEI", "Chegou ao galpão (automático)"
             )
             if (ok) {
                 NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "CHEGUEI")
                 Log.d(TAG, "✅ [BACKGROUND] Status gravado uma vez para CHEGUEI (dist: ${galpaoDist.toInt()}m)")
-            } else {
-                chegueiSolicitadoNestaPermanencia = false
             }
         } else if (!dentroDoGalpao && estacionamentoLat != 0.0 && estacionamentoLng != 0.0) {
             val estDist = distanceBetween(
@@ -523,18 +528,16 @@ class StatusMonitoringService : Service() {
             )
             val dentroDoEstacionamento = estDist <= estacionamentoRaio
             if (!dentroDoEstacionamento || statusAtual != "IR_ESTACIONAMENTO") {
-                estacionamentoSolicitadoNestaPermanencia = false
+                estacionamentoSolicitadoEm = 0L
             }
-            if (dentroDoEstacionamento && statusAtual == "IR_ESTACIONAMENTO" && !estacionamentoSolicitadoNestaPermanencia) {
-                estacionamentoSolicitadoNestaPermanencia = true
+            if (dentroDoEstacionamento && statusAtual == "IR_ESTACIONAMENTO" && agora - estacionamentoSolicitadoEm >= RETRY_WRITE_INTERVAL_MS) {
+                estacionamentoSolicitadoEm = agora
                 val ok = MotoristaRepository().updateStatusMotorista(
                     motoristaId, baseId, "ESTACIONAMENTO", "Chegou ao estacionamento (automático)"
                 )
                 if (ok) {
                     NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "ESTACIONAMENTO")
                     Log.d(TAG, "✅ [BACKGROUND] Status gravado uma vez para ESTACIONAMENTO (dist: ${estDist.toInt()}m)")
-                } else {
-                    estacionamentoSolicitadoNestaPermanencia = false
                 }
             }
         }
@@ -594,6 +597,8 @@ class StatusMonitoringService : Service() {
         configListener = null
         lastStatus = null
         configPronta = false
+        chegueiSolicitadoEm = 0L
+        estacionamentoSolicitadoEm = 0L
         galpaoLat = 0.0
         galpaoLng = 0.0
         galpaoRaio = 0.0

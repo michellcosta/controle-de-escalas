@@ -16,7 +16,8 @@ import java.util.concurrent.TimeUnit
 data class AtualizacaoRemota(
     val versaoCodigo: Long,
     val versaoNome: String,
-    val apkUrl: String
+    val apkUrl: String,
+    val novidades: List<String> = emptyList()
 )
 
 object AppUpdateChecker {
@@ -38,10 +39,18 @@ object AppUpdateChecker {
                 val json = JSONObject(corpo)
                 val url = json.optString("apkUrl")
                 if (url.isBlank()) return@withContext null
+                val novidades = mutableListOf<String>()
+                json.optJSONArray("novidades")?.let { arr ->
+                    for (i in 0 until arr.length()) {
+                        val item = arr.optString(i)
+                        if (item.isNotBlank()) novidades.add(item)
+                    }
+                }
                 AtualizacaoRemota(
                     versaoCodigo = json.optLong("versaoCodigo"),
                     versaoNome = json.optString("versaoNome"),
-                    apkUrl = url
+                    apkUrl = url,
+                    novidades = novidades
                 )
             }
         } catch (_: Exception) {
@@ -59,15 +68,42 @@ object AppUpdateChecker {
         }
     }
 
-    suspend fun baixar(context: Context, url: String): File? = withContext(Dispatchers.IO) {
+    fun versaoNomeInstalada(context: Context): String = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+    } catch (_: Exception) {
+        ""
+    }
+
+    suspend fun baixar(
+        context: Context,
+        url: String,
+        onProgress: (Int) -> Unit = {}
+    ): File? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
                 val arquivo = File(context.cacheDir, "atualizacao.apk")
                 val corpo = response.body ?: return@withContext null
+                val total = corpo.contentLength()
                 corpo.byteStream().use { entrada ->
-                    FileOutputStream(arquivo).use { saida -> entrada.copyTo(saida) }
+                    FileOutputStream(arquivo).use { saida ->
+                        val buffer = ByteArray(64 * 1024)
+                        var lidos = 0L
+                        var ultimoPct = -1
+                        var n: Int
+                        while (entrada.read(buffer).also { n = it } != -1) {
+                            saida.write(buffer, 0, n)
+                            lidos += n
+                            if (total > 0) {
+                                val pct = (lidos * 100 / total).toInt()
+                                if (pct != ultimoPct) {
+                                    ultimoPct = pct
+                                    onProgress(pct)
+                                }
+                            }
+                        }
+                    }
                 }
                 if (arquivo.length() == 0L) null else arquivo
             }

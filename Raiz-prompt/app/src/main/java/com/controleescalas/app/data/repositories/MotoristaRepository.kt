@@ -25,6 +25,15 @@ class MotoristaRepository {
         @Volatile
         private var gravacaoBloqueadaAte: Long = 0L
 
+        private fun prefs() = com.controleescalas.app.MainApp.instance
+            .getSharedPreferences("cota_firestore", android.content.Context.MODE_PRIVATE)
+
+        init {
+            // Restaura a trava de cota persistida: sem isso, reiniciar o app zerava a pausa
+            // e os loops de retentativa voltavam a martelar o Firestore com a cota estourada.
+            gravacaoBloqueadaAte = prefs().getLong("gravacaoBloqueadaAte", 0L)
+        }
+
         private fun cotaEstourada(erro: Exception): Boolean {
             val mensagem = erro.message.orEmpty()
             return mensagem.contains("RESOURCE_EXHAUSTED", ignoreCase = true) ||
@@ -42,6 +51,11 @@ class MotoristaRepository {
             calendario.set(java.util.Calendar.SECOND, 0)
             calendario.set(java.util.Calendar.MILLISECOND, 0)
             return calendario.timeInMillis
+        }
+
+        private fun bloquearGravacoesAte(millis: Long) {
+            gravacaoBloqueadaAte = millis
+            prefs().edit().putLong("gravacaoBloqueadaAte", millis).apply()
         }
     }
     

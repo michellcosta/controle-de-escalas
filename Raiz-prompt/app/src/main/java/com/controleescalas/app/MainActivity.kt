@@ -12,13 +12,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
@@ -28,9 +35,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.controleescalas.app.data.AppUpdateChecker
 import com.controleescalas.app.data.AtualizacaoRemota
@@ -161,7 +173,9 @@ class MainActivity : ComponentActivity() {
             val escopo = rememberCoroutineScope()
             var atualizacao by remember { mutableStateOf<AtualizacaoRemota?>(null) }
             var baixandoAtualizacao by remember { mutableStateOf(false) }
+            var progressoAtualizacao by remember { mutableStateOf(0) }
             var erroAtualizacao by remember { mutableStateOf<String?>(null) }
+            val versaoInstaladaNome = remember { AppUpdateChecker.versaoNomeInstalada(this@MainActivity) }
 
             LaunchedEffect(Unit) {
                 val remota = AppUpdateChecker.buscar() ?: return@LaunchedEffect
@@ -253,61 +267,136 @@ class MainActivity : ComponentActivity() {
                         onDismissRequest = {
                             if (!baixandoAtualizacao) atualizacao = null
                         },
+                        containerColor = Color(0xFF1C1C1E),
+                        titleContentColor = Color.White,
+                        textContentColor = Color(0xFFB8B8B8),
                         title = {
-                            Text(
-                                "Nova versão disponível",
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF3A3423)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("⬇️", fontSize = 30.sp)
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "Nova Atualização Disponível",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         },
                         text = {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                Text("A versão ${nova.versaoNome} está pronta para instalar.")
-                                if (baixandoAtualizacao) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("Baixando...")
+                                Text(
+                                    "Versão ${nova.versaoNome} já está disponível (Atual: $versaoInstaladaNome)",
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+
+                                if (nova.novidades.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Text(
+                                        "O que há de novo:",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFFF5C542)
+                                    )
+                                    nova.novidades.forEach { item ->
+                                        Text(
+                                            "• $item",
+                                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall
+                                        )
+                                    }
                                 }
+
+                                if (baixandoAtualizacao) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        "Baixando... $progressoAtualizacao%",
+                                        color = Color(0xFFF5C542),
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LinearProgressIndicator(
+                                        progress = { progressoAtualizacao / 100f },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = Color(0xFFF5C542),
+                                        trackColor = Color(0xFF333333)
+                                    )
+                                    Spacer(modifier = Modifier.height(14.dp))
+                                    Box(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(22.dp),
+                                            color = Color(0xFFF5C542),
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
+                                }
+
                                 erroAtualizacao?.let { erro ->
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    Text(erro)
+                                    Text(
+                                        erro,
+                                        color = Color(0xFFE57373),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             }
                         },
                         confirmButton = {
-                            Button(
-                                enabled = !baixandoAtualizacao,
-                                onClick = {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                                        !packageManager.canRequestPackageInstalls()
-                                    ) {
-                                        startActivity(
-                                            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                                                data = Uri.parse("package:$packageName")
+                            if (!baixandoAtualizacao) {
+                                Button(
+                                    onClick = {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                            !packageManager.canRequestPackageInstalls()
+                                        ) {
+                                            startActivity(
+                                                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                                    data = Uri.parse("package:$packageName")
+                                                }
+                                            )
+                                            return@Button
+                                        }
+                                        baixandoAtualizacao = true
+                                        progressoAtualizacao = 0
+                                        erroAtualizacao = null
+                                        escopo.launch {
+                                            val arquivo = AppUpdateChecker.baixar(
+                                                this@MainActivity,
+                                                nova.apkUrl
+                                            ) { pct -> progressoAtualizacao = pct }
+                                            baixandoAtualizacao = false
+                                            if (arquivo == null) {
+                                                erroAtualizacao = "Não foi possível baixar a atualização."
+                                            } else {
+                                                AppUpdateChecker.abrirInstalador(this@MainActivity, arquivo)
                                             }
-                                        )
-                                        return@Button
-                                    }
-                                    baixandoAtualizacao = true
-                                    erroAtualizacao = null
-                                    escopo.launch {
-                                        val arquivo = AppUpdateChecker.baixar(this@MainActivity, nova.apkUrl)
-                                        baixandoAtualizacao = false
-                                        if (arquivo == null) {
-                                            erroAtualizacao = "Não foi possível baixar a atualização."
-                                        } else {
-                                            AppUpdateChecker.abrirInstalador(this@MainActivity, arquivo)
                                         }
                                     }
+                                ) {
+                                    Text("Atualizar agora")
                                 }
-                            ) {
-                                Text(if (baixandoAtualizacao) "Baixando..." else "Atualizar")
                             }
                         },
                         dismissButton = {
-                            TextButton(
-                                enabled = !baixandoAtualizacao,
-                                onClick = { atualizacao = null }
-                            ) {
-                                Text("Agora não")
+                            if (!baixandoAtualizacao) {
+                                TextButton(onClick = { atualizacao = null }) {
+                                    Text("Agora não")
+                                }
                             }
                         }
                     )
