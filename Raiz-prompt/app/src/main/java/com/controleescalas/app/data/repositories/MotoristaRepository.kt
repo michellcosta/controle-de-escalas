@@ -20,6 +20,30 @@ import kotlinx.coroutines.Dispatchers
  */
 class MotoristaRepository {
     private val firestore = FirebaseManager.firestore
+
+    companion object {
+        @Volatile
+        private var gravacaoBloqueadaAte: Long = 0L
+
+        private fun cotaEstourada(erro: Exception): Boolean {
+            val mensagem = erro.message.orEmpty()
+            return mensagem.contains("RESOURCE_EXHAUSTED", ignoreCase = true) ||
+                mensagem.contains("Quota exceeded", ignoreCase = true)
+        }
+
+        private fun proximoResetCotaMillis(): Long {
+            val fuso = java.util.TimeZone.getTimeZone("America/Sao_Paulo")
+            val calendario = java.util.Calendar.getInstance(fuso)
+            if (calendario.get(java.util.Calendar.HOUR_OF_DAY) >= 4) {
+                calendario.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            }
+            calendario.set(java.util.Calendar.HOUR_OF_DAY, 4)
+            calendario.set(java.util.Calendar.MINUTE, 0)
+            calendario.set(java.util.Calendar.SECOND, 0)
+            calendario.set(java.util.Calendar.MILLISECOND, 0)
+            return calendario.timeInMillis
+        }
+    }
     
     /**
      * Garante que o usuário esteja autenticado (anônimo ou não)
@@ -787,6 +811,11 @@ class MotoristaRepository {
             println("   💬 Mensagem: $mensagem")
             println("   🅿️ Vaga: $vagaAtual")
             println("   🗺️ Rota: $rotaAtual")
+
+            if (System.currentTimeMillis() < gravacaoBloqueadaAte) {
+                println("⏸️ MotoristaRepository: cota do Firestore estourada. Nova gravação de status só às 4h.")
+                return false
+            }
             
             docRef.set(status).await()
             
@@ -802,6 +831,10 @@ class MotoristaRepository {
             
             true
         } catch (e: Exception) {
+            if (cotaEstourada(e)) {
+                gravacaoBloqueadaAte = proximoResetCotaMillis()
+                println("⏸️ MotoristaRepository: cota estourada. Gravações de status pausadas até as 4h.")
+            }
             println("❌ MotoristaRepository: Erro ao atualizar status: ${e.message}")
             false
         }
@@ -956,10 +989,19 @@ class MotoristaRepository {
                 .await()
             
             var resetados = 0
+            var jaNoEstadoInicial = 0
             for (doc in statusSnapshot.documents) {
                 val motoristaId = doc.id
                 val statusRef = doc.reference
-                
+
+                // Já está no estado inicial: pular a gravação para economizar cota do Firestore
+                if (doc.getString("estado") == "A_CAMINHO" &&
+                    doc.getString("mensagem") == "Aguardando instruções"
+                ) {
+                    jaNoEstadoInicial++
+                    continue
+                }
+
                 val status = StatusMotorista(
                     id = motoristaId,
                     motoristaId = motoristaId,
@@ -979,7 +1021,7 @@ class MotoristaRepository {
                 println("✅ MotoristaRepository: Status resetado para motorista $motoristaId")
             }
             
-            println("✅ MotoristaRepository.resetarTodosStatusDaBase: $resetados status resetados")
+            println("✅ MotoristaRepository.resetarTodosStatusDaBase: $resetados status resetados, $jaNoEstadoInicial já estavam em A_CAMINHO (sem gravação)")
             true
         } catch (e: Exception) {
             println("❌ MotoristaRepository.resetarTodosStatusDaBase: Erro - ${e.message}")

@@ -48,3 +48,8 @@ backend-python/.Python
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Keystore e artefatos locais (NUNCA fazer commit!)
+AAB/
+Key Store/
+PlayStore - Imagens/
