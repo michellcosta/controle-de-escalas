@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,8 +19,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.controleescalas.app.ui.theme.TextGray
-import com.controleescalas.app.ui.theme.TextWhite
 import kotlin.math.*
 
 /**
@@ -41,7 +40,7 @@ fun DonutChart(
         ) {
             Text(
                 text = "Sem dados",
-                color = TextGray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         return
@@ -55,7 +54,7 @@ fun DonutChart(
         ) {
             Text(
                 text = "Sem dados",
-                color = TextGray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         return
@@ -160,14 +159,14 @@ fun DonutChart(
                     Text(
                         text = segment.label,
                         style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
-                        color = TextGray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } ?: run {
                 Text(
                     text = total.toInt().toString(),
                     style = androidx.compose.material3.MaterialTheme.typography.headlineSmall,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -280,14 +279,14 @@ fun LegendItem(
             )
             Text(
                 text = label,
-                color = if (isSelected) color else TextWhite,
+                color = if (isSelected) color else MaterialTheme.colorScheme.onSurface,
                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
             )
         }
         Text(
             text = "$value (${String.format("%.1f", percentage)}%)",
-            color = if (isSelected) color else TextGray,
+            color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant,
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold
         )

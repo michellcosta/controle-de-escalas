@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.controleescalas.app.data.models.Disponibilidade
 import com.controleescalas.app.data.models.DisponibilidadeMotorista
 import com.controleescalas.app.data.models.DisponibilidadeStatus
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -53,6 +55,65 @@ class DisponibilidadeViewModel : ViewModel() {
     private fun normalizeTelefone(telefone: String): String {
         return telefone.replace(Regex("[^0-9]"), "")
     }
+
+    private fun correspondeMotorista(motorista: DisponibilidadeMotorista, motoristaId: String): Boolean {
+        if (motorista.motoristaId == motoristaId) return true
+        val telefoneBusca = normalizeTelefone(motoristaId)
+        val telefoneLista = normalizeTelefone(motorista.telefone.ifEmpty { motorista.motoristaId })
+        return telefoneBusca.isNotBlank() && telefoneBusca == telefoneLista
+    }
+
+    private fun encontrarMinhaResposta(
+        motoristas: List<DisponibilidadeMotorista>,
+        motoristaId: String
+    ): DisponibilidadeMotorista? {
+        return motoristas
+            .filter { correspondeMotorista(it, motoristaId) }
+            .maxWithOrNull(
+                compareBy<DisponibilidadeMotorista> { it.disponivel != null }
+                    .thenBy { it.respondidoEm ?: 0L }
+            )
+    }
+
+    private fun DisponibilidadeMotorista.paraMapa(): Map<String, Any> {
+        val mapa = mutableMapOf<String, Any>(
+            "motoristaId" to motoristaId,
+            "nome" to nome,
+            "telefone" to telefone
+        )
+        disponivel?.let { mapa["disponivel"] = it }
+        respondidoEm?.let { mapa["respondidoEm"] = it }
+        return mapa
+    }
+
+    private fun motoristasDoSnapshot(snapshot: DocumentSnapshot): List<DisponibilidadeMotorista> {
+        val bruto = snapshot.get("motoristas") as? List<*>
+        val lidos = bruto?.mapNotNull { item ->
+            val mapa = item as? Map<*, *> ?: return@mapNotNull null
+            DisponibilidadeMotorista(
+                motoristaId = mapa["motoristaId"] as? String ?: "",
+                nome = mapa["nome"] as? String ?: "",
+                telefone = mapa["telefone"] as? String ?: "",
+                disponivel = mapa["disponivel"] as? Boolean,
+                respondidoEm = (mapa["respondidoEm"] as? Number)?.toLong()
+            )
+        }.orEmpty()
+        if (lidos.isNotEmpty()) return lidos
+        return snapshot.toObject(Disponibilidade::class.java)?.motoristas ?: emptyList()
+    }
+
+    private fun aplicarMinhaResposta(
+        motoristas: List<DisponibilidadeMotorista>,
+        motoristaId: String
+    ) {
+        val minhaResp = encontrarMinhaResposta(motoristas, motoristaId) ?: return
+        val local = _minhaDisponibilidade.value
+        val respostaLocalMaisNova = local != null &&
+            (local.respondidoEm ?: 0L) > (minhaResp.respondidoEm ?: 0L)
+        if (!respostaLocalMaisNova) {
+            _minhaDisponibilidade.value = minhaResp
+        }
+    }
     
     /**
      * Remove duplicatas de motoristas baseado no telefone normalizado
@@ -95,6 +156,9 @@ class DisponibilidadeViewModel : ViewModel() {
                     // Se tem telefone não vazio, adicionar pontos
                     if (motorista.telefone.isNotBlank()) {
                         score += 5
+                    }
+                    if (motorista.disponivel != null) {
+                        score += 200
                     }
                     score
                 } ?: listaMotoristas[0]
@@ -335,20 +399,7 @@ class DisponibilidadeViewModel : ViewModel() {
                     return@launch
                 }
                 
-                val disponibilidade = Disponibilidade(
-                    id = "${baseId}_$data",
-                    baseId = baseId,
-                    data = data,
-                    motoristas = motoristas,
-                    notificacaoEnviada = false,
-                    criadoEm = System.currentTimeMillis(),
-                    criadoPor = "system"
-                )
-                
-                firestore.collection("disponibilidades")
-                    .document("${baseId}_$data")
-                    .set(disponibilidade)
-                    .await()
+                criarDisponibilidadeFirestore(baseId, data, motoristas)
                 
                 println("✅ Disponibilidade criada automaticamente para $data")
                 
@@ -398,7 +449,7 @@ class DisponibilidadeViewModel : ViewModel() {
     /**
      * Observa disponibilidade em tempo real (para admin)
      */
-    fun observarDisponibilidade(baseId: String, data: String? = null) {
+    fun observarDisponibilidade(baseId: String, data: String? = null, motoristaId: String? = null) {
         // Remover listener anterior se existir
         disponibilidadeListener?.remove()
         
@@ -407,7 +458,7 @@ class DisponibilidadeViewModel : ViewModel() {
         
         disponibilidadeListener = firestore.collection("disponibilidades")
             .document(docId)
-            .addSnapshotListener { snapshot, error ->
+            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
                 if (error != null) {
                     println("❌ Erro no listener de disponibilidade: ${error.message}")
                     _error.value = "Erro ao observar disponibilidade: ${error.message}"
@@ -415,10 +466,12 @@ class DisponibilidadeViewModel : ViewModel() {
                 }
                 
                 if (snapshot != null && snapshot.exists()) {
-                    val disp = snapshot.toObject(Disponibilidade::class.java)
+                    val motoristasLidos = motoristasDoSnapshot(snapshot)
+                    val disp = snapshot.toObject(Disponibilidade::class.java)?.copy(motoristas = motoristasLidos)
+                        ?: Disponibilidade(motoristas = motoristasLidos)
                     
                     // Atualizar nomes vazios em tempo real
-                    disp?.let { disponibilidade ->
+                    disp.let { disponibilidade ->
                         // Remover duplicatas antes de processar
                         val disponibilidadeSemDuplicatas = disponibilidade.copy(
                             motoristas = removerDuplicatasMotoristas(disponibilidade.motoristas)
@@ -467,6 +520,7 @@ class DisponibilidadeViewModel : ViewModel() {
                                 val dispAtualizada = disponibilidadeSemDuplicatas.copy(motoristas = motoristasSemDuplicatas)
                                 _disponibilidade.value = dispAtualizada
                                 calcularStatus(dispAtualizada)
+                                motoristaId?.let { aplicarMinhaResposta(motoristasSemDuplicatas, it) }
                                 println("✅ Disponibilidade atualizada com nomes: ${dispAtualizada.motoristas.size} motoristas")
                                 dispAtualizada.motoristas.forEach { m ->
                                     println("   - ID: ${m.motoristaId}, Nome: '${m.nome}', Disponível: ${m.disponivel}")
@@ -477,6 +531,7 @@ class DisponibilidadeViewModel : ViewModel() {
                         // Atualizar imediatamente mesmo que alguns nomes estejam vazios
                         _disponibilidade.value = disponibilidadeSemDuplicatas
                         calcularStatus(disponibilidadeSemDuplicatas)
+                        motoristaId?.let { aplicarMinhaResposta(disponibilidade.motoristas, it) }
                         println("✅ Disponibilidade atualizada em tempo real: ${disponibilidadeSemDuplicatas.motoristas.size} motoristas")
                     }
                 } else {
@@ -555,7 +610,7 @@ class DisponibilidadeViewModel : ViewModel() {
                 if (snapshot.exists()) {
                     val disp = snapshot.toObject(Disponibilidade::class.java)
                     if (disp != null) {
-                        var minhaResp = disp.motoristas.find { it.motoristaId == motoristaId }
+                        var minhaResp = encontrarMinhaResposta(disp.motoristas, motoristaId)
                         
                         // Se o motorista não está na lista, adicionar automaticamente
                         if (minhaResp == null) {
@@ -617,9 +672,8 @@ class DisponibilidadeViewModel : ViewModel() {
                             println("✅ Motorista $motoristaId já está na lista de disponibilidade")
                         }
                         
-                        // SEMPRE definir a disponibilidade do motorista
-                        _minhaDisponibilidade.value = minhaResp
-                        println("✅ Disponibilidade do motorista definida: ${minhaResp?.nome} - disponivel: ${minhaResp?.disponivel}")
+                        aplicarMinhaResposta(listOf(minhaResp), motoristaId)
+                        println("✅ Disponibilidade do motorista definida: ${minhaResp.nome} - disponivel: ${minhaResp.disponivel}")
                     } else {
                         _minhaDisponibilidade.value = null
                     }
@@ -763,16 +817,28 @@ class DisponibilidadeViewModel : ViewModel() {
             criadoPor = "system"
         )
         
-        firestore.collection("disponibilidades")
-            .document("${baseId}_$dataDisponibilidadeStr")
-            .set(disponibilidadeObj)
-            .await()
+        val docRef = firestore.collection("disponibilidades").document("${baseId}_$dataDisponibilidadeStr")
+        firestore.runTransaction { tx ->
+            val snap = tx.get(docRef)
+            if (!snap.exists()) {
+                tx.set(docRef, disponibilidadeObj.copy(motoristas = motoristas))
+            }
+        }.await()
     }
     
     /**
      * Marca a disponibilidade do motorista (disponível ou indisponível)
      */
     fun marcarDisponibilidade(baseId: String, motoristaId: String, disponivel: Boolean) {
+        val agora = System.currentTimeMillis()
+        val anterior = _minhaDisponibilidade.value
+        _minhaDisponibilidade.value = (
+            anterior ?: DisponibilidadeMotorista(motoristaId = motoristaId)
+        ).copy(
+            disponivel = disponivel,
+            respondidoEm = agora
+        )
+
         viewModelScope.launch {
             try {
                 _isLoading.value = true
@@ -780,105 +846,89 @@ class DisponibilidadeViewModel : ViewModel() {
                 
                 val dataAmanha = getDataAmanha()
                 val docId = "${baseId}_$dataAmanha"
-                
-                // Buscar documento
                 val docRef = firestore.collection("disponibilidades").document(docId)
-                val snapshot = docRef.get().await()
-                
-                if (!snapshot.exists()) {
-                    _error.value = "Nenhuma solicitação de disponibilidade encontrada"
-                    return@launch
+                val nomeBuscado = try {
+                    buscarNomeMotorista(baseId, motoristaId)
+                } catch (e: Exception) {
+                    null
                 }
-                
-                val disp = snapshot.toObject(Disponibilidade::class.java)
-                if (disp == null) {
-                    _error.value = "Erro ao processar disponibilidade"
-                    return@launch
-                }
-                
-                // Atualizar motorista específico
-                // Primeiro, remover duplicatas para garantir que temos apenas o motorista correto
-                val motoristasLimpos = removerDuplicatasMotoristas(disp.motoristas)
-                val dispSemDuplicatas = disp.copy(motoristas = motoristasLimpos)
-                
-                println("🔍 DisponibilidadeViewModel.marcarDisponibilidade: Após remover duplicatas, ${motoristasLimpos.size} motoristas únicos")
-                motoristasLimpos.forEach { m ->
-                    println("   - ID: ${m.motoristaId}, Nome: '${m.nome}', Telefone: '${m.telefone}'")
-                }
-                
-                val motoristasAtualizados = dispSemDuplicatas.motoristas.map { motorista ->
-                    // Buscar pelo motoristaId OU pelo telefone normalizado
-                    val telefoneMotoristaId = normalizeTelefone(motoristaId)
-                    val telefoneMotorista = normalizeTelefone(motorista.telefone.ifEmpty { motorista.motoristaId })
-                    val motoristaIdMatch = motorista.motoristaId == motoristaId
-                    val telefoneMatch = telefoneMotoristaId.isNotBlank() && telefoneMotorista == telefoneMotoristaId
-                    
-                    // Priorizar match por ID do documento (não é apenas números) sobre match por telefone
-                    // Se encontrar por telefone, só atualizar se o motorista tiver ID do documento (correto)
-                    val deveAtualizar = if (motoristaIdMatch) {
-                        true
-                    } else if (telefoneMatch) {
-                        // Só atualizar se o motorista na lista tiver ID do documento (não é apenas números)
-                        !motorista.motoristaId.matches(Regex("^[0-9]+$"))
+
+                val listaLocal = _disponibilidade.value?.motoristas.orEmpty()
+                val motoristasSemDuplicatas = firestore.runTransaction { tx ->
+                    val snap = tx.get(docRef)
+                    val motoristasAtuais = if (snap.exists()) {
+                        motoristasDoSnapshot(snap).ifEmpty {
+                            snap.toObject(Disponibilidade::class.java)?.motoristas.orEmpty()
+                        }
                     } else {
-                        false
+                        listaLocal
                     }
-                    
-                    if (deveAtualizar) {
-                        println("🔍 DisponibilidadeViewModel.marcarDisponibilidade: Atualizando motorista ${motoristaId} (encontrado por ${if (motoristaIdMatch) "ID" else "telefone"}), nome atual: '${motorista.nome}', ID na lista: '${motorista.motoristaId}'")
-                        
-                        // Se o nome estiver vazio, buscar do Firestore
+                    val motoristasLimpos = removerDuplicatasMotoristas(motoristasAtuais)
+                    val atualizados = motoristasLimpos.map { motorista ->
+                        if (!correspondeMotorista(motorista, motoristaId)) return@map motorista
+                        if ((motorista.respondidoEm ?: 0L) > agora) return@map motorista
                         val nomeAtualizado = if (motorista.nome.isBlank() || motorista.nome == "Motorista") {
-                            try {
-                                println("🔍 Buscando nome do motorista ${motoristaId} no Firestore...")
-                                val nome = buscarNomeMotorista(baseId, motoristaId) ?: motorista.nome
-                                
-                                if (nome.isNotBlank() && nome != "Motorista") {
-                                    println("✅ Nome encontrado para ${motoristaId}: '$nome'")
-                                } else {
-                                    println("⚠️ Nome ainda vazio para ${motoristaId}")
-                                }
-                                
-                                nome
-                            } catch (e: Exception) {
-                                println("❌ Erro ao buscar nome do motorista ${motoristaId}: ${e.message}")
-                                e.printStackTrace()
-                                motorista.nome
-                            }
+                            nomeBuscado?.takeIf { it.isNotBlank() && it != "Motorista" } ?: motorista.nome
                         } else {
-                            println("✅ Nome já existe para ${motoristaId}: '${motorista.nome}'")
                             motorista.nome
                         }
-                        
                         motorista.copy(
                             nome = nomeAtualizado,
                             disponivel = disponivel,
-                            respondidoEm = System.currentTimeMillis()
+                            respondidoEm = agora
                         )
-                    } else {
-                        motorista
+                    }.toMutableList()
+                    if (atualizados.none { correspondeMotorista(it, motoristaId) }) {
+                        atualizados.add(
+                            DisponibilidadeMotorista(
+                                motoristaId = motoristaId,
+                                nome = nomeBuscado?.takeIf { it.isNotBlank() } ?: "",
+                                disponivel = disponivel,
+                                respondidoEm = agora
+                            )
+                        )
                     }
-                }
-                
-                // Remover duplicatas antes de salvar
-                val motoristasSemDuplicatas = removerDuplicatasMotoristas(motoristasAtualizados)
-                
-                println("✅ DisponibilidadeViewModel.marcarDisponibilidade: Motoristas atualizados: ${motoristasSemDuplicatas.size}")
-                motoristasSemDuplicatas.forEach { m ->
-                    println("   - ID: ${m.motoristaId}, Nome: '${m.nome}', Disponível: ${m.disponivel}")
-                }
-                
-                // Salvar no Firestore
-                docRef.update("motoristas", motoristasSemDuplicatas).await()
-                
+                    val semDuplicatas = removerDuplicatasMotoristas(atualizados)
+                    val mapas = semDuplicatas.map { it.paraMapa() }
+                    if (snap.exists()) {
+                        tx.update(docRef, "motoristas", mapas)
+                    } else {
+                        tx.set(
+                            docRef,
+                            mapOf(
+                                "id" to docId,
+                                "baseId" to baseId,
+                                "data" to dataAmanha,
+                                "motoristas" to mapas,
+                                "notificacaoEnviada" to false,
+                                "criadoEm" to System.currentTimeMillis(),
+                                "criadoPor" to "system"
+                            )
+                        )
+                    }
+                    semDuplicatas
+                }.await()
+
+                println("✅ Disponibilidade salva no servidor para $motoristaId: $disponivel")
                 val statusTexto = if (disponivel) "disponível" else "indisponível"
                 val dataFormatada = formatarDataParaExibicao(dataAmanha)
                 _message.value = "Você foi marcado como $statusTexto para $dataFormatada"
-                
-                // Atualizar estado local
-                _minhaDisponibilidade.value = motoristasSemDuplicatas.find { it.motoristaId == motoristaId }
+
+                val local = _minhaDisponibilidade.value
+                if ((local?.respondidoEm ?: 0L) <= agora) {
+                    val atualizado = motoristasSemDuplicatas.find { correspondeMotorista(it, motoristaId) }
+                    _minhaDisponibilidade.value = atualizado?.copy(
+                        disponivel = disponivel,
+                        respondidoEm = atualizado.respondidoEm ?: agora
+                    ) ?: _minhaDisponibilidade.value
+                }
                 
             } catch (e: Exception) {
+                println("❌ Erro ao marcar disponibilidade: ${e.message}")
+                val local = _minhaDisponibilidade.value
+                if ((local?.respondidoEm ?: 0L) <= agora) {
+                    _minhaDisponibilidade.value = anterior
+                }
                 _error.value = "Erro ao marcar disponibilidade: ${e.message}"
             } finally {
                 _isLoading.value = false

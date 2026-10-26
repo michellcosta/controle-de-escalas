@@ -1,5 +1,6 @@
 package com.controleescalas.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -44,12 +45,14 @@ fun SuperAdminDashboardScreen(
     var stats by remember { mutableStateOf<DashboardStats?>(null) }
     var novosFeedbacksCount by remember { mutableStateOf(0) }
     var config by remember { mutableStateOf<SistemaConfig?>(null) }
+    var temaVisivel by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
     
     LaunchedEffect(Unit) {
         scope.launch {
             stats = statsRepository.getDashboardStats()
             config = sistemaRepository.getConfiguracao(forceRefresh = true)
+            temaVisivel = config?.temaHabilitado == true
             try {
                 val feedbacks = feedbackRepository.getAllFeedbacks()
                 novosFeedbacksCount = feedbacks.count { it.status == FeedbackStatus.NOVO }
@@ -167,7 +170,7 @@ fun SuperAdminDashboardScreen(
                                 Text(
                                     text = "Ação Necessária",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = TextWhite,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -175,7 +178,7 @@ fun SuperAdminDashboardScreen(
                                 Text(
                                     text = "${dashboardStats.transportadorasPendentes} aguardando aprovação",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TextGray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -207,7 +210,7 @@ fun SuperAdminDashboardScreen(
                                 Text(
                                     text = "Feedbacks Novos",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = TextWhite,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
@@ -215,7 +218,7 @@ fun SuperAdminDashboardScreen(
                                 Text(
                                     text = "$novosFeedbacksCount aguardando leitura",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TextGray,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -232,12 +235,13 @@ fun SuperAdminDashboardScreen(
                 
                 // Atalho Configurações do Sistema
                 GlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { navigateToConfiguracoes() }
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { navigateToConfiguracoes() },
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -255,7 +259,7 @@ fun SuperAdminDashboardScreen(
                                     Text(
                                         text = "Configurações do Sistema",
                                         style = MaterialTheme.typography.titleMedium,
-                                        color = TextWhite,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Medium,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -263,7 +267,7 @@ fun SuperAdminDashboardScreen(
                                     Text(
                                         text = "Planos, monetização e exibição para clientes",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -272,15 +276,14 @@ fun SuperAdminDashboardScreen(
                             Icon(
                                 Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = TextGray,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
                         
-                        // ✅ NOVO: Toggle rápido para Modo Claro/Escuro
                         HorizontalDivider(
                             modifier = Modifier.padding(vertical = 12.dp),
-                            color = TextGray.copy(alpha = 0.2f)
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
                         )
                         
                         Row(
@@ -293,39 +296,47 @@ fun SuperAdminDashboardScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Icon(
-                                    if (config?.temaHabilitado == true) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    if (temaVisivel) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                     contentDescription = null,
-                                    tint = if (config?.temaHabilitado == true) NeonBlue else TextGray,
+                                    tint = if (temaVisivel) NeonBlue else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Column {
                                     Text(
                                         text = "Modo Claro/Escuro",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = TextWhite,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontWeight = FontWeight.Medium
                                     )
                                     Text(
-                                        text = if (config?.temaHabilitado == true) "Visível para todos os usuários" else "Oculto para usuários (em desenvolvimento)",
+                                        text = if (temaVisivel) "Visível para todos os usuários" else "Oculto para usuários (em desenvolvimento)",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = TextGray
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                             
                             Switch(
-                                checked = config?.temaHabilitado == true,
-                                onCheckedChange = { isEnabled ->
+                                checked = temaVisivel,
+                                onCheckedChange = { ligado ->
+                                    val anterior = temaVisivel
+                                    temaVisivel = ligado
                                     scope.launch {
-                                        val success = sistemaRepository.setTemaHabilitado(isEnabled)
+                                        val success = sistemaRepository.setTemaHabilitado(ligado)
                                         if (success) {
-                                            config = config?.copy(temaHabilitado = isEnabled)
+                                            config = (config ?: SistemaConfig()).copy(temaHabilitado = ligado)
+                                        } else {
+                                            temaVisivel = anterior
                                         }
                                     }
                                 },
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.Black,
-                                    checkedTrackColor = NeonBlue
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = NeonBlue,
+                                    uncheckedThumbColor = Color.White,
+                                    uncheckedTrackColor = Color(0xFFD1D1D6),
+                                    checkedBorderColor = Color.Transparent,
+                                    uncheckedBorderColor = Color.Transparent
                                 )
                             )
                         }
@@ -486,19 +497,19 @@ fun StatCard(
             Text(
                 text = value,
                 style = MaterialTheme.typography.headlineMedium,
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = TextWhite,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Medium
             )
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = TextGray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -526,7 +537,7 @@ fun StatusCard(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextGray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

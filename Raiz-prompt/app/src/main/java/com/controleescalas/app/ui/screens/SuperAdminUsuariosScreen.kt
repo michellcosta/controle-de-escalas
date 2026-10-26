@@ -624,6 +624,8 @@ fun AdminCard(
     onDesativar: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val modoClaro = MaterialTheme.colorScheme.onSurface == TextBlack
+    val corAtivo = if (modoClaro) NeonGreenDark else NeonGreen
     
     val dataFormatada = remember(admin.criadoEm) {
         val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
@@ -645,7 +647,7 @@ fun AdminCard(
                     Text(
                         text = admin.nome,
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -653,7 +655,7 @@ fun AdminCard(
                     Text(
                         text = admin.baseNome,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -671,7 +673,7 @@ fun AdminCard(
                         Text(
                             text = if (admin.ativo) "Ativo" else "Inativo",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            color = if (admin.ativo) NeonGreen else Color(0xFFEF4444),
+                            color = if (admin.ativo) corAtivo else Color(0xFFEF4444),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -682,7 +684,7 @@ fun AdminCard(
                         Icon(
                             Icons.Default.MoreVert,
                             contentDescription = "Menu",
-                            tint = TextWhite
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -697,12 +699,12 @@ fun AdminCard(
                     Text(
                         text = "Telefone",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = admin.telefone,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -711,14 +713,14 @@ fun AdminCard(
                     Text(
                         text = "Criado em",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = dataFormatada,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

@@ -71,12 +71,22 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         triggeringGeofences.forEach { geofence ->
             when (geofence.requestId) {
                 com.controleescalas.app.data.GeofencingService.GEOFENCE_GALPAO_ID -> {
-                    Log.d(TAG, "✅ Motorista entrou no galpão (via geofence) - Atualizando status para CHEGUEI")
-                    updateStatusForGeofence(context, "CHEGUEI", "Chegou ao galpão (automático)")
+                    Log.d(TAG, "✅ Motorista entrou no galpão (via geofence)")
+                    updateStatusForGeofence(
+                        context,
+                        "CHEGUEI",
+                        "Chegou ao galpão (automático)",
+                        listOf("A_CAMINHO", "ESTACIONAMENTO")
+                    )
                 }
                 com.controleescalas.app.data.GeofencingService.GEOFENCE_ESTACIONAMENTO_ID -> {
-                    Log.d(TAG, "✅ Motorista entrou no estacionamento (via geofence) - Atualizando status para ESTACIONAMENTO")
-                    updateStatusForGeofence(context, "ESTACIONAMENTO", "Chegou ao estacionamento (automático)")
+                    Log.d(TAG, "✅ Motorista entrou no estacionamento (via geofence)")
+                    updateStatusForGeofence(
+                        context,
+                        "ESTACIONAMENTO",
+                        "Chegou ao estacionamento (automático)",
+                        listOf("IR_ESTACIONAMENTO")
+                    )
                 }
             }
         }
@@ -105,12 +115,22 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         triggeringGeofences.forEach { geofence ->
             when (geofence.requestId) {
                 com.controleescalas.app.data.GeofencingService.GEOFENCE_GALPAO_ID -> {
-                    Log.d(TAG, "✅ Motorista permanece no galpão (dwell) - Atualizando status para CHEGUEI")
-                    updateStatusForGeofence(context, "CHEGUEI", "Chegou ao galpão (automático)")
+                    Log.d(TAG, "✅ Motorista permanece no galpão (dwell)")
+                    updateStatusForGeofence(
+                        context,
+                        "CHEGUEI",
+                        "Chegou ao galpão (automático)",
+                        listOf("A_CAMINHO")
+                    )
                 }
                 com.controleescalas.app.data.GeofencingService.GEOFENCE_ESTACIONAMENTO_ID -> {
-                    Log.d(TAG, "✅ Motorista permanece no estacionamento (dwell) - Atualizando status para ESTACIONAMENTO")
-                    updateStatusForGeofence(context, "ESTACIONAMENTO", "Chegou ao estacionamento (automático)")
+                    Log.d(TAG, "✅ Motorista permanece no estacionamento (dwell)")
+                    updateStatusForGeofence(
+                        context,
+                        "ESTACIONAMENTO",
+                        "Chegou ao estacionamento (automático)",
+                        listOf("IR_ESTACIONAMENTO")
+                    )
                 }
             }
         }
@@ -120,7 +140,12 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
      * Atualizar status do motorista no Firestore quando detectar geofence
      * Suspend para garantir conclusão antes de finish() quando app está fechado
      */
-    private suspend fun updateStatusForGeofence(context: Context, estado: String, mensagem: String) {
+    private suspend fun updateStatusForGeofence(
+        context: Context,
+        estado: String,
+        mensagem: String,
+        estadosDeOrigem: List<String>
+    ) {
         withContext(Dispatchers.IO) {
             try {
                 val sessionManager = com.controleescalas.app.data.SessionManager(context)
@@ -130,15 +155,21 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     try {
                         val motoristaRepository = MotoristaRepository()
                         val statusAtual = motoristaRepository.getStatusMotorista(session.userId, session.baseId)
-                        val estadosFinais = listOf("CARREGANDO", "CONCLUIDO")
-                        val statusAtualEstado = statusAtual?.estado ?: "A_CAMINHO"
                         
-                        if (statusAtualEstado in estadosFinais) {
-                            Log.d(TAG, "⏭️ Status atual ($statusAtualEstado) não permite atualização automática para $estado")
+                        // Regra: sem status = não monitorar - não atualizar geofence
+                        if (statusAtual == null) {
+                            Log.d(TAG, "⏭️ Motorista ${session.userName} sem status (não escalado), não atualizando geofence")
                             return@forEach
                         }
-                        if (statusAtualEstado == estado) {
-                            Log.d(TAG, "⏭️ Status já está em $estado, não atualizando")
+                        
+                        val statusAtualEstado = statusAtual.estado
+
+                        if (statusAtualEstado == "CARREGANDO" || statusAtualEstado == "CONCLUIDO") {
+                            Log.d(TAG, "⏭️ Status atual ($statusAtualEstado) não muda sozinho para $estado")
+                            return@forEach
+                        }
+                        if (statusAtualEstado !in estadosDeOrigem || statusAtualEstado == estado) {
+                            Log.d(TAG, "⏭️ Status $statusAtualEstado não gera gravação de $estado")
                             return@forEach
                         }
                         

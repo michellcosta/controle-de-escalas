@@ -137,22 +137,21 @@ fun DisponibilidadeCard(
                 )
             }
             
-            // Botões de ação (sempre visíveis)
+            val simSelecionado = disponivel == true
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Botão DISPONÍVEL
                 Button(
                     onClick = onMarcarDisponivel,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (disponivel == true) NeonGreen else NeonGreen.copy(alpha = 0.7f),
-                        contentColor = Color.Black
+                        containerColor = if (simSelecionado) NeonGreen else NeonGreen.copy(alpha = 0.15f),
+                        contentColor = if (simSelecionado) Color.White else NeonGreen
                     ),
-                    border = if (disponivel == true) BorderStroke(2.dp, NeonGreen.copy(alpha = 0.8f)) else null
+                    border = BorderStroke(1.5.dp, NeonGreen)
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -170,18 +169,17 @@ fun DisponibilidadeCard(
                         )
                     }
                 }
-                
-                // Botão INDISPONÍVEL
-                OutlinedButton(
+
+                Button(
                     onClick = onMarcarIndisponivel,
                     modifier = Modifier
                         .weight(1f)
                         .height(48.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = StatusError,
-                        containerColor = if (disponivel == false) StatusError.copy(alpha = 0.1f) else Color.Transparent
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (simSelecionado) StatusError.copy(alpha = 0.15f) else StatusError,
+                        contentColor = if (simSelecionado) StatusError else Color.White
                     ),
-                    border = if (disponivel == false) BorderStroke(2.dp, StatusError) else BorderStroke(1.dp, StatusError.copy(alpha = 0.5f))
+                    border = BorderStroke(1.5.dp, StatusError)
                 ) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),

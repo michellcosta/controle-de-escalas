@@ -182,7 +182,7 @@ fun LocationConfigScreen(
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Text("Usar GPS Atual")
                             }
@@ -244,7 +244,7 @@ fun LocationConfigScreen(
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Text("Usar GPS Atual")
                             }

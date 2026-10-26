@@ -55,22 +55,22 @@ fun AvailabilityScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Gestão de Disponibilidade", color = TextWhite) },
+                title = { Text("Gestão de Disponibilidade", color = MaterialTheme.colorScheme.onBackground) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
+                    containerColor = MaterialTheme.colorScheme.background
                 ),
                 actions = {
                     IconButton(onClick = { showInfoDialog = true }) {
                         Icon(
                             Icons.Default.Help,
                             contentDescription = "Informações sobre disponibilidade",
-                            tint = TextWhite
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 }
             )
         },
-        containerColor = DarkBackground
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             Column(
@@ -102,7 +102,7 @@ fun AvailabilityScreen(
                             Text(
                                 text = "Disponíveis",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -115,20 +115,20 @@ fun AvailabilityScreen(
                             Text(
                                 text = "Indisponíveis",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = "$semResposta",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextGray,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = "Sem resposta",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -140,8 +140,8 @@ fun AvailabilityScreen(
             Column(modifier = Modifier.weight(1f)) {
                 TabRow(
                     selectedTabIndex = selectedTabIndex,
-                    containerColor = DarkSurface,
-                    contentColor = TextWhite
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
                     tabs.forEachIndexed { index, title ->
                         Tab(
@@ -207,7 +207,7 @@ fun AvailabilityScreen(
                             Icon(
                                 Icons.Default.Info,
                                 contentDescription = null,
-                                tint = TextGray,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
@@ -216,7 +216,7 @@ fun AvailabilityScreen(
                                     1 -> "Nenhum motorista indisponível"
                                     else -> "Todos os motoristas já responderam"
                                 },
-                                color = TextGray,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold
                             )
@@ -226,7 +226,7 @@ fun AvailabilityScreen(
                                     1 -> "Os motoristas que responderem 'NÃO' aparecerão aqui"
                                     else -> "Os motoristas que ainda não responderem aparecerão aqui"
                                 },
-                                color = TextGray.copy(alpha = 0.7f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -236,7 +236,7 @@ fun AvailabilityScreen(
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(motoristasFiltrados) { motorista ->
+                        items(motoristasFiltrados, key = { "${it.motoristaId}-${it.telefone}" }) { motorista ->
                             AvailabilityItemRow(motorista)
                         }
                     }
@@ -262,7 +262,7 @@ fun AvailabilityScreen(
                         )
                         Text(
                             "Disponibilidade Automática",
-                            color = TextWhite,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -274,7 +274,7 @@ fun AvailabilityScreen(
                         Text(
                             text = "A disponibilidade é solicitada automaticamente todos os dias às 00:00 para o dia seguinte. Os motoristas sempre têm a pergunta ativa no app.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         
                         disponibilidade?.let { disp ->
@@ -292,9 +292,9 @@ fun AvailabilityScreen(
                         Text("Entendi", color = NeonGreen)
                     }
                 },
-                containerColor = DarkSurface,
-                titleContentColor = TextWhite,
-                textContentColor = TextGray
+                containerColor = MaterialTheme.colorScheme.surface,
+                titleContentColor = MaterialTheme.colorScheme.onSurface,
+                textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
@@ -333,7 +333,7 @@ fun AvailabilityItemRow(motorista: DisponibilidadeMotorista) {
                 Text(
                     text = motorista.nome.ifEmpty { "Motorista ${motorista.motoristaId.take(8)}" },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -345,14 +345,14 @@ fun AvailabilityItemRow(motorista: DisponibilidadeMotorista) {
                     Text(
                         text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(motorista.respondidoEm)),
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextGray.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "Aguardando",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextGray.copy(alpha = 0.6f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -381,7 +381,7 @@ fun AvailabilityItemRow(motorista: DisponibilidadeMotorista) {
                     Icon(
                         Icons.Default.Info,
                         contentDescription = "Sem resposta",
-                        tint = TextGray,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(22.dp)
                     )
                 }

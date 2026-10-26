@@ -1,10 +1,6 @@
 package com.controleescalas.app.ui.screens
 
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,7 +17,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -245,28 +240,22 @@ fun StatusCard(
     val isChamadoParaEstacionamento = statusInfo?.estado == "IR_ESTACIONAMENTO"
     val isChamado = isChamadoParaVaga || isChamadoParaEstacionamento
     val isCarregando = statusInfo?.estado == "CARREGANDO"
+    val corStatus = statusColor(statusInfo?.estado)
     
-    val scale by animateFloatAsState(
-        targetValue = if (isChamado) 1.05f else 1f,
-        animationSpec = tween(300)
-    )
-    
-    val (titulo, corStatus) = when {
-        isChamadoParaVaga -> Pair("CHAMADO PARA VAGA", NeonGreen)
-        isChamadoParaEstacionamento -> Pair("CHAMADO PARA ESTACIONAMENTO", NeonPurple)
-        statusInfo?.estado == "CONCLUIDO" -> Pair("CONCLUIDO", NeonBlue)
-        statusInfo?.estado == "ESTACIONAMENTO" -> Pair("ESTACIONAMENTO", NeonPurple)
-        statusInfo?.estado == "CHEGUEI" -> Pair("CHEGUEI", NeonGreen)
-        else -> Pair(statusInfo?.estado?.replace("_", " ") ?: "A CAMINHO", TextGray)
+    val titulo = when {
+        isChamadoParaVaga -> "Chamado para vaga"
+        isChamadoParaEstacionamento -> "Chamado para estacionamento"
+        statusInfo?.estado == "CONCLUIDO" -> "Concluído"
+        statusInfo?.estado == "ESTACIONAMENTO" -> "Estacionamento"
+        statusInfo?.estado == "CHEGUEI" -> "Cheguei"
+        else -> statusInfo?.estado?.replace("_", " ") ?: "A caminho"
     }
     
     val vaga = statusInfo?.vagaAtual
     val rota = statusInfo?.rotaAtual
     
     GlassCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale)
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -275,31 +264,14 @@ fun StatusCard(
                 .fillMaxWidth()
                 .padding(24.dp)
         ) {
-            when {
-                isChamadoParaVaga -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                        Text(text = "VAGA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    }
-                }
-                isChamadoParaEstacionamento -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(text = "CHAMADO PARA", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                        Text(text = "ESTACIONAMENTO", style = MaterialTheme.typography.titleLarge, color = corStatus, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-                    }
-                }
-                else -> {
-                    Text(text = titulo, style = MaterialTheme.typography.headlineMedium, color = corStatus, fontWeight = FontWeight.Bold)
-                }
-            }
+            Text(
+                text = titulo,
+                style = MaterialTheme.typography.headlineMedium,
+                color = corStatus,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
             
             when {
                 isChamadoParaVaga && vaga != null && rota != null -> {
@@ -365,19 +337,8 @@ fun EscalaCompactCard(
     escalaInfo: DriverEscalaInfo?,
     statusInfo: DriverStatusInfo? = null
 ) {
-    val isChamadoParaVaga = statusInfo?.estado == "CARREGANDO"
-    
-    val infiniteTransition = rememberInfiniteTransition(label = "blink")
-    val blinkAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = if (isChamadoParaVaga) 0.3f else 1f,
-        animationSpec = infiniteRepeatable(animation = tween(800), repeatMode = RepeatMode.Reverse),
-        label = "blink"
-    )
-    
-    val corDestaque = when {
-        isChamadoParaVaga -> Color(0xFFFFA500)
-        statusInfo?.estado == "IR_ESTACIONAMENTO" -> NeonPurple
+    val corDestaque = when (statusInfo?.estado) {
+        "CARREGANDO", "IR_ESTACIONAMENTO" -> statusColor(statusInfo.estado)
         else -> null
     }
     
@@ -398,18 +359,14 @@ fun EscalaCompactCard(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         InfoItem(label = "Onda", value = escalaInfo.nomeOnda)
-                        Box(modifier = Modifier.alpha(if (isChamadoParaVaga) blinkAlpha else 1f)) {
-                            InfoItem(label = "Vaga", value = escalaInfo.vagaPlanejada, corDestaque = corDestaque)
-                        }
+                        InfoItem(label = "Vaga", value = escalaInfo.vagaPlanejada, corDestaque = corDestaque)
                     }
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Hora", style = MaterialTheme.typography.bodySmall, color = TextGray)
                             Text(escalaInfo.horarioPlanejado.ifBlank { "Indefinida" }, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                         }
-                        Box(modifier = Modifier.alpha(if (isChamadoParaVaga) blinkAlpha else 1f)) {
-                            InfoItem(label = "Rota", value = escalaInfo.rotaCodigo, corDestaque = corDestaque)
-                        }
+                        InfoItem(label = "Rota", value = escalaInfo.rotaCodigo, corDestaque = corDestaque)
                     }
                 }
                 

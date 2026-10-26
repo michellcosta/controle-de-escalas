@@ -1120,20 +1120,23 @@ fun TurnoSelector(
     ondasCountAM: Int,
     ondasCountPM: Int
 ) {
-    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        val selecionadoFundo = MaterialTheme.colorScheme.onSurface
+        val selecionadoTexto = MaterialTheme.colorScheme.surface
+        val livreFundo = MaterialTheme.colorScheme.surfaceVariant
+        val livreTexto = MaterialTheme.colorScheme.onSurfaceVariant
+
         Button(
             onClick = { onTurnoChange("AM") },
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (turnoAtual == "AM") (if (isDarkMode) NeonGreen else LightSurfaceVariant) else if (isDarkMode) DarkSurface else LightSurface,
-                contentColor = if (turnoAtual == "AM") (if (isDarkMode) Color.Black else TextBlack) else if (isDarkMode) TextGray else TextGrayLightMode
+                containerColor = if (turnoAtual == "AM") selecionadoFundo else livreFundo,
+                contentColor = if (turnoAtual == "AM") selecionadoTexto else livreTexto
             )
         ) {
             Text("TURNO AM", fontWeight = FontWeight.Bold)
@@ -1143,8 +1146,8 @@ fun TurnoSelector(
             onClick = { onTurnoChange("PM") },
             modifier = Modifier.weight(1f),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (turnoAtual == "PM") (if (isDarkMode) NeonBlue else NeonBlueContrast) else if (isDarkMode) DarkSurface else LightSurface,
-                contentColor = if (turnoAtual == "PM") (if (isDarkMode) Color.Black else Color.White) else if (isDarkMode) TextGray else TextGrayLightMode
+                containerColor = if (turnoAtual == "PM") selecionadoFundo else livreFundo,
+                contentColor = if (turnoAtual == "PM") selecionadoTexto else livreTexto
             )
         ) {
             Text("TURNO PM", fontWeight = FontWeight.Bold)
@@ -1656,22 +1659,11 @@ fun DriverOperationRow(
     val estadoAtual = status?.estado?.takeIf { it.isNotBlank() } ?: "A_CAMINHO"
     val isConcluido = estadoAtual == "CONCLUIDO"
     
-    val statusColor = when (estadoAtual) {
-        "CARREGANDO" -> NeonGreen
-        "CONCLUIDO" -> Color(0xFF10B981)
-        "A_CAMINHO" -> NeonBlue
-        "A CAMINHO" -> NeonBlue
-        "AGUARDANDO" -> NeonBlue  // Status legado (compatibilidade)
-        "CHEGUEI" -> NeonGreen
-        "ESTACIONAMENTO" -> NeonPurple
-        "IR_ESTACIONAMENTO" -> NeonBlue
-        "PROXIMO" -> Color(0xFFFF8C00)
-        else -> TextGray
-    }
+    val corStatus = statusColor(estadoAtual)
     
     val modalidadeColor = when (motorista.modalidade) {
         "DEDICADO" -> NeonPurple
-        "UTILITARIO" -> Color(0xFF00BCD4)
+        "UTILITARIO" -> NeonCyan
         "PASSEIO" -> NeonOrange
         else -> NeonBlue
     }
@@ -1715,9 +1707,9 @@ fun DriverOperationRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = statusColor.copy(alpha = 0.3f),
+                        color = corStatus.copy(alpha = 0.3f),
                         shape = RoundedCornerShape(4.dp),
-                        border = BorderStroke(1.dp, statusColor)
+                        border = BorderStroke(1.dp, corStatus)
                     ) {
                         Text(
                             text = when (estadoAtual) {
@@ -1731,7 +1723,7 @@ fun DriverOperationRow(
                                 "PROXIMO" -> "PRÓXIMO"
                                 else -> "A CAMINHO"
                             },
-                            color = statusColor,
+                            color = corStatus,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 10.sp,

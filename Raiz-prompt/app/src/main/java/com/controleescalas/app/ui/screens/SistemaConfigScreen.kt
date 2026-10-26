@@ -317,7 +317,7 @@ fun SistemaConfigScreen(
                                 Text(
                                     "Ativação em: ${dias}d ${horas}h",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast,
+                                    color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -342,7 +342,7 @@ fun SistemaConfigScreen(
                         OutlinedButton(
                             onClick = onNavigateToFeedbacks,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonCyan else Color(0xFF00838F))
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                         ) {
                             Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -494,7 +494,7 @@ fun SistemaConfigScreen(
                                     Text(
                                         "Data: ${sdf.format(dataAgendada)}",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonCyan else Color(0xFF00838F),
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -503,7 +503,7 @@ fun SistemaConfigScreen(
                                 Button(
                                     onClick = { mostrarSeletorData = true },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast, contentColor = Color.White)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface)
                                 ) {
                             Icon(Icons.Default.DateRange, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))

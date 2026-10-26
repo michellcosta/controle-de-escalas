@@ -63,10 +63,10 @@ class GeofencingService(private val context: Context) {
     private var estacionamentoLng: Double? = null
     private var estacionamentoRadius: Double = GEOFENCE_RADIUS_METERS
     
-    // Flag para evitar atualizações duplicadas
-    private var lastChegueiUpdateTime: Long = 0
-    private var lastEstacionamentoUpdateTime: Long = 0
-    private val MIN_UPDATE_INTERVAL = 30000L // 30 segundos
+    // Uma gravação por permanência. Evita regravar CHEGUEI/ESTACIONAMENTO a cada posição.
+    private var chegueiSolicitadoNestaPermanencia = false
+    private var estacionamentoSolicitadoNestaPermanencia = false
+    private var statusNaUltimaChecagem: String? = null
     
     // Propriedades para rastrear estado e reduzir logs
     private var lastIsInside: Boolean = false
@@ -234,18 +234,13 @@ class GeofencingService(private val context: Context) {
                 Log.d("GeofencingService", "   Galpão: ($galpaoLat, $galpaoLng), Raio: ${galpaoRadius.toInt()}m")
                 _currentLocation.value = it
                 _isLocationEnabled.value = true
-                // Resetar lastIsInside para garantir que a primeira detecção seja tratada corretamente
-                // Isso é importante quando o motorista é adicionado à escala e já está dentro do raio
-                lastIsInside = false
                 updateGeofenceStatus(it)
             } ?: run {
                 Log.d("GeofencingService", "ℹ️ Nenhuma localização conhecida ainda, solicitando atualização única...")
-                lastIsInside = false
                 requestOneTimeLocationUpdate()
             }
         }.addOnFailureListener { exception ->
             Log.w("GeofencingService", "⚠️ Erro ao obter última localização: ${exception.message}")
-            lastIsInside = false
             requestOneTimeLocationUpdate()
         }
     }
@@ -265,18 +260,24 @@ class GeofencingService(private val context: Context) {
      * Configurar informações do motorista
      */
     fun setMotoristaInfo(motoristaId: String, baseId: String, currentStatus: String) {
+        val mesmoMotorista = this.motoristaId == motoristaId && this.baseId == baseId
         this.motoristaId = motoristaId
         this.baseId = baseId
         this.currentStatus = currentStatus
-        
-        // Resetar estado de detecção para garantir que a primeira verificação seja tratada corretamente
-        // Isso é importante quando o motorista é adicionado à escala e já está dentro do raio
-        lastIsInside = false
-        lastChegueiUpdateTime = 0L
-        lastEstacionamentoUpdateTime = 0L
-        lastDistance = Double.MAX_VALUE
-        
-        Log.d("GeofencingService", "✅ Informações do motorista configuradas: $motoristaId, status: $currentStatus (estado resetado para primeira detecção)")
+
+        // O listener de configuração chama de novo o mesmo motorista. Zerar a detecção
+        // faria cada atualização parecer uma entrada e gravaria o status outra vez.
+        if (!mesmoMotorista) {
+            lastIsInside = false
+            lastIsInsideEstacionamento = false
+            lastDistance = Double.MAX_VALUE
+            chegueiSolicitadoNestaPermanencia = false
+            estacionamentoSolicitadoNestaPermanencia = false
+            statusNaUltimaChecagem = null
+            Log.d("GeofencingService", "✅ Informações do motorista configuradas: $motoristaId, status: $currentStatus (detecção reiniciada)")
+        } else {
+            Log.d("GeofencingService", "✅ Status do motorista atualizado sem reiniciar a detecção: $currentStatus")
+        }
     }
 
     /**
@@ -299,7 +300,6 @@ class GeofencingService(private val context: Context) {
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
             if (location != null) {
                 Log.d("GeofencingService", "📍 Checagem imediata: localização obtida, verificando se dentro do raio")
-                lastIsInside = false
                 updateGeofenceStatus(location)
             } else {
                 Log.d("GeofencingService", "📍 Checagem imediata: lastLocation null, solicitando atualização temporária")
@@ -327,7 +327,6 @@ class GeofencingService(private val context: Context) {
                 result.lastLocation?.let { location ->
                     Log.d("GeofencingService", "📍 Atualização única obtida, verificando se dentro do raio")
                     fusedLocationClient.removeLocationUpdates(this)
-                    lastIsInside = false
                     updateGeofenceStatus(location)
                 }
             }
@@ -539,42 +538,24 @@ class GeofencingService(private val context: Context) {
                     lastIsInsideEstacionamento = isInsideEstacionamento
                 }
                 
-                // Atualizar status do motorista se estiver dentro do raio do estacionamento
-                if (isInsideEstacionamento && motoristaId != null && baseId != null) {
-                    val status = currentStatus ?: "A_CAMINHO"
-                    val currentTime = System.currentTimeMillis()
-                    
-                    // Não atualizar para ESTACIONAMENTO se estiver carregando
-                    // O status CARREGANDO tem prioridade sobre ESTACIONAMENTO
-                    if (status == "CARREGANDO") {
-                        Log.d("GeofencingService", "📍 Motorista dentro do raio do estacionamento, mas está carregando (mantendo CARREGANDO)")
-                    }
-                    // Atualizar para ESTACIONAMENTO apenas se estiver em estados apropriados
-                    // (não atualizar se já estiver em estados finais como CONCLUIDO ou ESTACIONAMENTO)
-                    else {
-                        val estadosPermitidos = listOf("IR_ESTACIONAMENTO", "CHEGUEI", "A_CAMINHO")
-                        val estadosFinais = listOf("CONCLUIDO", "ESTACIONAMENTO")
-                        
-                        if (status in estadosPermitidos && status !in estadosFinais) {
-                            // Evitar atualizações muito frequentes
-                            val shouldUpdate = if (estacionamentoStatusChanged && isInsideEstacionamento) {
-                                true // Atualizar imediatamente ao entrar no raio
-                            } else {
-                                currentTime - lastEstacionamentoUpdateTime > MIN_UPDATE_INTERVAL
-                            }
-                            
-                            if (shouldUpdate) {
-                                Log.d("GeofencingService", "🔄 Atualizando status para ESTACIONAMENTO (distância: ${estacionamentoDistance.toInt()}m, status atual: $status)")
-                                updateStatusToEstacionamento(motoristaId!!, baseId!!)
-                                lastEstacionamentoUpdateTime = currentTime
-                            } else if (isInsideEstacionamento) {
-                                val timeRemaining = (MIN_UPDATE_INTERVAL - (currentTime - lastEstacionamentoUpdateTime)) / 1000
-                                Log.d("GeofencingService", "⏳ Dentro do raio do estacionamento, aguardando intervalo mínimo (${timeRemaining}s)")
-                            }
-                        } else if (estacionamentoStatusChanged && isInsideEstacionamento) {
-                            Log.d("GeofencingService", "⏳ Dentro do raio do estacionamento, mas status não permitido ($status)")
-                        }
-                    }
+                // ESTACIONAMENTO uma vez: só com IR_ESTACIONAMENTO, dentro do estacionamento e fora do galpão.
+                if (!isInsideEstacionamento) {
+                    estacionamentoSolicitadoNestaPermanencia = false
+                }
+                val statusEstacionamento = currentStatus
+                val acabouDeIrAoEstacionamento = statusEstacionamento == "IR_ESTACIONAMENTO" &&
+                    statusNaUltimaChecagem != "IR_ESTACIONAMENTO"
+                if (!isInside &&
+                    isInsideEstacionamento &&
+                    statusEstacionamento == "IR_ESTACIONAMENTO" &&
+                    motoristaId != null &&
+                    baseId != null &&
+                    !estacionamentoSolicitadoNestaPermanencia &&
+                    (estacionamentoStatusChanged || acabouDeIrAoEstacionamento)
+                ) {
+                    Log.d("GeofencingService", "🔄 Gravando ESTACIONAMENTO uma vez (distância: ${estacionamentoDistance.toInt()}m)")
+                    estacionamentoSolicitadoNestaPermanencia = true
+                    updateStatusToEstacionamento(motoristaId!!, baseId!!)
                 }
             }
         }
@@ -611,61 +592,31 @@ class GeofencingService(private val context: Context) {
             }
         }
         
-        // Atualizar status do motorista se estiver dentro do raio do galpão
-        if (isInside && motoristaId != null && baseId != null) {
-            val status = currentStatus ?: "A_CAMINHO"
-            
-            // Não atualizar para CHEGUEI se estiver indo para o estacionamento
-            // O status IR_ESTACIONAMENTO tem prioridade sobre CHEGUEI
-            if (status == "IR_ESTACIONAMENTO") {
-                Log.d("GeofencingService", "📍 Motorista dentro do raio do galpão, mas indo para estacionamento (mantendo IR_ESTACIONAMENTO)")
-            }
-            // Caso especial: se estava em ESTACIONAMENTO e entrou no raio do galpão, atualizar imediatamente
-            else if (status == "ESTACIONAMENTO" && insideStatusChanged && isInside) {
-                Log.d("GeofencingService", "🔄 Atualizando status de ESTACIONAMENTO para CHEGUEI (motorista entrou no raio do galpão)")
-                updateStatusToCheguei(motoristaId!!, baseId!!)
-                lastChegueiUpdateTime = currentTime
-            }
-            // Não atualizar se já está em estados que não devem ser alterados automaticamente
-            else {
-                val estadosFinais = listOf("CARREGANDO", "CONCLUIDO", "CHEGUEI")
-                if (status !in estadosFinais) {
-                    // Se acabou de entrar no raio OU se é a primeira vez que detectamos que está dentro
-                    // (quando lastIsInside ainda é false mas isInside é true)
-                    val isFirstDetection = !lastIsInside && isInside
-                    val justEntered = insideStatusChanged && isInside
-                    
-                    // Atualizar imediatamente se:
-                    // 1. Acabou de entrar no raio (justEntered)
-                    // 2. É a primeira detecção que está dentro (isFirstDetection) - IMPORTANTE para motoristas que já estão dentro quando adicionados
-                    // 3. Nunca atualizou antes (lastChegueiUpdateTime == 0) - IMPORTANTE para garantir atualização na primeira vez
-                    // 4. Ou se passou o intervalo mínimo desde a última atualização
-                    // IMPORTANTE: Se está dentro do raio e status é A_CAMINHO, sempre atualizar na primeira detecção
-                    // Isso garante que motoristas que já estão dentro do raio quando adicionados à escala sejam atualizados imediatamente
-                    val shouldUpdate = if (justEntered || isFirstDetection || lastChegueiUpdateTime == 0L) {
-                        true // Atualizar imediatamente ao entrar no raio, na primeira detecção, ou se nunca atualizou
-                    } else {
-                        // Se já está dentro mas não acabou de entrar, verificar intervalo mínimo
-                        // Mas se passou muito tempo (mais de 1 minuto), atualizar de qualquer forma para garantir
-                        val timeSinceLastUpdate = currentTime - lastChegueiUpdateTime
-                        timeSinceLastUpdate > MIN_UPDATE_INTERVAL || timeSinceLastUpdate > 60000L // 1 minuto como fallback
-                    }
-                    
-                    if (shouldUpdate) {
-                        Log.d("GeofencingService", "🔄 Atualizando status para CHEGUEI (distância: ${galpaoDistance.toInt()}m, status atual: $status, primeira detecção: $isFirstDetection, acabou de entrar: $justEntered, última atualização: ${if (lastChegueiUpdateTime == 0L) "nunca" else "${(currentTime - lastChegueiUpdateTime)/1000}s atrás"})")
-                        updateStatusToCheguei(motoristaId!!, baseId!!)
-                        lastChegueiUpdateTime = currentTime
-                    } else if (isInside) {
-                        val timeRemaining = (MIN_UPDATE_INTERVAL - (currentTime - lastChegueiUpdateTime)) / 1000
-                        Log.d("GeofencingService", "⏳ Dentro do raio do galpão, aguardando intervalo mínimo (${timeRemaining}s restantes, última atualização: ${(currentTime - lastChegueiUpdateTime)/1000}s atrás)")
-                    }
-                } else {
-                    // Se já está em estado final mas está dentro do raio, logar para debug
-                    Log.d("GeofencingService", "ℹ️ Motorista dentro do raio do galpão, mas status é $status (não atualizando)")
-                }
-            }
+        // CHEGUEI uma vez por entrada. Permanecer dentro do raio não grava de novo.
+        val statusGalpao = currentStatus
+        val entrouNoGalpao = insideStatusChanged && isInside
+        val statusVirouACaminho = statusGalpao == "A_CAMINHO" &&
+            statusNaUltimaChecagem != null &&
+            statusNaUltimaChecagem != "A_CAMINHO"
+        if (!isInside || statusVirouACaminho) {
+            chegueiSolicitadoNestaPermanencia = false
         }
-        
+        val deveGravarCheguei = isInside &&
+            motoristaId != null &&
+            baseId != null &&
+            statusGalpao != null &&
+            !chegueiSolicitadoNestaPermanencia &&
+            ((entrouNoGalpao && (statusGalpao == "A_CAMINHO" || statusGalpao == "ESTACIONAMENTO")) ||
+                (statusVirouACaminho))
+        if (deveGravarCheguei) {
+            Log.d("GeofencingService", "🔄 Gravando CHEGUEI uma vez (distância: ${galpaoDistance.toInt()}m, status atual: $statusGalpao)")
+            chegueiSolicitadoNestaPermanencia = true
+            updateStatusToCheguei(motoristaId!!, baseId!!)
+        } else if (isInside && statusGalpao == "IR_ESTACIONAMENTO") {
+            Log.d("GeofencingService", "📍 Dentro do galpão com IR_ESTACIONAMENTO, sem gravar CHEGUEI")
+        }
+
+        statusNaUltimaChecagem = currentStatus
         _geofenceStatus.value = currentStatusMap
     }
 

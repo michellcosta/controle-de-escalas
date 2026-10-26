@@ -17,7 +17,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.controleescalas.app.data.SessionManager
 import com.controleescalas.app.ui.components.*
 import com.controleescalas.app.ui.theme.*
-import com.controleescalas.app.data.repositories.SistemaRepository
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,15 +36,17 @@ fun DriverConfigScreen(
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
     val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
+    var modoEscuro by remember { mutableStateOf(themeMode == "dark") }
+    LaunchedEffect(themeMode) { modoEscuro = themeMode == "dark" }
+    val coresInterruptor = SwitchDefaults.colors(
+            checkedThumbColor = Color.White,
+            checkedTrackColor = Color(0xFF3A3A3C),
+            uncheckedThumbColor = Color.White,
+            uncheckedTrackColor = Color(0xFFD1D1D6),
+            checkedBorderColor = Color.Transparent,
+            uncheckedBorderColor = Color.Transparent
+    )
     val scope = rememberCoroutineScope()
-    
-    val sistemaRepository = remember { SistemaRepository() }
-    var temaHabilitado by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        val config = sistemaRepository.getConfiguracao()
-        temaHabilitado = config.temaHabilitado
-    }
 
     Scaffold(
         topBar = {
@@ -70,9 +71,7 @@ fun DriverConfigScreen(
                 // Seção Geral
                 SectionHeader(title = "Geral")
                 
-                // Toggle de Tema
-                if (temaHabilitado) {
-                    GlassCard {
+                GlassCard {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -82,39 +81,34 @@ fun DriverConfigScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    if (themeMode == "dark") Icons.Default.DarkMode else Icons.Default.LightMode,
+                                    if (modoEscuro) Icons.Default.DarkMode else Icons.Default.LightMode,
                                     contentDescription = null,
-                                    tint = if (themeMode == "dark") NeonPurple else NeonOrange
+                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = if (themeMode == "dark") "Modo Escuro" else "Modo Claro",
+                                    text = if (modoEscuro) "Modo Escuro" else "Modo Claro",
                                     color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
                             Switch(
-                                checked = themeMode == "dark",
-                                onCheckedChange = { isDark ->
+                                checked = modoEscuro,
+                                onCheckedChange = { ligado ->
+                                    modoEscuro = ligado
                                     scope.launch {
-                                        sessionManager.setThemeMode(if (isDark) "dark" else "light")
+                                        sessionManager.setThemeMode(if (ligado) "dark" else "light")
                                     }
                                 },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.Black,
-                                    checkedTrackColor = NeonGreen,
-                                    uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = TextGray
-                                )
+                                colors = coresInterruptor
                             )
                         }
                     }
-                }
                 
                 OutlinedButton(
                     onClick = onIdentificacaoClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonPurple)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
                     Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -124,7 +118,7 @@ fun DriverConfigScreen(
                 OutlinedButton(
                     onClick = onQuinzenaClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
                     Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -134,7 +128,7 @@ fun DriverConfigScreen(
                 OutlinedButton(
                     onClick = onDevolucaoClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonOrange)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
                     Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -149,7 +143,7 @@ fun DriverConfigScreen(
                 OutlinedButton(
                     onClick = onNotificacoesClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
                     Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -164,7 +158,7 @@ fun DriverConfigScreen(
                 OutlinedButton(
                     onClick = onSobreAppClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
                     Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -174,7 +168,7 @@ fun DriverConfigScreen(
                 OutlinedButton(
                     onClick = onAjudaClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonPurple)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
                     Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -184,7 +178,7 @@ fun DriverConfigScreen(
                 OutlinedButton(
                     onClick = onTermosClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonOrange)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                 ) {
                     Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))

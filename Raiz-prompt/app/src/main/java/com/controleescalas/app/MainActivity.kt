@@ -1,9 +1,13 @@
 package com.controleescalas.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -22,15 +26,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.controleescalas.app.data.AppUpdateChecker
+import com.controleescalas.app.data.AtualizacaoRemota
 import com.controleescalas.app.data.SessionManager
 import com.controleescalas.app.navigation.AppNavHost
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.ControleEscalasTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * MainActivity
@@ -49,6 +58,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             var showBackgroundLocationDialog by remember { mutableStateOf(false) }
+            var showBatteryOptimizationDialog by remember { mutableStateOf(false) }
+
+            val batteryOptimizationLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.StartActivityForResult()
+            ) { /* resultado ignorado — o usuário pode ter permitido ou não */ }
 
             val locationForegroundLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestMultiplePermissions()
@@ -133,8 +147,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            // Verificar isenção de bateria separadamente, com delay para não sobrepor os outros diálogos
+            LaunchedEffect(Unit) {
+                delay(3000L)
+                val pm = getSystemService(PowerManager::class.java)
+                if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                    showBatteryOptimizationDialog = true
+                }
+            }
+
             val sessionManager = remember { SessionManager(this) }
             val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
+            val escopo = rememberCoroutineScope()
+            var atualizacao by remember { mutableStateOf<AtualizacaoRemota?>(null) }
+            var baixandoAtualizacao by remember { mutableStateOf(false) }
+            var erroAtualizacao by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(Unit) {
+                val remota = AppUpdateChecker.buscar() ?: return@LaunchedEffect
+                val instalada = AppUpdateChecker.versaoInstalada(this@MainActivity)
+                if (remota.versaoCodigo > instalada) {
+                    atualizacao = remota
+                }
+            }
 
             ControleEscalasTheme(darkTheme = themeMode == "dark") {
                 PremiumBackground {
@@ -170,6 +205,109 @@ class MainActivity : ComponentActivity() {
                         dismissButton = {
                             TextButton(onClick = { showBackgroundLocationDialog = false }) {
                                 Text("Depois")
+                            }
+                        }
+                    )
+                }
+
+                if (showBatteryOptimizationDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showBatteryOptimizationDialog = false },
+                        title = {
+                            Text(
+                                "Manter app ativo em segundo plano",
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        text = {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text("Seu celular pode desligar o app automaticamente para economizar bateria.")
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Isso faz você perder chamadas para carregar mesmo com o celular na mão.",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Permitir que o app rode sem restrições garante que você receba todas as notificações.")
+                            }
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                showBatteryOptimizationDialog = false
+                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                    data = Uri.parse("package:$packageName")
+                                }
+                                batteryOptimizationLauncher.launch(intent)
+                            }) { Text("Permitir") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showBatteryOptimizationDialog = false }) {
+                                Text("Depois")
+                            }
+                        }
+                    )
+                }
+
+                atualizacao?.let { nova ->
+                    AlertDialog(
+                        onDismissRequest = {
+                            if (!baixandoAtualizacao) atualizacao = null
+                        },
+                        title = {
+                            Text(
+                                "Nova versão disponível",
+                                fontWeight = FontWeight.Bold
+                            )
+                        },
+                        text = {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text("A versão ${nova.versaoNome} está pronta para instalar.")
+                                if (baixandoAtualizacao) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Baixando...")
+                                }
+                                erroAtualizacao?.let { erro ->
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(erro)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                enabled = !baixandoAtualizacao,
+                                onClick = {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+                                        !packageManager.canRequestPackageInstalls()
+                                    ) {
+                                        startActivity(
+                                            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                                                data = Uri.parse("package:$packageName")
+                                            }
+                                        )
+                                        return@Button
+                                    }
+                                    baixandoAtualizacao = true
+                                    erroAtualizacao = null
+                                    escopo.launch {
+                                        val arquivo = AppUpdateChecker.baixar(this@MainActivity, nova.apkUrl)
+                                        baixandoAtualizacao = false
+                                        if (arquivo == null) {
+                                            erroAtualizacao = "Não foi possível baixar a atualização."
+                                        } else {
+                                            AppUpdateChecker.abrirInstalador(this@MainActivity, arquivo)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(if (baixandoAtualizacao) "Baixando..." else "Atualizar")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                enabled = !baixandoAtualizacao,
+                                onClick = { atualizacao = null }
+                            ) {
+                                Text("Agora não")
                             }
                         }
                     )

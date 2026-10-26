@@ -301,12 +301,14 @@ fun TransportadoraCard(
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     
+    val modoClaro = MaterialTheme.colorScheme.onSurface == TextBlack
     val statusColor = when (base.statusAprovacao) {
         "ativa" -> NeonGreen
         "pendente" -> NeonOrange
         "rejeitada" -> Color(0xFFEF4444)
-        else -> TextGray
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val statusLabelColor = if (modoClaro && base.statusAprovacao == "ativa") NeonGreenDark else statusColor
     
     val statusText = when (base.statusAprovacao) {
         "ativa" -> "Ativa"
@@ -337,7 +339,7 @@ fun TransportadoraCard(
                     Text(
                         text = base.nome,
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -345,7 +347,7 @@ fun TransportadoraCard(
                     Text(
                         text = base.transportadora,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -363,7 +365,7 @@ fun TransportadoraCard(
                         Text(
                             text = statusText,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            color = statusColor,
+                            color = statusLabelColor,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -374,7 +376,7 @@ fun TransportadoraCard(
                         Icon(
                             Icons.Default.MoreVert,
                             contentDescription = "Menu",
-                            tint = TextWhite
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -388,7 +390,7 @@ fun TransportadoraCard(
                 Text(
                     text = "Criada em: $dataFormatada",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -397,7 +399,7 @@ fun TransportadoraCard(
                     Text(
                         text = "Plano: ${plano.replaceFirstChar { it.uppercaseChar() }}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (plano == "premium") NeonPurple else TextGray,
+                        color = if (plano == "premium") NeonPurple else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -406,7 +408,7 @@ fun TransportadoraCard(
             
             // Botões de ação
             if (base.id != "super_admin_base") {
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
                 
                 // Botão Entrar (sempre disponível para bases ativas)
                 if (base.statusAprovacao == "ativa") {

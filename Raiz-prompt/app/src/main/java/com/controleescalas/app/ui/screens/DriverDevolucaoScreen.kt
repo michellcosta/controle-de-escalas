@@ -76,6 +76,7 @@ fun DriverDevolucaoScreen(
     // Mensagens de erro/sucesso usando SnackbarHost (movido para fora do Box para ser acessível nos callbacks)
     val snackbarHostState = remember { SnackbarHostState() }
     
+    Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -462,74 +463,66 @@ fun DriverDevolucaoScreen(
             )
         }
         
-        // Scanner de QR Code/Código de Barras
-        if (showScanner) {
-            BarcodeScannerScreen(
-                onBarcodeScanned = { barcodeValue ->
-                    println("✅ DriverDevolucaoScreen: Código escaneado recebido: $barcodeValue")
-                    
-                    if (modoMultiplosScans) {
-                        // Modo múltiplos: adicionar à lista se não existir
-                        if (!pacotesEscaneados.contains(barcodeValue)) {
-                            pacotesEscaneados = pacotesEscaneados + barcodeValue
-                            // Mensagem removida conforme solicitado
-                        }
-                        // Se já existe, simplesmente ignora (sem mensagem)
-                    } else {
-                        // Modo único: preencher campo e fechar
-                        idPacote = barcodeValue
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(
-                                message = "Código escaneado com sucesso!",
-                                duration = SnackbarDuration.Short
-                            )
-                            delay(500) // Pequeno delay para mostrar a mensagem
-                            showScanner = false
-                            println("🚪 DriverDevolucaoScreen: Scanner fechado")
-                        }
+    }
+
+    // Scanner fora do Scaffold para cobrir a tela inteira, incluindo a TopAppBar pai
+    if (showScanner) {
+        BarcodeScannerScreen(
+            onBarcodeScanned = { barcodeValue ->
+                if (modoMultiplosScans) {
+                    if (!pacotesEscaneados.contains(barcodeValue)) {
+                        pacotesEscaneados = pacotesEscaneados + barcodeValue
                     }
-                },
-                onError = { errorMessage, errorCode ->
-                    // Mostrar erro diretamente no SnackbarHost
-                    println("📱 DriverDevolucaoScreen: Exibindo erro do scanner: $errorMessage (Código: $errorCode)")
+                } else {
+                    idPacote = barcodeValue
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar(
-                            message = errorMessage,
+                            message = "Código escaneado com sucesso!",
                             duration = SnackbarDuration.Short
                         )
-                    }
-                    // Não fechar o scanner, permitir tentar novamente
-                },
-                onDismiss = { 
-                    showScanner = false
-                    modoMultiplosScans = false
-                    pacotesEscaneados = emptyList()
-                },
-                snackbarHostState = snackbarHostState,
-                modoMultiplosScans = modoMultiplosScans, // NOVO
-                pacotesEscaneados = pacotesEscaneados, // NOVO
-                onRegistrarTodos = { // NOVO
-                    if (pacotesEscaneados.isNotEmpty()) {
-                        viewModel.registrarDevolucoesEmLote(
-                            baseId = baseId,
-                            idPacotes = pacotesEscaneados,
-                            motoristaId = motoristaId,
-                            motoristaNome = motoristaNome
-                        )
-                    }
-                },
-                onRemoverPacote = { idPacote -> // NOVO: callback para remover pacote
-                    pacotesEscaneados = pacotesEscaneados.filter { it != idPacote }
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(
-                            message = "Pacote removido",
-                            duration = SnackbarDuration.Short
-                        )
+                        delay(500)
+                        showScanner = false
                     }
                 }
-            )
-        }
+            },
+            onError = { errorMessage, _ ->
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = errorMessage,
+                        duration = SnackbarDuration.Short
+                    )
+                }
+            },
+            onDismiss = {
+                showScanner = false
+                modoMultiplosScans = false
+                pacotesEscaneados = emptyList()
+            },
+            snackbarHostState = snackbarHostState,
+            modoMultiplosScans = modoMultiplosScans,
+            pacotesEscaneados = pacotesEscaneados,
+            onRegistrarTodos = {
+                if (pacotesEscaneados.isNotEmpty()) {
+                    viewModel.registrarDevolucoesEmLote(
+                        baseId = baseId,
+                        idPacotes = pacotesEscaneados,
+                        motoristaId = motoristaId,
+                        motoristaNome = motoristaNome
+                    )
+                }
+            },
+            onRemoverPacote = { id ->
+                pacotesEscaneados = pacotesEscaneados.filter { it != id }
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "Pacote removido",
+                        duration = SnackbarDuration.Short
+                    )
+                }
+            }
+        )
     }
+    } // fecha Box externo
 }
 
 

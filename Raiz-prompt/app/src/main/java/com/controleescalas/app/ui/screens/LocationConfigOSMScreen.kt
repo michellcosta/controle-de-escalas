@@ -336,8 +336,8 @@ fun LocationConfigOSMScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 90.dp),
-                containerColor = NeonBlue,
-                contentColor = Color.Black
+                containerColor = DarkSurface,
+                contentColor = TextWhite
             ) {
                 Icon(Icons.Default.LocationOn, contentDescription = "Minha Localização")
             }
@@ -368,8 +368,8 @@ fun LocationConfigOSMScreen(
                     .padding(16.dp)
                     .fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedMode == "galpao") NeonGreen else NeonPurple,
-                    contentColor = Color.Black
+                    containerColor = NeonGreen,
+                    contentColor = Color.White
                 ),
                 // Desabilitar botão se não houver coordenadas marcadas
                 enabled = if (selectedMode == "galpao") {

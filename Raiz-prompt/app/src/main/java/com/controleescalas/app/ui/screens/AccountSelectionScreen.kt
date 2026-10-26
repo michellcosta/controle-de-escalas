@@ -1,6 +1,5 @@
 package com.controleescalas.app.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,7 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +32,7 @@ import com.controleescalas.app.data.models.SavedSession
 import com.controleescalas.app.ui.components.CustomTextField
 import com.controleescalas.app.ui.components.GlassCard
 import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.LoginViewModel
 import kotlinx.coroutines.launch
@@ -198,15 +197,7 @@ fun AccountSelectionScreen(
         }
     }
     
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(DarkBackground, DeepBlue)
-                )
-            )
-    ) {
+    PremiumBackground {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -219,13 +210,13 @@ fun AccountSelectionScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, "Voltar", tint = TextWhite)
+                    Icon(Icons.Default.ArrowBack, "Voltar", tint = MaterialTheme.colorScheme.onBackground)
                 }
                 
                 Text(
                     text = "Selecione uma Conta",
                     style = MaterialTheme.typography.headlineSmall,
-                    color = TextWhite,
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontWeight = FontWeight.Bold
                 )
                 
@@ -245,19 +236,19 @@ fun AccountSelectionScreen(
                         Icon(
                             Icons.Default.AccountCircle,
                             contentDescription = null,
-                            tint = TextGray,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(64.dp)
                         )
                         Text(
                             "Nenhuma conta salva",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextWhite,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             "Faça login em uma transportadora para salvar seu acesso",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -432,13 +423,13 @@ fun TransportadoraCard(
                             Text(
                                 baseName,
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextWhite,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 "${accounts.size} conta(s)",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -446,14 +437,17 @@ fun TransportadoraCard(
                     Icon(
                         if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (expanded) "Recolher" else "Expandir",
-                        tint = TextGray
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             
             // Lista de contas (expansível)
             if (expanded) {
-                Divider(color = TextGray.copy(alpha = 0.2f), modifier = Modifier.padding(horizontal = 16.dp))
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
                 
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -489,7 +483,7 @@ fun AccountRowCard(
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = DarkSurfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -519,7 +513,7 @@ fun AccountRowCard(
                 Column {
                     Text(
                         account.userName,
-                        color = TextWhite,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -550,7 +544,7 @@ fun AccountRowCard(
                         }
                         Text(
                             "• $lastAccess",
-                            color = TextGray,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 10.sp
                         )

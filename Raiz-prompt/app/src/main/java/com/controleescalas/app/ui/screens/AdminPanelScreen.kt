@@ -31,7 +31,6 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import com.controleescalas.app.ui.viewmodels.AdminViewModel
 import com.controleescalas.app.data.models.AdminMotoristaCardData
-import com.controleescalas.app.data.repositories.SistemaRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,17 +62,17 @@ fun AdminPanelScreen(
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
     val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
+    var modoEscuro by remember { mutableStateOf(themeMode == "dark") }
+    LaunchedEffect(themeMode) { modoEscuro = themeMode == "dark" }
+    val coresInterruptor = SwitchDefaults.colors(
+            checkedThumbColor = Color.White,
+            checkedTrackColor = Color(0xFF3A3A3C),
+            uncheckedThumbColor = Color.White,
+            uncheckedTrackColor = Color(0xFFD1D1D6),
+            checkedBorderColor = Color.Transparent,
+            uncheckedBorderColor = Color.Transparent
+    )
     val scope = rememberCoroutineScope()
-    
-    val sistemaRepository = remember { SistemaRepository() }
-    var temaHabilitado by remember { mutableStateOf(isSuperAdmin) } // SuperAdmin sempre vê
-
-    LaunchedEffect(Unit) {
-        if (!isSuperAdmin) {
-            val config = sistemaRepository.getConfiguracao()
-            temaHabilitado = config.temaHabilitado
-        }
-    }
 
     // Estados para controlar os diálogos
     var showSobreApp by remember { mutableStateOf(false) }
@@ -104,9 +103,7 @@ fun AdminPanelScreen(
                 // Seção de Configurações Gerais
                 SectionHeader(title = "Geral")
                 
-                // Toggle de Tema
-                if (temaHabilitado) {
-                    GlassCard {
+                GlassCard {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -116,48 +113,42 @@ fun AdminPanelScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
-                                    if (themeMode == "dark") Icons.Default.DarkMode else Icons.Default.LightMode,
+                                    if (modoEscuro) Icons.Default.DarkMode else Icons.Default.LightMode,
                                     contentDescription = null,
-                                    tint = if (themeMode == "dark") NeonPurple else NeonOrange
+                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = if (themeMode == "dark") "Modo Escuro" else "Modo Claro",
+                                    text = if (modoEscuro) "Modo Escuro" else "Modo Claro",
                                     color = MaterialTheme.colorScheme.onSurface,
                                     style = MaterialTheme.typography.bodyLarge
                                 )
                             }
                             Switch(
-                                checked = themeMode == "dark",
-                                onCheckedChange = { isDark ->
+                                checked = modoEscuro,
+                                onCheckedChange = { ligado ->
+                                    modoEscuro = ligado
                                     scope.launch {
-                                        sessionManager.setThemeMode(if (isDark) "dark" else "light")
+                                        sessionManager.setThemeMode(if (ligado) "dark" else "light")
                                     }
                                 },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.Black,
-                                    checkedTrackColor = NeonGreen,
-                                    uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = TextGray
-                                )
+                                colors = coresInterruptor
                             )
                         }
                     }
-                }
 
                 // Botões de Configuração
+                val menuContentColor = MaterialTheme.colorScheme.onSurface
+                val menuBorder = BorderStroke(1.dp, TextGray.copy(alpha = 0.35f))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val isDarkMode = themeMode == "dark"
                     OutlinedButton(
                         onClick = onLocationConfigClick,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (isDarkMode) NeonBlue else NeonBlueContrast
-                        ),
-                        border = BorderStroke(1.dp, if (isDarkMode) NeonBlue.copy(alpha = 0.5f) else NeonBlueContrast.copy(alpha = 0.5f))
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                        border = menuBorder
                     ) {
                         Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -167,10 +158,8 @@ fun AdminPanelScreen(
                     OutlinedButton(
                         onClick = onQuinzenaClick,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (isDarkMode) NeonCyan else Color(0xFF00838F) // Cyan mais escuro
-                        ),
-                        border = BorderStroke(1.dp, if (isDarkMode) NeonCyan.copy(alpha = 0.5f) else Color(0xFF00838F).copy(alpha = 0.5f))
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                        border = menuBorder
                     ) {
                         Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -193,10 +182,8 @@ fun AdminPanelScreen(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (themeMode == "dark") NeonOrange else NeonOrangeContrast
-                    ),
-                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonOrange.copy(alpha = 0.5f) else NeonOrangeContrast.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                    border = menuBorder
                 ) {
                     Icon(Icons.Default.Inventory2, contentDescription = "Devolução", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -208,10 +195,8 @@ fun AdminPanelScreen(
                     OutlinedButton(
                         onClick = onPlanosClick,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (themeMode == "dark") NeonGreen else NeonGreenContrast
-                        ),
-                        border = BorderStroke(1.dp, if (themeMode == "dark") NeonGreen.copy(alpha = 0.5f) else NeonGreenContrast.copy(alpha = 0.5f))
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                        border = menuBorder
                     ) {
                         Icon(Icons.Default.Star, contentDescription = "Planos", modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -223,10 +208,8 @@ fun AdminPanelScreen(
                 OutlinedButton(
                     onClick = { showNotificationSettings = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (themeMode == "dark") NeonGreen else NeonGreenContrast
-                    ),
-                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonGreen.copy(alpha = 0.5f) else NeonGreenContrast.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                    border = menuBorder
                 ) {
                     Icon(Icons.Default.Notifications, contentDescription = "Notificações", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -241,10 +224,8 @@ fun AdminPanelScreen(
                 OutlinedButton(
                     onClick = onUserManagementClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (themeMode == "dark") NeonPurple else NeonPurpleContrast
-                    ),
-                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonPurple.copy(alpha = 0.5f) else NeonPurpleContrast.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                    border = menuBorder
                 ) {
                     Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -256,10 +237,8 @@ fun AdminPanelScreen(
                     OutlinedButton(
                         onClick = onBaseApprovalClick,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (themeMode == "dark") NeonOrange else NeonOrangeContrast
-                        ),
-                        border = BorderStroke(1.dp, if (themeMode == "dark") NeonOrange.copy(alpha = 0.5f) else NeonOrangeContrast.copy(alpha = 0.5f))
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                        border = menuBorder
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -275,10 +254,8 @@ fun AdminPanelScreen(
                 OutlinedButton(
                     onClick = { showSobreApp = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (themeMode == "dark") NeonBlue else NeonBlueContrast
-                    ),
-                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonBlue.copy(alpha = 0.5f) else NeonBlueContrast.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                    border = menuBorder
                 ) {
                     Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -288,10 +265,8 @@ fun AdminPanelScreen(
                 OutlinedButton(
                     onClick = { showAjuda = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (themeMode == "dark") NeonPurple else NeonPurpleContrast
-                    ),
-                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonPurple.copy(alpha = 0.5f) else NeonPurpleContrast.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                    border = menuBorder
                 ) {
                     Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -301,10 +276,8 @@ fun AdminPanelScreen(
                 OutlinedButton(
                     onClick = { showTermos = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (themeMode == "dark") NeonOrange else NeonOrangeContrast
-                    ),
-                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonOrange.copy(alpha = 0.5f) else NeonOrangeContrast.copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                    border = menuBorder
                 ) {
                     Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -314,10 +287,8 @@ fun AdminPanelScreen(
                 OutlinedButton(
                     onClick = onFeedbackClick,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = if (themeMode == "dark") NeonCyan else Color(0xFF00838F)
-                    ),
-                    border = BorderStroke(1.dp, if (themeMode == "dark") NeonCyan.copy(alpha = 0.5f) else Color(0xFF00838F).copy(alpha = 0.5f))
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
+                    border = menuBorder
                 ) {
                     Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))

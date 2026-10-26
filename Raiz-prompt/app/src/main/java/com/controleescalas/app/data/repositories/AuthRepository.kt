@@ -4,6 +4,9 @@ import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.LoginResult
 import com.controleescalas.app.data.models.Motorista
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 
@@ -207,32 +210,33 @@ class AuthRepository {
             }
             
             println("✅ AuthRepository: Base $baseId está ativa, login permitido")
-            
-            // 5. Gravar authUid no documento para o backend identificar papel (login anônimo usa UID ≠ ID do doc)
-            try {
-                val authUid = auth.currentUser?.uid
+
+            val motoristaId = userDoc.id.trim()
+            val authUid = auth.currentUser?.uid
+            val documento = userDoc.reference
+            CoroutineScope(Dispatchers.IO).launch {
                 if (!authUid.isNullOrBlank()) {
-                    userDoc.reference.update(mapOf("authUid" to authUid)).await()
-                    println("📱 authUid gravado no documento para backend")
+                    try {
+                        documento.update(mapOf("authUid" to authUid)).await()
+                        println("📱 authUid gravado no documento para backend")
+                    } catch (e: Exception) {
+                        println("⚠️ Erro ao gravar authUid (não crítico): ${e.message}")
+                    }
                 }
-            } catch (e: Exception) {
-                println("⚠️ Erro ao gravar authUid (não crítico): ${e.message}")
+                try {
+                    val notificationService = com.controleescalas.app.data.NotificationService(
+                        com.controleescalas.app.MainApp.instance.applicationContext
+                    )
+                    notificationService.saveFcmTokenToFirestore(motoristaId, baseId)
+                    notificationService.subscribeToBaseTopic(baseId)
+                    println("📱 FCM token e tópicos configurados")
+                } catch (e: Exception) {
+                    println("⚠️ Erro ao salvar FCM token (não crítico): ${e.message}")
+                }
             }
-            // 6. Salvar FCM token no Firestore (em background, sem bloquear login)
-            try {
-                val notificationService = com.controleescalas.app.data.NotificationService(
-                    com.controleescalas.app.MainApp.instance.applicationContext
-                )
-                // Executar em background sem bloquear o login
-                notificationService.saveFcmTokenToFirestore(userDoc.id, baseId)
-                notificationService.subscribeToBaseTopic(baseId)
-                println("📱 FCM token e tópicos configurados")
-            } catch (e: Exception) {
-                println("⚠️ Erro ao salvar FCM token (não crítico): ${e.message}")
-            }
-            
+
             val loginResult = LoginResult.Success(
-                motoristaId = userDoc.id.trim(),
+                motoristaId = motoristaId,
                 baseId = baseId,
                 baseName = baseName,
                 papel = motorista.papel,

@@ -410,11 +410,11 @@ fun SuperAdminAppScaffold(
                             }
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = NeonGreen,
-                            selectedTextColor = NeonGreen,
-                            unselectedIconColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
-                            unselectedTextColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
-                            indicatorColor = NeonGreen.copy(alpha = 0.15f)
+                            selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            indicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                         )
                     )
                 }

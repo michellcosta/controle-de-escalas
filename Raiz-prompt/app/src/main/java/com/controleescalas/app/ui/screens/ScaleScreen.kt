@@ -132,8 +132,8 @@ fun ScaleScreen(
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedTurno == "AM") NeonGreen else DarkSurface,
-                            contentColor = if (selectedTurno == "AM") Color.Black else TextGray
+                            containerColor = if (selectedTurno == "AM") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (selectedTurno == "AM") MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -149,8 +149,8 @@ fun ScaleScreen(
                         },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedTurno == "PM") NeonBlue else DarkSurface,
-                            contentColor = if (selectedTurno == "PM") Color.Black else TextGray
+                            containerColor = if (selectedTurno == "PM") MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (selectedTurno == "PM") MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {

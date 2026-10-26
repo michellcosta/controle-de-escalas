@@ -5,23 +5,26 @@ import androidx.compose.ui.graphics.Color
 // Cores Neon (Destaques)
 val NeonGreen = Color(0xFF10B981) // Verde mais suave e profissional
 val NeonGreenDark = Color(0xFF059669)
-val NeonBlue = Color(0xFF00F3FF)
-val NeonPurple = Color(0xFFBC13FE)
-val NeonPink = Color(0xFFFF00FF)
-val NeonOrange = Color(0xFFFF8C00)
-val NeonCyan = Color(0xFF00E5FF)
+val NeonBlue = Color(0xFF3B82F6)
+val NeonPurple = Color(0xFF7C3AED)
+val NeonPink = Color(0xFFDB2777)
+val NeonOrange = Color(0xFFF59E0B)
+val NeonCyan = Color(0xFF0891B2)
+val StatusIndigo = Color(0xFF6366F1)
+val StatusAmber = Color(0xFFF59E0B)
+val StatusMuted = Color(0xFF6B7280)
 
 // Gradientes para cards especiais
 val GradientGreenStart = Color(0xFF10B981)
 val GradientGreenEnd = Color(0xFF059669)
 val GradientBlueStart = Color(0xFF3B82F6)
 val GradientBlueEnd = Color(0xFF1E40AF)
-val GradientPurpleStart = Color(0xFFBC13FE)
-val GradientPurpleEnd = Color(0xFF7C3AED)
-val GradientOrangeStart = Color(0xFFFF8C00)
-val GradientOrangeEnd = Color(0xFFFF6B00)
-val GradientCyanStart = Color(0xFF00E5FF)
-val GradientCyanEnd = Color(0xFF00BCD4)
+val GradientPurpleStart = Color(0xFF7C3AED)
+val GradientPurpleEnd = Color(0xFF5B21B6)
+val GradientOrangeStart = Color(0xFFF59E0B)
+val GradientOrangeEnd = Color(0xFFD97706)
+val GradientCyanStart = Color(0xFF0891B2)
+val GradientCyanEnd = Color(0xFF0E7490)
 
 // Cores de Borda
 val CardBorder = Color(0xFF2A2A2A)
@@ -35,9 +38,9 @@ val Surface3 = Color(0xFF2A2A2A)
 val Surface4 = Color(0xFF363636)
 
 // Cores de Fundo (Light Mode) - Ajustadas para serem mais suaves e menos cansativas
-val LightBackground = Color(0xFFE9ECEF) // Cinza azulado mais profundo (era 0xFFF1F3F5)
-val LightSurface = Color(0xFFF1F3F5)    // Surface um pouco mais clara que o fundo (era 0xFFF8F9FA)
-val LightSurfaceVariant = Color(0xFFDEE2E6) // Variante mais escura para contraste (era 0xFFE9ECEF)
+val LightBackground = Color(0xFFF2F2F7)
+val LightSurface = Color(0xFFFFFFFF)
+val LightSurfaceVariant = Color(0xFFE5E5EA)
 
 // Cores Glass (Efeito Vidro)
 val GlassBlack = Color(0x80000000)
@@ -68,3 +71,16 @@ val StatusInfo = Color(0xFF3B82F6)    // Azul para informações neutras
 val TrendUp = Color(0xFF10B981)
 val TrendDown = Color(0xFFEF4444)
 val TrendNeutral = Color(0xFFA0A0A0)
+
+fun statusColor(estado: String?): Color {
+    return when (estado?.trim()?.uppercase()) {
+        "A_CAMINHO", "A CAMINHO", "AGUARDANDO" -> NeonBlue
+        "IR_ESTACIONAMENTO" -> StatusIndigo
+        "CHEGUEI" -> NeonGreen
+        "ESTACIONAMENTO" -> NeonPurple
+        "CARREGANDO" -> StatusAmber
+        "CONCLUIDO" -> StatusMuted
+        "PROXIMO" -> StatusAmber
+        else -> TextGray
+    }
+}

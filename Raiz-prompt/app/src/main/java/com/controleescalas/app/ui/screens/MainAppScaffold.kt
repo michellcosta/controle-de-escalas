@@ -308,7 +308,7 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
                     )
                     
                     val animatedColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else TextGray,
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                         label = "color"
                     )
 
@@ -325,7 +325,7 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
                             .padding(horizontal = 2.dp)
                             .clip(CircleShape)
                             .background(
-                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) 
+                                color = if (isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                                         else Color.Transparent
                             )
                             .clickable {
@@ -419,11 +419,11 @@ fun BottomNavigationBar(navController: NavHostController) {
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = MaterialTheme.colorScheme.primary,
-                    unselectedIconColor = TextGray,
-                    unselectedTextColor = TextGray
+                    selectedIconColor = MaterialTheme.colorScheme.onSurface,
+                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                    indicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             )
         }

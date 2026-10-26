@@ -116,8 +116,9 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 // ✅ Verificar se motorista está escalado antes de iniciar serviços
                 if (escala == null) {
                     println("ℹ️ DriverViewModel: Motorista não está escalado, não iniciando serviços de localização")
-                    // Garantir que serviços estão parados (mantém config listener ativo)
+                    // Garantir que serviços e geofences estão parados (mantém config listener ativo)
                     geofencingService.stopLocationUpdates()
+                    geofencingService.removeAllGeofences()
                     stopStatusMonitoringService()
                     _isLoading.value = false
                     return@launch
@@ -185,7 +186,7 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 startStatusMonitoringService(motoristaId, baseId)
                 
                 // Iniciar WorkManager para verificação periódica APENAS se estiver escalado e não estiver CONCLUIDO
-                startStatusCheckWork(motoristaId, baseId, it.estado)
+                startStatusCheckWork(motoristaId, baseId, it.estado, checagemImediata = true)
                 // Config listener já iniciado no início de loadDriverData
             } ?: run {
                 println("⚠️ DriverViewModel: Status não encontrado, não foi possível iniciar monitoramento")
@@ -453,8 +454,9 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                     // Limpar status para mostrar "não escalado"
                     _statusInfo.value = null
                     
-                    // Parar monitoramento de localização
+                    // Parar monitoramento de localização e remover geofences
                     geofencingService.stopLocationUpdates()
+                    geofencingService.removeAllGeofences()
                     
                     // Parar listener de status para evitar que ele sobrescreva o status limpo
                     statusListener?.remove()
@@ -856,6 +858,17 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
     }
     
     /**
+     * Logout: encerra medição, geofences e a verificação periódica.
+     * Fechar a tela não chama isto; o serviço continua em segundo plano.
+     */
+    fun pararMonitoramentoAoSair() {
+        geofencingService.stopLocationUpdates()
+        geofencingService.removeAllGeofences()
+        stopStatusMonitoringService()
+        stopStatusCheckWork()
+    }
+
+    /**
      * Parar serviço de monitoramento de status
      */
     private fun stopStatusMonitoringService() {
@@ -875,47 +888,34 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
      * Iniciar WorkManager para verificação periódica de status
      * Funciona mesmo quando o app está completamente fechado
      */
-    private fun startStatusCheckWork(motoristaId: String, baseId: String, lastStatus: String?) {
+    private fun startStatusCheckWork(
+        motoristaId: String,
+        baseId: String,
+        lastStatus: String?,
+        checagemImediata: Boolean = false
+    ) {
         try {
-            println("🔍 DriverViewModel.startStatusCheckWork: Iniciando - MotoristaId=$motoristaId, BaseId=$baseId, Último Status=$lastStatus")
+            println("🔍 DriverViewModel.startStatusCheckWork: Iniciando - MotoristaId=$motoristaId, BaseId=$baseId, Último Status=$lastStatus, imediata=$checagemImediata")
             android.util.Log.d("DriverViewModel", "🔍 Iniciando WorkManager - MotoristaId=$motoristaId, BaseId=$baseId")
             
-            // Criar constraints: precisa de internet conectada
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
-                .setRequiresBatteryNotLow(false) // Não precisa de bateria alta
+                .setRequiresBatteryNotLow(false)
                 .build()
             
-            // Criar input data
             val inputData = Data.Builder()
                 .putString(StatusCheckWorker.KEY_MOTORISTA_ID, motoristaId)
                 .putString(StatusCheckWorker.KEY_BASE_ID, baseId)
                 .putString(StatusCheckWorker.KEY_LAST_STATUS, lastStatus)
                 .build()
             
-            // Otimização: Ajustar intervalo do WorkManager baseado no status
-            // Status crítico (A_CAMINHO, IR_ESTACIONAMENTO): verificar a cada 2 minutos
-            // Status não crítico (CONCLUIDO, etc): verificar a cada 5 minutos para economizar bateria
-            val isCriticalStatus = lastStatus in listOf("A_CAMINHO", "IR_ESTACIONAMENTO", "CHEGUEI", "ESTACIONAMENTO", "CARREGANDO")
-            val workInterval = if (isCriticalStatus) {
-                2L // 2 minutos para status críticos
-            } else {
-                5L // 5 minutos para status não críticos (economiza bateria)
-            }
-            val flexInterval = if (isCriticalStatus) {
-                1L // 1 minuto de flex para status críticos
-            } else {
-                2L // 2 minutos de flex para status não críticos
-            }
+            val workInterval = 15L
+            val flexInterval = 5L
+            android.util.Log.d("DriverViewModel", "⚡ WorkManager configurado: intervalo=${workInterval}min (status: $lastStatus)")
             
-            android.util.Log.d("DriverViewModel", "⚡ WorkManager configurado: intervalo=${workInterval}min (status: $lastStatus, crítico: $isCriticalStatus)")
-            
-            // Criar PeriodicWorkRequest com intervalo adaptativo
-            // Nota: O Android pode atrasar até 15 minutos, mas com constraints de rede,
-            // geralmente executa em 1-3 minutos quando há internet
             val periodicWork = PeriodicWorkRequestBuilder<StatusCheckWorker>(
-                workInterval, TimeUnit.MINUTES, // Intervalo adaptativo
-                flexInterval, TimeUnit.MINUTES  // Flex interval adaptativo
+                workInterval, TimeUnit.MINUTES,
+                flexInterval, TimeUnit.MINUTES
             )
                 .setConstraints(constraints)
                 .setInputData(inputData)
@@ -927,30 +927,26 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 .addTag(WORK_NAME_STATUS_CHECK)
                 .build()
             
-            // Cancelar trabalho anterior se existir
             workManager.cancelUniqueWork(WORK_NAME_STATUS_CHECK)
+
+            if (checagemImediata) {
+                val immediateWork = OneTimeWorkRequestBuilder<StatusCheckWorker>()
+                    .setConstraints(constraints)
+                    .setInputData(inputData)
+                    .addTag("${WORK_NAME_STATUS_CHECK}_immediate")
+                    .build()
+                workManager.enqueue(immediateWork)
+                android.util.Log.d("DriverViewModel", "✅ OneTimeWorkRequest imediato enfileirado para verificação de localização")
+            }
             
-            // Criar um OneTimeWorkRequest imediato para verificar localização quando motorista é adicionado
-            // Isso garante que se o motorista já está dentro do raio, o status será atualizado imediatamente
-            val immediateWork = OneTimeWorkRequestBuilder<StatusCheckWorker>()
-                .setConstraints(constraints)
-                .setInputData(inputData)
-                .addTag("${WORK_NAME_STATUS_CHECK}_immediate")
-                .build()
-            
-            // Enfileirar trabalho imediato primeiro
-            workManager.enqueue(immediateWork)
-            android.util.Log.d("DriverViewModel", "✅ OneTimeWorkRequest imediato enfileirado para verificação de localização")
-            
-            // Enfileirar trabalho periódico
             workManager.enqueueUniquePeriodicWork(
                 WORK_NAME_STATUS_CHECK,
-                ExistingPeriodicWorkPolicy.UPDATE, // UPDATE preserva o período e não cancela se estiver rodando
+                ExistingPeriodicWorkPolicy.UPDATE,
                 periodicWork
             )
             
             println("✅ DriverViewModel: WorkManager iniciado com sucesso")
-            android.util.Log.d("DriverViewModel", "✅ WorkManager iniciado - verificação imediata + periódica a cada ${workInterval} minutos (status: $lastStatus)")
+            android.util.Log.d("DriverViewModel", "✅ WorkManager iniciado - periódica a cada ${workInterval} minutos (imediata: $checagemImediata, status: $lastStatus)")
         } catch (e: Exception) {
             println("❌ DriverViewModel: Erro ao iniciar WorkManager: ${e.message}")
             android.util.Log.e("DriverViewModel", "❌ Erro ao iniciar WorkManager: ${e.message}", e)
@@ -993,8 +989,7 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
     
     override fun onCleared() {
         super.onCleared()
-        stopStatusMonitoringService()
-        stopStatusCheckWork()
+        geofencingService.stopLocationUpdates()
         stopConfigListener()
         motoristaNomeListener?.remove()
         motoristaNomeListener = null
@@ -1017,8 +1012,14 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
             onUpdate = { config ->
                 android.util.Log.d("DriverViewModel", "📥 Config recebida via listener - baseId=$baseId, galpao.lat=${config?.galpao?.lat}, galpao.lng=${config?.galpao?.lng}, galpao.raio=${config?.galpao?.raio}m")
                 if (config != null && config.galpao.lat != 0.0 && config.galpao.lng != 0.0) {
+                    // Regra: só aplicar geofences se motorista escalado e com status válido (não CONCLUIDO)
+                    if (_escalaInfo.value == null || _statusInfo.value == null || _statusInfo.value?.estado == "CONCLUIDO") {
+                        android.util.Log.d("DriverViewModel", "⚠️ Motorista não escalado, sem status ou CONCLUIDO - removendo geofences, não aplicando")
+                        geofencingService.removeAllGeofences()
+                        return@observeConfiguracaoBase
+                    }
                     android.util.Log.d("DriverViewModel", "🔄 Config do galpão atualizada - raio: ${config.galpao.raio}m, aplicando geofences...")
-                    val status = _statusInfo.value?.estado ?: currentStatus
+                    val status = _statusInfo.value!!.estado
                     geofencingService.setMotoristaInfo(motoristaId, baseId, status)
                     geofencingService.createGalpaoGeofence(
                         config.galpao.lat,

@@ -32,6 +32,7 @@ class StatusCheckWorker(
         const val KEY_MOTORISTA_ID = "motorista_id"
         const val KEY_BASE_ID = "base_id"
         const val KEY_LAST_STATUS = "last_status"
+        private const val IDADE_MAXIMA_LOCALIZACAO_MS = 60_000L
     }
     
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -128,6 +129,10 @@ class StatusCheckWorker(
      * Verificar localização atual e atualizar status se motorista estiver dentro do raio do galpão
      */
     private suspend fun checkLocationAndUpdateStatus(motoristaId: String, baseId: String, currentStatus: String) {
+        if (currentStatus.isBlank()) {
+            Log.d(TAG, "Status nulo, sem gravar chegada")
+            return
+        }
         try {
             // Verificar permissões
             if (ActivityCompat.checkSelfPermission(
@@ -152,15 +157,19 @@ class StatusCheckWorker(
                 return
             }
             
-            // Obter localização atual (lastLocation primeiro, getCurrentLocation como fallback)
+            // Posição com mais de 60s é de antes da entrada no raio; pede uma nova.
             val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(applicationContext)
-            var location = fusedLocationClient.lastLocation.await()
-            if (location == null) {
-                Log.d(TAG, "ℹ️ lastLocation null, tentando getCurrentLocation...")
+            val ultima = fusedLocationClient.lastLocation.await()
+            val agora = System.currentTimeMillis()
+            val location = if (ultima != null && agora - ultima.time <= IDADE_MAXIMA_LOCALIZACAO_MS) {
+                ultima
+            } else {
+                Log.d(TAG, "ℹ️ Posição ausente ou antiga, pedindo localização atual...")
                 try {
-                    location = fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
+                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null).await()
                 } catch (e: Exception) {
                     Log.w(TAG, "⚠️ getCurrentLocation falhou: ${e.message}")
+                    null
                 }
             }
             if (location == null) {
@@ -221,8 +230,8 @@ class StatusCheckWorker(
                 val dentroDoEstacionamento = distanciaEstacionamento <= raioEstacionamento
                 Log.d(TAG, "📍 Verificação de localização - Estacionamento: distância=${distanciaEstacionamento.toInt()}m, raio=${raioEstacionamento.toInt()}m, dentro=${dentroDoEstacionamento}")
                 
-                // Se está dentro do raio do estacionamento e status é IR_ESTACIONAMENTO ou A_CAMINHO, atualizar para ESTACIONAMENTO
-                if (dentroDoEstacionamento && (currentStatus == "IR_ESTACIONAMENTO" || currentStatus == "A_CAMINHO")) {
+                // ESTACIONAMENTO só quando o admin mandou ir para o estacionamento.
+                if (dentroDoEstacionamento && currentStatus == "IR_ESTACIONAMENTO") {
                     Log.d(TAG, "✅ Motorista está dentro do raio do estacionamento (${distanciaEstacionamento.toInt()}m), atualizando status para ESTACIONAMENTO")
                     val success = motoristaRepository.updateStatusMotorista(
                         motoristaId = motoristaId,

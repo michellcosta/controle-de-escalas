@@ -187,7 +187,10 @@ fun DriverAppScaffold(
                     onSobreAppClick = { showSobreApp = true },
                     onAjudaClick = { showAjuda = true },
                     onTermosClick = { showTermos = true },
-                    onLogout = onLogout
+                    onLogout = {
+                        viewModel.pararMonitoramentoAoSair()
+                        onLogout()
+                    }
                 )
                 
                 // Diálogos
@@ -367,7 +370,7 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
                     )
                     
                     val animatedColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else TextGray,
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                         label = "color"
                     )
 
@@ -384,7 +387,7 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
                             .padding(horizontal = 2.dp)
                             .clip(CircleShape)
                             .background(
-                                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) 
+                                color = if (isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                                         else Color.Transparent
                             )
                             .clickable {
@@ -523,8 +526,14 @@ fun DriverAvailabilityScreen(
     val minhaDisponibilidade by viewModel.minhaDisponibilidade.collectAsState()
     
     LaunchedEffect(baseId, motoristaId) {
-        viewModel.carregarDisponibilidade(baseId)
         viewModel.carregarMinhaDisponibilidade(baseId, motoristaId)
+        viewModel.observarDisponibilidade(baseId, motoristaId = motoristaId)
+    }
+
+    DisposableEffect(baseId, motoristaId) {
+        onDispose {
+            viewModel.pararObservacaoDisponibilidade()
+        }
     }
     
     Box(
