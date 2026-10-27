@@ -241,49 +241,31 @@ class SessionManager(private val context: Context) {
     /**
      * Validar se uma sessão ainda é válida
      * (verifica se os dados ainda existem no Firebase)
+     *
+     * Importante: erro de LEITURA (rede fora, cota do Firestore estourada) NÃO invalida a
+     * sessão — nesse caso retornamos true para o usuário entrar normalmente com os dados
+     * possivelmente defasados, em vez de ser deslogado. A sessão só é considerada inválida
+     * quando o Firestore responde de verdade que a base não existe mais ou está desaprovada.
      */
     suspend fun validateSession(session: SavedSession): Boolean {
         return try {
             println("🔍 SessionManager: Validando sessão - baseId: ${session.baseId}, userId: ${session.userId}, baseName: ${session.baseName}")
-            
-            // Tentar até 3 vezes com delay entre tentativas
-            var base: Base? = null
-            var attempts = 0
-            val maxAttempts = 3
-            
-            while (base == null && attempts < maxAttempts) {
-                attempts++
-                try {
-                    val baseRepository = BaseRepository()
-                    base = baseRepository.getBase(session.baseId)
-                    
-                    if (base == null && attempts < maxAttempts) {
-                        println("⚠️ SessionManager: Tentativa $attempts/$maxAttempts - Base não encontrada, tentando novamente...")
-                        delay((500 * attempts).toLong()) // Delay crescente
-                    }
-                } catch (e: Exception) {
-                    if (attempts < maxAttempts) {
-                        println("⚠️ SessionManager: Tentativa $attempts/$maxAttempts - Erro: ${e.message}, tentando novamente...")
-                        delay((500 * attempts).toLong())
-                    } else {
-                        throw e
-                    }
-                }
-            }
-            
+
+            val baseRepository = BaseRepository()
+            val base = baseRepository.getBaseOuErro(session.baseId)
+
             if (base == null) {
-                println("⚠️ SessionManager: Base ${session.baseId} não encontrada após $maxAttempts tentativas")
+                println("⚠️ SessionManager: Base ${session.baseId} realmente não existe mais no Firestore")
                 return false
             }
-            
+
             val isValid = base.statusAprovacao == "ativa"
             println("${if (isValid) "✅" else "⚠️"} SessionManager: Base ${session.baseId} (${session.baseName}) - status: ${base.statusAprovacao}, válida: $isValid")
-            
+
             isValid
         } catch (e: Exception) {
-            println("❌ SessionManager: Erro ao validar sessão ${session.baseId} após múltiplas tentativas: ${e.message}")
-            e.printStackTrace()
-            // Em caso de erro após todas as tentativas, retornar true para não remover sessões válidas
+            println("⚠️ SessionManager: Falha ao ler base ${session.baseId} (${e.message}) - mantendo sessão (erro de leitura não desloga)")
+            // Erro de leitura (rede/cota): manter a sessão para não deslogar o usuário
             true
         }
     }

@@ -67,6 +67,18 @@ class BaseRepository {
             null
         }
     }
+
+    /**
+     * Buscar base por ID lançando erro de leitura.
+     * Retorna null APENAS se o documento realmente não existe.
+     * Diferente do getBase(), que engole falhas de rede/cota e também retorna null —
+     * essa ambiguidade fazia o SessionManager apagar sessões válidas quando o
+     * Firestore estava inacessível, deslogando o usuário sem motivo.
+     */
+    suspend fun getBaseOuErro(baseId: String): Base? {
+        val doc = firestore.collection("bases").document(baseId).get().await()
+        return if (doc.exists()) doc.toObject(Base::class.java)?.copy(id = doc.id) else null
+    }
     
     /**
      * Buscar todas as bases (para Super Admin) - com cache
