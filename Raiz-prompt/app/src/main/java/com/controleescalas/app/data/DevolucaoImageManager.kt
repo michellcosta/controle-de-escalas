@@ -170,6 +170,52 @@ class DevolucaoImageManager(private val context: Context) {
             null
         }
     }
+
+    // ========== MINIATURAS (exibição em listas) ==========
+    // Fotos são salvas em resolução cheia (até ~48 MB de RAM por bitmap decodificado);
+    // decodificar na thread principal ao rolar a lista causava travamento.
+    // As miniaturas usam inSampleSize para o tamanho de exibição e cache LRU no disco.
+
+    private val cacheMiniaturas = object : android.util.LruCache<String, Bitmap>(96) {
+        override fun sizeOf(key: String, value: Bitmap): Int = 1
+    }
+
+    /**
+     * Carrega miniaturas de todas as fotos de uma devolução para exibição em lista.
+     * Decodifica reduzido (inSampleSize) — usar em Dispatchers.IO.
+     * As fotos originais permanecem em alta qualidade para compartilhar.
+     */
+    fun getAllFotosMiniaturas(devolucaoId: String, alvoPx: Int = 320): List<Pair<Int, Bitmap>> {
+        return getAllFotoFiles(devolucaoId).mapNotNull { (index, file) ->
+            val chave = "${file.absolutePath}_${file.lastModified()}"
+            val emCache = cacheMiniaturas.get(chave)
+            val bitmap = emCache ?: loadMiniatura(file, alvoPx)?.also {
+                cacheMiniaturas.put(chave, it)
+            }
+            bitmap?.let { Pair(index, it) }
+        }
+    }
+
+    private fun loadMiniatura(file: File, alvoPx: Int): Bitmap? = try {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= alvoPx && bounds.outHeight / (sample * 2) >= alvoPx) {
+            sample *= 2
+        }
+        BitmapFactory.decodeFile(
+            file.absolutePath,
+            BitmapFactory.Options().apply { inSampleSize = sample }
+        )
+    } catch (e: Exception) {
+        println("❌ DevolucaoImageManager: Erro ao carregar miniatura de ${file.name}: ${e.message}")
+        null
+    }
+
+    /** Limpa o cache de miniaturas (chamar após remover foto para não exibir imagem apagada). */
+    fun limparCacheMiniaturas() {
+        cacheMiniaturas.evictAll()
+    }
     
     /**
      * Obtém URI de um arquivo usando FileProvider

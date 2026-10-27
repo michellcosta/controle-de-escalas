@@ -134,6 +134,7 @@ fun DriverDevolucaoHistoricoScreen(
                     coroutineScope.launch {
                         val index = imageManager.addFotoFromUri(devolucaoId, uri)
                         if (index != null) {
+                            imageManager.limparCacheMiniaturas()
                             refreshFotos++ // Forçar atualização
                             snackbarHostState.showSnackbar(
                                 message = "Foto adicionada com sucesso",
@@ -161,11 +162,12 @@ fun DriverDevolucaoHistoricoScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            devolucaoSelecionadaParaFoto?.let { devolucaoId ->
-                coroutineScope.launch {
-                    val index = imageManager.addFotoFromUri(devolucaoId, it)
-                    if (index != null) {
-                        refreshFotos++ // Forçar atualização
+                devolucaoSelecionadaParaFoto?.let { devolucaoId ->
+                    coroutineScope.launch {
+                        val index = imageManager.addFotoFromUri(devolucaoId, it)
+                        if (index != null) {
+                            imageManager.limparCacheMiniaturas()
+                            refreshFotos++ // Forçar atualização
                         snackbarHostState.showSnackbar(
                             message = "Foto adicionada com sucesso",
                             duration = SnackbarDuration.Short
@@ -806,9 +808,16 @@ fun DriverDevolucaoHistoricoScreen(
                                     }
                                 }
                                 
-                                items(devolucoes) { devolucao ->
-                                    val todasFotos = remember(devolucao.id, refreshFotos) { 
-                                        imageManager.getAllFotos(devolucao.id) 
+                                items(devolucoes, key = { it.id }) { devolucao ->
+                                    // Miniaturas carregadas FORA da composição (IO): decodificar
+                                    // foto em resolução cheia na thread principal travava o scroll.
+                                    var todasFotos by remember(devolucao.id, refreshFotos) {
+                                        mutableStateOf<List<Pair<Int, Bitmap>>>(emptyList())
+                                    }
+                                    LaunchedEffect(devolucao.id, refreshFotos) {
+                                        todasFotos = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                            imageManager.getAllFotosMiniaturas(devolucao.id)
+                                        }
                                     }
                                     
                                     GlassCard {
@@ -951,7 +960,7 @@ fun DriverDevolucaoHistoricoScreen(
                                                     modifier = Modifier.fillMaxWidth(),
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
-                                                    items(todasFotos.size) { index ->
+                                                    items(todasFotos.size, key = { i -> todasFotos[i].first }) { index ->
                                                         val (fotoIndex, bitmap) = todasFotos[index]
                                                         Box(
                                                             modifier = Modifier
@@ -973,6 +982,7 @@ fun DriverDevolucaoHistoricoScreen(
                                                                 onClick = {
                                                                     coroutineScope.launch {
                                                                         imageManager.removeFoto(devolucao.id, fotoIndex)
+                                                                        imageManager.limparCacheMiniaturas()
                                                                         refreshFotos++
                                                                         snackbarHostState.showSnackbar("Foto removida")
                                                                     }
