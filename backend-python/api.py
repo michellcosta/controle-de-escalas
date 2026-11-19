@@ -413,6 +413,46 @@ def _verify_firebase_token():
         return None, ({"error": "Token inválido ou expirado"}, 401)
 
 
+VERSAO_MINIMA_ESCRITA = 12  # precisa casar com 'podeEscrever()' no firestore.rules
+
+
+@app.route('/registrar_versao', methods=['POST'])
+def registrar_versao():
+    """
+    Registra a versão do app como custom claim do usuário autenticado.
+    O gate de versão nas security rules nega escrita de apps antigos:
+    request.auth.token.v precisa ser >= VERSAO_MINIMA_ESCRITA.
+    Body: { "versionCode": 12 }
+    Header: Authorization: Bearer <Firebase ID Token>
+    """
+    try:
+        initialize_services()
+        uid, err = _verify_firebase_token()
+        if err:
+            return jsonify(err[0]), err[1]
+        data = request.get_json() or {}
+        try:
+            version_code = int(data.get('versionCode') or 0)
+        except (TypeError, ValueError):
+            return jsonify({"error": "versionCode inválido"}), 400
+        if version_code <= 0:
+            return jsonify({"error": "versionCode é obrigatório"}), 400
+
+        auth.set_custom_user_claims(uid, {"v": version_code})
+        print(f"✅ Versão {version_code} registrada para uid {uid}")
+
+        return jsonify({
+            "ok": True,
+            "versaoRegistrada": version_code,
+            "atualizacaoObrigatoria": version_code < VERSAO_MINIMA_ESCRITA,
+        }), 200
+    except Exception as e:
+        print(f"❌ Erro registrar_versao: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/location/request', methods=['POST'])
 def location_request():
     """

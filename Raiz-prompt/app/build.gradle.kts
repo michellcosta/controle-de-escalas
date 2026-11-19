@@ -15,8 +15,8 @@ android {
         applicationId = "com.controleescalas.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.3.6-beta"
+        versionCode = 12
+        versionName = "1.3.7-beta"
 
         vectorDrawables {
             useSupportLibrary = true

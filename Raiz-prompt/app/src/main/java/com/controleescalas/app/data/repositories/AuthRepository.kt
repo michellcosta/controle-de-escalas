@@ -102,7 +102,11 @@ class AuthRepository {
                 println("👤 AuthRepository: Fazendo login anônimo inicial...")
                 auth.signInAnonymously().await()
             }
-            
+
+            // GATE DE VERSÃO: registra a claim "v" antes das escritas do login
+            // (as rules negam escrita para usuários sem versão registrada)
+            com.controleescalas.app.data.VersaoGate.registrar()
+
             println("👤 AuthRepository: Logado como ${auth.currentUser?.uid} (Anon: ${auth.currentUser?.isAnonymous})")
             
             // ✅ NOVO: Primeiro, verificar se é superadmin (prioridade)

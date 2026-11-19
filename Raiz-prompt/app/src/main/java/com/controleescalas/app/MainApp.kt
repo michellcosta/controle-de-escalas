@@ -37,12 +37,26 @@ class MainApp : Application() {
         
         // Agendar reset diário
         agendarResetDiario()
-        
+
         // Inicializar Super Admin único
         inicializarSuperAdmin()
-        
+
+        // GATE DE VERSÃO: registrar versionCode antes de qualquer escrita no Firestore
+        // (as rules negam escrita para apps sem a claim de versão)
+        registrarVersaoNoStartup()
+
         // ✅ NOVO: Garantir que FCM token seja salvo para sessões ativas
         inicializarFcmToken()
+    }
+
+    /**
+     * Gate de versão: registra o versionCode no backend e força refresh do token.
+     * Precisa acontecer antes das escritas do startup (ex.: token FCM).
+     */
+    private fun registrarVersaoNoStartup() {
+        CoroutineScope(Dispatchers.IO).launch {
+            com.controleescalas.app.data.VersaoGate.registrar()
+        }
     }
     
     /**

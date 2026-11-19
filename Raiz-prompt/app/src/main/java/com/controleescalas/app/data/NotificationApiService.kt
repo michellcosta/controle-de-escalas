@@ -462,6 +462,49 @@ class NotificationApiService {
         }
     }
     
+    /**
+     * Resultado do registro de versão (gate de versão).
+     */
+    data class RegistrarVersaoResult(
+        val ok: Boolean,
+        val atualizacaoObrigatoria: Boolean
+    )
+
+    /**
+     * Gate de versão: registra o versionCode do app como custom claim do usuário.
+     * As security rules negam escrita no Firestore para quem não tem claim >= 12,
+     * então é obrigatório registrar (e refrescar o token) antes de escrever.
+     */
+    suspend fun registrarVersao(idToken: String, versionCode: Int): RegistrarVersaoResult = withContext(Dispatchers.IO) {
+        try {
+            val url = "${NotificationApiConfig.BASE_URL}${NotificationApiConfig.Endpoints.REGISTRAR_VERSAO}"
+            val jsonBody = JSONObject().apply {
+                put("versionCode", versionCode)
+            }
+            val request = Request.Builder()
+                .url(url)
+                .post(jsonBody.toString().toRequestBody(jsonMediaType))
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Authorization", "Bearer $idToken")
+                .build()
+            val response = client.newCall(request).execute()
+            val body = response.body?.string()
+            if (response.isSuccessful) {
+                val json = body?.let { JSONObject(it) }
+                RegistrarVersaoResult(
+                    ok = json?.optBoolean("ok", false) ?: false,
+                    atualizacaoObrigatoria = json?.optBoolean("atualizacaoObrigatoria", false) ?: false
+                )
+            } else {
+                Log.e(TAG, "❌ registrarVersao: HTTP ${response.code}: ${body?.take(200)}")
+                RegistrarVersaoResult(ok = false, atualizacaoObrigatoria = false)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ registrarVersao erro: ${e.message}")
+            RegistrarVersaoResult(ok = false, atualizacaoObrigatoria = false)
+        }
+    }
+
     companion object {
         private const val TAG = "NotificationApiService"
     }
