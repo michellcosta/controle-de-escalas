@@ -92,6 +92,8 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     private var motoristasListener: ListenerRegistration? = null
     private var escalaListener: ListenerRegistration? = null
     private var currentBaseId: String = ""
+    // B7: data da escala em observação — changeTurno re-registra o listener com ela
+    private var escalaDataHoje: String = ""
     
     // Mapa de motoristas em tempo real
     private val _motoristasMap = MutableStateFlow<Map<String, com.controleescalas.app.data.models.Motorista>>(emptyMap())
@@ -134,28 +136,29 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             _isLoading.value = true
             try {
                 val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                
+                escalaDataHoje = hoje
+
                 // Carregar ambas as escalas
                 val escalaAM = escalaRepository.getEscalaByDateAndTurno(baseId, hoje, "AM")
                     ?: Escala(baseId = baseId, data = hoje, turno = "AM", ondas = emptyList())
                 _escalaAM.value = escalaAM
-                
+
                 val escalaPM = escalaRepository.getEscalaByDateAndTurno(baseId, hoje, "PM")
                     ?: Escala(baseId = baseId, data = hoje, turno = "PM", ondas = emptyList())
                 _escalaPM.value = escalaPM
-                
+
                 // Mostrar ondas do turno atual
                 updateOndasForCurrentTurno()
-                
+
                 // Carregar motoristas disponíveis
                 val motoristas = motoristaRepository.getMotoristas(baseId)
                 _motoristasDisponiveis.value = motoristas
-                
+
                 // Iniciar listeners de tempo real
                 startStatusListener(baseId)
                 startMotoristasListener(baseId)
                 startEscalaListener(baseId, hoje)
-                
+
             } catch (e: Exception) {
                 _error.value = "Erro ao carregar dados: ${e.message}"
             } finally {
@@ -163,10 +166,16 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             }
         }
     }
-    
+
     fun changeTurno(novoTurno: String) {
         _turnoAtual.value = novoTurno
         updateOndasForCurrentTurno()
+        // B7 da auditoria: o listener de escala captura o turno no registro —
+        // sem re-registrar, a escala PM nunca recebia atualizações realtime
+        // (admin via dado congelado após trocar de aba).
+        if (currentBaseId.isNotBlank() && escalaDataHoje.isNotBlank()) {
+            startEscalaListener(currentBaseId, escalaDataHoje)
+        }
     }
     
     private fun updateOndasForCurrentTurno() {
@@ -1523,10 +1532,19 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             onError = { error: Exception ->
                 _error.value = "Erro ao monitorar status: ${error.message}"
                 Log.e("OperationalViewModel", "❌ Erro no listener de status: ${error.message}")
-                // Tentar reconectar após delay
-                viewModelScope.launch {
-                    kotlinx.coroutines.delay(5000)
-                    if (statusListener == null) {
+                // B11 da auditoria: o retry só disparava se statusListener == null,
+                // mas o campo guarda a registration falha e nunca era anulado —
+                // a reconexão NUNCA ocorria e o painel ficava sem realtime após
+                // uma falha de rede. Anula antes do retry.
+                statusListener?.remove()
+                statusListener = null
+                if (com.controleescalas.app.data.ErroFirestore.cotaOuPermissaoNegada(error)) {
+                    // Negação permanente (gate/cota): retry martela ops negadas
+                    // que consomem cota — sem reconexão automática.
+                    Log.w("OperationalViewModel", "⛔ Listener de status negado (permissão/cota); sem reconexão automática")
+                } else {
+                    viewModelScope.launch {
+                        kotlinx.coroutines.delay(5000)
                         Log.d("OperationalViewModel", "🔄 Tentando reconectar listener de status...")
                         startStatusListener(baseId)
                     }

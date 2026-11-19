@@ -233,13 +233,12 @@ fun OperationalDashboardScreen(
     LaunchedEffect(Unit) {
         viewModel.loadData(baseId)
     }
-    
-    // Auto-save ao trocar de turno (sem mostrar mensagem)
-    LaunchedEffect(turnoAtual) {
-        if (turnoAtual.isNotEmpty()) {
-            viewModel.saveCurrentEscala(showMessage = false)
-        }
-    }
+
+    // B9 da auditoria: auto-save ao trocar de turno REMOVIDO. Todas as funções
+    // de edição já gravam no Firestore individualmente (updateDriverInOnda,
+    // addOnda, removeOnda, add/removeMotorista etc.), e este LaunchedEffect
+    // disparava também na primeira composição — set() do documento inteiro
+    // sem nenhuma alteração = escrita de cota de graça em cada troca de aba.
     
     Scaffold(
         containerColor = Color.Transparent,

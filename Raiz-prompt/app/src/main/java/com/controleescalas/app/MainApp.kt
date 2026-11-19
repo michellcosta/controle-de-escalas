@@ -9,6 +9,7 @@ import com.controleescalas.app.data.DailyResetWorker
 import com.controleescalas.app.data.repositories.SuperAdminRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
@@ -22,6 +23,13 @@ class MainApp : Application() {
     
     companion object {
         lateinit var instance: MainApp
+            private set
+
+        /**
+         * B12 da auditoria: registro de versão iniciado no onCreate. O FCM
+         * token aguarda este gate antes de gravar no Firestore.
+         */
+        lateinit var versaoRegistrada: kotlinx.coroutines.Deferred<Boolean>
             private set
     }
     
@@ -54,7 +62,10 @@ class MainApp : Application() {
      * Precisa acontecer antes das escritas do startup (ex.: token FCM).
      */
     private fun registrarVersaoNoStartup() {
-        CoroutineScope(Dispatchers.IO).launch {
+        // B12 da auditoria: o resultado vira um Deferred compartilhado — o FCM
+        // token AGUARDA este gate antes de escrever (escrita sem a claim "v"
+        // é negada pelas rules e o push ficava perdido para a sessão).
+        versaoRegistrada = CoroutineScope(Dispatchers.IO).async {
             com.controleescalas.app.data.VersaoGate.registrar()
         }
     }
@@ -151,9 +162,13 @@ class MainApp : Application() {
         // Executar em background para não bloquear o onCreate
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // Aguardar um pouco para garantir que Firebase esteja inicializado
-                kotlinx.coroutines.delay(1000)
-                
+                // B12: espera o registro de versão (claim "v") em vez de um
+                // chute de 1s — com o Render frio o registro demora muito mais,
+                // e a escrita do token era negada (push perdida para a sessão).
+                // Em falha do registro segue em frente (a escrita pode ser
+                // negada; a splash/login tentam registrar novamente).
+                runCatching { versaoRegistrada.await() }
+
                 val sessionManager = com.controleescalas.app.data.SessionManager(instance)
                 val sessions = sessionManager.getUserSessions()
                 
