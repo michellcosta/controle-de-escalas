@@ -121,7 +121,14 @@ class StatusCheckWorker(
             Log.e(TAG, "❌ Erro ao verificar status: ${e.message}", e)
             println("❌ StatusCheckWorker: Erro - ${e.message}")
             e.printStackTrace()
-            Result.retry() // Tentar novamente em caso de erro
+            // B3 da auditoria: retry incondicional sobre permissão/cota martela
+            // a leitura negada a cada backoff (consome cota) em todos os
+            // aparelhos monitorando. Negação é permanente → failure.
+            if (ErroFirestore.cotaOuPermissaoNegada(e) || runAttemptCount >= 3) {
+                Result.failure()
+            } else {
+                Result.retry() // erro transitório (rede): tenta de novo com backoff
+            }
         }
     }
     

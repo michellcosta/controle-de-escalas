@@ -96,7 +96,14 @@ class DailyResetWorker(
             Log.e(TAG, "❌ Erro ao executar reset diário: ${e.message}", e)
             println("❌ DailyResetWorker: Erro - ${e.message}")
             e.printStackTrace()
-            Result.retry() // Tentar novamente em caso de erro
+
+            // B2 da auditoria: retry incondicional sobre permissão/cota martela
+            // ops negadas (que consomem cota) em TODOS os aparelhos agendados.
+            if (ErroFirestore.cotaOuPermissaoNegada(e) || runAttemptCount >= 3) {
+                reagendarProximaMeiaNoite()
+                return@withContext Result.failure()
+            }
+            Result.retry()
         }
     }
 
@@ -110,7 +117,10 @@ class DailyResetWorker(
      * Tenta capturar o direito de executar o reset de hoje numa transaction no Firestore.
      * Retorna true se este aparelho ficou responsável pelo reset de hoje,
      * false se outro aparelho já executou (ou está executando) o reset do dia.
-     * Em caso de erro de rede/permissão, retorna true para manter o comportamento antigo.
+     * Em erro de rede transitório mantém o comportamento antigo (fail-open);
+     * em permissão/cota negada retorna FALSE (fail-safe): executar o reset
+     * negado e depois liberar o controle viraria tempestade de ops negadas
+     * (B2) — melhor pular o ciclo; outro aparelho faz quando se recuperar.
      */
     private suspend fun capturarResetDeHoje(): Boolean {
         val hoje = hojeString()
@@ -134,8 +144,14 @@ class DailyResetWorker(
                 }
             }.await()
         } catch (e: Exception) {
-            Log.w(TAG, "⚠️ Não foi possível verificar o controle de reset (${e.message}); executando reset")
-            true
+            if (ErroFirestore.cotaOuPermissaoNegada(e)) {
+                Log.w(TAG, "⛔ Controle de reset negado (permissão/cota); pulando reset neste aparelho: ${e.message}")
+                println("⛔ DailyResetWorker: acesso negado ao controle de reset, pulando ciclo")
+                false
+            } else {
+                Log.w(TAG, "⚠️ Não foi possível verificar o controle de reset (${e.message}); executando reset")
+                true
+            }
         }
     }
 
@@ -184,8 +200,14 @@ class DailyResetWorker(
                 .setInitialDelay(delayMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
                 .setConstraints(constraints)
                 .build()
-            
-            WorkManager.getInstance(applicationContext).enqueue(nextWork)
+
+            // Nome único + REPLACE: mantém UMA cadeia só (o enfileiramento anônimo
+            // anterior acumulava +1 worker órfão por dia em cada aparelho).
+            WorkManager.getInstance(applicationContext).enqueueUniqueWork(
+                WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                nextWork
+            )
             
             Log.d(TAG, "✅ Reset re-agendado com sucesso")
             println("✅ DailyResetWorker: Reset re-agendado com sucesso")

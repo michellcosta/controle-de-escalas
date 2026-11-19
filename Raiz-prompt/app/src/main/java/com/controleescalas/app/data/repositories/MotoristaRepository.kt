@@ -1,5 +1,6 @@
 package com.controleescalas.app.data.repositories
 
+import com.controleescalas.app.data.ErroFirestore
 import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.models.Motorista
 import com.controleescalas.app.data.models.StatusMotorista
@@ -34,21 +35,12 @@ class MotoristaRepository {
             gravacaoBloqueadaAte = prefs().getLong("gravacaoBloqueadaAte", 0L)
         }
 
-        private fun cotaEstourada(erro: Exception): Boolean {
-            val mensagem = erro.message.orEmpty()
-            // RESOURCE_EXHAUSTED: cota diária do plano gratuito acabou.
-            // PERMISSION_DENIED / UNAUTHENTICATED: negado pelas rules (gate de
-            // versão) ou token inválido. Medido em produção (19/11/2026): a
-            // operação negada CONTINUA consumindo cota — martelar em retry vira
-            // tempestade de ~5 ops/segundo que estoura o limite do projeto
-            // inteiro. Em ambos os casos a única atitude correta é PARAR e
-            // esperar o reset da cota.
-            return mensagem.contains("RESOURCE_EXHAUSTED", ignoreCase = true) ||
-                mensagem.contains("Quota exceeded", ignoreCase = true) ||
-                mensagem.contains("PERMISSION_DENIED", ignoreCase = true) ||
-                mensagem.contains("Missing or insufficient permissions", ignoreCase = true) ||
-                mensagem.contains("UNAUTHENTICATED", ignoreCase = true)
-        }
+        private fun cotaEstourada(erro: Exception): Boolean =
+            // Heurística centralizada em ErroFirestore (mesma usada pelos
+            // workers de background): RESOURCE_EXHAUSTED, PERMISSION_DENIED,
+            // UNAUTHENTICATED — operação negada consome cota, PARAR em vez de
+            // martelar em retry (incidente de 19/11/2026).
+            ErroFirestore.cotaOuPermissaoNegada(erro)
 
         private fun proximoResetCotaMillis(): Long {
             val fuso = java.util.TimeZone.getTimeZone("America/Sao_Paulo")
