@@ -1,10 +1,11 @@
 {
-  "versaoCodigo": 9,
-  "versaoNome": "1.3.4-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.3.4-beta/controle-de-escalas-1.3.4-beta.apk",
+  "versaoCodigo": 10,
+  "versaoNome": "1.3.5-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.3.5-beta/controle-de-escalas-1.3.5-beta.apk",
   "novidades": [
-    "Correção do deslogamento: rede fraca ou instabilidade no Firebase não deslogam mais o usuário ao abrir o app",
-    "A sessão só é encerrada quando a base realmente não existe mais ou foi desaprovada",
-    "Mantidas as correções de cota do Firestore das versões anteriores"
+    "Consumo do Firestore reduzido drasticamente (calendário, reset diário e verificações em segundo plano)",
+    "Histórico de avisos enviados volta a funcionar",
+    "Banco de dados reaberto",
+    "Mantidas as correções de cota e de deslogamento das versões anteriores"
   ]
 }
