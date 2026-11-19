@@ -1,11 +1,11 @@
 {
-  "versaoCodigo": 10,
-  "versaoNome": "1.3.5-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.3.5-beta/controle-de-escalas-1.3.5-beta.apk",
+  "versaoCodigo": 11,
+  "versaoNome": "1.3.6-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.3.6-beta/controle-de-escalas-1.3.6-beta.apk",
   "novidades": [
-    "Consumo do Firestore reduzido drasticamente (calendário, reset diário e verificações em segundo plano)",
-    "Histórico de avisos enviados volta a funcionar",
-    "Banco de dados reaberto",
-    "Mantidas as correções de cota e de deslogamento das versões anteriores"
+    "Assistente IA muito melhor: monta, altera e remove motoristas da escala por comando de voz ou texto",
+    "O assistente agora avisa a base inteira e conhece a escala de amanhã",
+    "Painel do motorista repaginado: botão WhatsApp e demais ações nunca mais são cortados",
+    "Consumo do Firestore ainda menor"
   ]
 }
