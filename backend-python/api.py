@@ -614,14 +614,18 @@ def location_receive():
             lat, lng = float(lat), float(lng)
         except (TypeError, ValueError):
             return jsonify({"error": "lat e lng devem ser números"}), 400
-        # Motorista envia sua própria localização; admin/superadmin pode enviar em nome do motorista (mesmo aparelho/teste)
-        if uid != motorista_id:
-            papel = reader.get_usuario_papel(base_id, uid) or reader.get_usuario_papel_in_any_base(uid)
-            if not papel and _uid_is_superadmin(uid):
-                papel = 'superadmin'
-            if not papel and uid in (reader.get_superadmin_uids_from_config() or []):
-                papel = 'superadmin'
-            if not papel or papel not in ('admin', 'superadmin', 'auxiliar', 'ajudante'):
+        # Motorista envia sua própria localização. motoristaId no payload é o ID
+        # do DOC no Firestore, e uid é o login anônimo do Firebase Auth —
+        # uid == motorista_id só ocorre em setup de teste. Em produção o app
+        # v12+ grava authUid no doc no login: aceita o dono pelo authUid, ou
+        # staff enviando em nome dele. (B13: a checagem antiga exigia
+        # uid == motorista_id e rejeitava TODOS os motoristas reais com 403)
+        motorista_doc = reader.db.collection('bases').document(base_id).collection('motoristas').document(motorista_id).get()
+        motorista_data = motorista_doc.to_dict() or {}
+        if not _uid_eh_o_motorista(base_id, motorista_id, uid, {'authUid': motorista_data.get('authUid')}):
+            papel = _get_papel(base_id, uid)
+            if not papel or papel not in PAPEIS_STAFF:
+                print(f"location/receive 403: uid_fim={uid[-6:]} papel={papel} motorista={motorista_id[-6:]}")
                 return jsonify({"error": "Apenas o motorista pode enviar sua localização"}), 403
         galpao = reader.get_galpao_coordenadas(base_id)
         if not galpao:
@@ -693,8 +697,8 @@ def location_receive():
 
         eta_min = max(1, round(duration_s / 60))
         distance_km = round((distance_m / 1000) * 10) / 10
-        motorista_doc = reader.db.collection('bases').document(base_id).collection('motoristas').document(motorista_id).get()
-        motorista_nome = (motorista_doc.to_dict() or {}).get('nome', 'Motorista')
+        # motorista_data já lido na checagem de autorização (sem leitura extra)
+        motorista_nome = motorista_data.get('nome', 'Motorista')
         reader.write_location_response(base_id, motorista_id, {
             "status": "ready", "motoristaNome": motorista_nome,
             "distanceKm": distance_km, "etaMinutes": eta_min,

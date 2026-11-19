@@ -399,7 +399,11 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
 
             val nome = extractMotoristaNameFromQuery(text)
             if (nome != null) {
-                val found = findMotoristaByName(baseId, nome)
+                // B1 da auditoria: findMotoristaByName exige a lista pré-buscada
+                // (preFetched ?: return null) — sem ela, TODA pergunta de
+                // localização caía em "Não encontrei motorista com esse nome".
+                val motoristas = motoristaRepo.getMotoristas(baseId)
+                val found = findMotoristaByName(baseId, nome, motoristas)
                 if (found != null) {
                     val (motoristaId, motoristaNome) = found
                     locationRepo.requestDriverLocation(baseId, motoristaId).fold(
