@@ -7,9 +7,21 @@ services:
     region: oregon
     rootDir: backend-python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -w 1 --timeout 120 -b 0.0.0.0:$PORT api:app
+    # Achado 9 da auditoria: 1 worker síncrono bloqueava TODAS as requisições
+    # durante chamadas externas longas (FCM em lote, OSRM). --threads 4 dá
+    # concorrência sem worker extra; healthCheckPath impede o Render de
+    # bater em "/" (404) e marcar deploy instável.
+    startCommand: gunicorn -w 1 --threads 4 --timeout 120 -b 0.0.0.0:$PORT api:app
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.0"
-      # FIREBASE_SERVICE_ACCOUNT_JSON deve ser configurado no dashboard do Render
-      # OPENAI_API_KEY, ORS_API_KEY, SUPERADMIN_UIDS conforme necessário
+      # Preencha no dashboard do Render (sync:false = não sobrescreve):
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ORS_API_KEY
+        sync: false
+      - key: SUPERADMIN_UIDS
+        sync: false

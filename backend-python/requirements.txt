@@ -10,17 +10,20 @@ google-auth-oauthlib>=1.1.0
 google-auth-httplib2>=0.1.1
 
 # Requests para chamadas HTTP
-requests>=2.31.0
+# >=2.32.4 corrige CVE-2024-35195 e CVE-2024-47081
+requests>=2.32.4
 
 # Opcional: para melhor formatação de saída
 colorama>=0.4.6
 
 # Flask para API REST (opcional - apenas se usar api.py)
 flask>=3.0.0
-flask-cors>=4.0.0
+# >=5.0.1 corrige CVE-2024-6839/6844 (bypass de CORS)
+flask-cors>=5.0.1
 
 # Gunicorn para produção (servidor WSGI)
-gunicorn>=21.2.0
+# >=22.0.0 corrige CVE-2024-1135 (request smuggling)
+gunicorn>=22.0.0
 
 # OpenAI SDK para o Assistente (GPT-4o-mini)
 openai>=1.30.0
