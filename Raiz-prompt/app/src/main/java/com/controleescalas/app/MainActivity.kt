@@ -170,11 +170,7 @@ class MainActivity : ComponentActivity() {
 
             val sessionManager = remember { SessionManager(this) }
             val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
-            val escopo = rememberCoroutineScope()
             var atualizacao by remember { mutableStateOf<AtualizacaoRemota?>(null) }
-            var baixandoAtualizacao by remember { mutableStateOf(false) }
-            var progressoAtualizacao by remember { mutableStateOf(0) }
-            var erroAtualizacao by remember { mutableStateOf<String?>(null) }
             val versaoInstaladaNome = remember { AppUpdateChecker.versaoNomeInstalada(this@MainActivity) }
 
             LaunchedEffect(Unit) {
@@ -263,147 +259,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 atualizacao?.let { nova ->
-                    AlertDialog(
-                        onDismissRequest = {
-                            if (!baixandoAtualizacao) atualizacao = null
-                        },
-                        containerColor = Color(0xFF1C1C1E),
-                        titleContentColor = Color.White,
-                        textContentColor = Color(0xFFB8B8B8),
-                        title = {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF3A3423)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text("⬇️", fontSize = 30.sp)
-                                }
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    "Nova Atualização Disponível",
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        },
-                        text = {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    "Versão ${nova.versaoNome} já está disponível (Atual: $versaoInstaladaNome)",
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textAlign = TextAlign.Center
-                                )
-
-                                if (nova.novidades.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.height(14.dp))
-                                    Text(
-                                        "O que há de novo:",
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color(0xFFF5C542)
-                                    )
-                                    nova.novidades.forEach { item ->
-                                        Text(
-                                            "• $item",
-                                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                }
-
-                                if (baixandoAtualizacao) {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text(
-                                        "Baixando... $progressoAtualizacao%",
-                                        color = Color(0xFFF5C542),
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        textAlign = TextAlign.Center
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    LinearProgressIndicator(
-                                        progress = { progressoAtualizacao / 100f },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp)),
-                                        color = Color(0xFFF5C542),
-                                        trackColor = Color(0xFF333333)
-                                    )
-                                    Spacer(modifier = Modifier.height(14.dp))
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(22.dp),
-                                            color = Color(0xFFF5C542),
-                                            strokeWidth = 2.dp
-                                        )
-                                    }
-                                }
-
-                                erroAtualizacao?.let { erro ->
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        erro,
-                                        color = Color(0xFFE57373),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            if (!baixandoAtualizacao) {
-                                Button(
-                                    onClick = {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                                            !packageManager.canRequestPackageInstalls()
-                                        ) {
-                                            startActivity(
-                                                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                                                    data = Uri.parse("package:$packageName")
-                                                }
-                                            )
-                                            return@Button
-                                        }
-                                        baixandoAtualizacao = true
-                                        progressoAtualizacao = 0
-                                        erroAtualizacao = null
-                                        escopo.launch {
-                                            val arquivo = AppUpdateChecker.baixar(
-                                                this@MainActivity,
-                                                nova.apkUrl
-                                            ) { pct -> progressoAtualizacao = pct }
-                                            baixandoAtualizacao = false
-                                            if (arquivo == null) {
-                                                erroAtualizacao = "Não foi possível baixar a atualização."
-                                            } else {
-                                                AppUpdateChecker.abrirInstalador(this@MainActivity, arquivo)
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    Text("Atualizar agora")
-                                }
-                            }
-                        },
-                        dismissButton = {
-                            if (!baixandoAtualizacao) {
-                                TextButton(onClick = { atualizacao = null }) {
-                                    Text("Agora não")
-                                }
-                            }
-                        }
+                    com.controleescalas.app.ui.components.DialogAtualizacao(
+                        nova = nova,
+                        versaoInstaladaNome = versaoInstaladaNome,
+                        onDismiss = { atualizacao = null }
                     )
                 }
             }
         }
     }
 }
-
-

@@ -350,6 +350,23 @@ fun SistemaConfigScreen(
                         }
                     }
 
+                    // Seção Sobre o app (versão + buscar atualização)
+                    SectionHeader(title = "Sobre o app")
+
+                    GlassCard {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                "Versão ${com.controleescalas.app.BuildConfig.VERSION_NAME}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            com.controleescalas.app.ui.components.BotaoBuscarAtualizacao()
+                        }
+                    }
+
                     HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
 
                     // Planos e Assinatura (exibir para clientes)

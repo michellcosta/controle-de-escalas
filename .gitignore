@@ -53,3 +53,6 @@ desktop.ini
 AAB/
 Key Store/
 PlayStore - Imagens/
+
+# APKs locais de verificação
+/app-release-*.apk

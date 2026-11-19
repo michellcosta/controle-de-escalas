@@ -1,10 +1,9 @@
 {
-  "versaoCodigo": 13,
-  "versaoNome": "1.3.8-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.3.8-beta/controle-de-escalas-1.3.8-beta.apk",
+  "versaoCodigo": 14,
+  "versaoNome": "1.3.9-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.3.9-beta/controle-de-escalas-1.3.9-beta.apk",
   "novidades": [
-    "ATUALIZAÇÃO OBRIGATÓRIA: apps antigos não leem nem escrevem no banco",
-    "Proteção contra o loop que estourava a cota do Firestore",
-    "Apps antigos também bloqueados na API do assistente e notificações"
+    "Buscar atualização manual em Configurações > Sobre o app",
+    "Apps antigos continuam bloqueados do banco (leitura e escrita)"
   ]
 }

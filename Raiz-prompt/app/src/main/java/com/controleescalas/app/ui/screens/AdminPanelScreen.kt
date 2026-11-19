@@ -411,6 +411,8 @@ fun AdminSobreAppDialog(onDismiss: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextGray
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                com.controleescalas.app.ui.components.BotaoBuscarAtualizacao()
             }
         },
         confirmButton = {
