@@ -58,6 +58,7 @@ import com.controleescalas.app.ui.viewmodels.OnAddToScaleAction
 import com.controleescalas.app.ui.viewmodels.OnUpdateInScaleAction
 import com.controleescalas.app.ui.viewmodels.OnBulkScaleActions
 import com.controleescalas.app.ui.viewmodels.OnSendNotification
+import com.controleescalas.app.ui.viewmodels.OnRemoveFromScaleAction
 import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import java.util.Locale
 import java.io.File
@@ -74,6 +75,7 @@ fun AssistenteScreen(
     onUpdateInScaleAction: OnUpdateInScaleAction? = null,
     onBulkActions: OnBulkScaleActions? = null,
     onSendNotification: OnSendNotification? = null,
+    onRemoveFromScaleAction: OnRemoveFromScaleAction? = null,
     onInputFocusChange: (Boolean) -> Unit = {},
     turno: String = "AM",
     viewModel: AssistenteViewModel = viewModel()
@@ -83,6 +85,7 @@ fun AssistenteScreen(
     LaunchedEffect(onUpdateInScaleAction) { viewModel.setOnUpdateInScaleAction(onUpdateInScaleAction) }
     LaunchedEffect(onBulkActions) { viewModel.setOnBulkActions(onBulkActions) }
     LaunchedEffect(onSendNotification) { viewModel.setOnSendNotification(onSendNotification) }
+    LaunchedEffect(onRemoveFromScaleAction) { viewModel.setOnRemoveFromScaleAction(onRemoveFromScaleAction) }
     LaunchedEffect(turno) { viewModel.setCurrentTurno(turno) }
     LaunchedEffect(userId, userRole) {
         viewModel.setUserIdentity(userId, userRole)

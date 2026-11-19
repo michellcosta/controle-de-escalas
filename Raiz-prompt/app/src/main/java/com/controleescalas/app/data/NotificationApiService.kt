@@ -218,6 +218,7 @@ class NotificationApiService {
         // Lista de ações (quando há múltiplos motoristas, ex.: foto de escala)
         val addToScaleActions: List<AddToScaleAction> = emptyList(),
         val updateInScaleActions: List<UpdateInScaleAction> = emptyList(),
+        val removeFromScaleActions: List<RemoveFromScaleAction> = emptyList(),
         val sendNotificationActions: List<SendNotificationAction> = emptyList()
     ) {
         /** Ação de adicionar (retrocompatibilidade). */
@@ -226,13 +227,15 @@ class NotificationApiService {
 
     /**
      * Ação retornada pelo assistente para adicionar motorista à escala.
+     * motoristaId vem preenchido quando o backend já resolveu o nome.
      */
     data class AddToScaleAction(
         val motoristaNome: String,
         val ondaIndex: Int,
         val vaga: String,
         val rota: String,
-        val sacas: Int?
+        val sacas: Int?,
+        val motoristaId: String? = null
     )
 
     /**
@@ -243,16 +246,29 @@ class NotificationApiService {
         val ondaIndex: Int,
         val vaga: String?,
         val rota: String?,
-        val sacas: Int?
+        val sacas: Int?,
+        val motoristaId: String? = null
+    )
+
+    /**
+     * Ação para remover um motorista da escala.
+     */
+    data class RemoveFromScaleAction(
+        val motoristaNome: String,
+        val ondaIndex: Int?,
+        val motoristaId: String? = null
     )
 
     /**
      * Ação retornada pelo assistente para enviar notificação push.
+     * baseInteira = avisar todos os motoristas da base.
      */
     data class SendNotificationAction(
         val motoristaNome: String?,
         val ondaIndex: Int?,
-        val body: String
+        val body: String,
+        val baseInteira: Boolean = false,
+        val motoristaId: String? = null
     )
 
     /**
@@ -307,11 +323,14 @@ class NotificationApiService {
                     // Parsear lista de ações (novo campo "actions": [...])
                     val addList = mutableListOf<AddToScaleAction>()
                     val updateList = mutableListOf<UpdateInScaleAction>()
+                    val removeList = mutableListOf<RemoveFromScaleAction>()
                     val notifyList = mutableListOf<SendNotificationAction>()
                     val actionsArray = json?.optJSONArray("actions")
                     if (actionsArray != null) {
                         for (i in 0 until actionsArray.length()) {
                             val a = actionsArray.optJSONObject(i) ?: continue
+                            // motoristaId presente = backend já resolveu o nome
+                            val motoristaId = a.optString("motoristaId").trim().takeIf { it.isNotBlank() }
                             when (a.optString("type")) {
                                 "add_to_scale" -> {
                                     val nome = a.optString("motoristaNome").trim(); if (nome.isBlank()) continue
@@ -320,7 +339,8 @@ class NotificationApiService {
                                         ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
                                         vaga = a.optString("vaga").trim().ifBlank { "01" }.let { v -> if (v.length == 1) "0$v" else v },
                                         rota = a.optString("rota").trim().uppercase(),
-                                        sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it > 0 } else null
+                                        sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it > 0 } else null,
+                                        motoristaId = motoristaId
                                     ))
                                 }
                                 "update_in_scale" -> {
@@ -330,15 +350,26 @@ class NotificationApiService {
                                         ondaIndex = a.optInt("ondaIndex", 0).coerceAtLeast(0),
                                         vaga = a.optString("vaga").trim().takeIf { it.isNotBlank() }?.let { v -> if (v.length == 1) "0$v" else v },
                                         rota = a.optString("rota").trim().uppercase().takeIf { it.isNotBlank() },
-                                        sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it >= 0 } else null
+                                        sacas = if (a.has("sacas") && !a.isNull("sacas")) a.optInt("sacas", 0).takeIf { it >= 0 } else null,
+                                        motoristaId = motoristaId
+                                    ))
+                                }
+                                "remove_from_scale" -> {
+                                    val nome = a.optString("motoristaNome").trim(); if (nome.isBlank()) continue
+                                    removeList.add(RemoveFromScaleAction(
+                                        motoristaNome = nome,
+                                        ondaIndex = if (a.has("ondaIndex") && !a.isNull("ondaIndex")) a.optInt("ondaIndex").coerceAtLeast(0) else null,
+                                        motoristaId = motoristaId
                                     ))
                                 }
                                 "send_notification" -> {
                                     val bodyText = a.optString("body").trim(); if (bodyText.isBlank()) continue
                                     notifyList.add(SendNotificationAction(
                                         motoristaNome = a.optString("motoristaNome").trim().takeIf { it.isNotBlank() },
-                                        ondaIndex = if (a.has("ondaIndex")) a.optInt("ondaIndex").coerceAtLeast(0) else null,
-                                        body = bodyText
+                                        ondaIndex = if (a.has("ondaIndex") && !a.isNull("ondaIndex")) a.optInt("ondaIndex").coerceAtLeast(0) else null,
+                                        body = bodyText,
+                                        baseInteira = a.optBoolean("baseInteira", false),
+                                        motoristaId = motoristaId
                                     ))
                                 }
                             }
@@ -375,6 +406,7 @@ class NotificationApiService {
                         success = true, text = textRes, error = null,
                         addToScaleAction = addAction, updateInScaleAction = updateAction,
                         addToScaleActions = addList, updateInScaleActions = updateList,
+                        removeFromScaleActions = removeList,
                         sendNotificationActions = notifyList
                     )
                 }

@@ -1333,7 +1333,16 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 val api = NotificationApiService()
                 val recipients = mutableListOf<Pair<String, String>>()
 
-                if (targetId.startsWith("WAVE_")) {
+                if (targetId == "ALL") {
+                    // Aviso para a base inteira (ação do assistente IA)
+                    try {
+                        motoristaRepository.getMotoristas(baseId).forEach { m ->
+                            if (m.id.isNotBlank()) recipients.add(m.id to m.nome)
+                        }
+                    } catch (e: Exception) {
+                        Log.e("OperationalVM", "❌ Erro ao listar motoristas para aviso à base: ${e.message}")
+                    }
+                } else if (targetId.startsWith("WAVE_")) {
                     val ondaIndexStr = targetId.removePrefix("WAVE_")
                     val ondaIndex = ondaIndexStr.toIntOrNull() ?: return@launch
                     val currentTurno = _turnoAtual.value
@@ -1342,8 +1351,8 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                         "PM" -> _escalaPM.value
                         else -> null
                     }
-                    
-                    skala?.ondas?.getOrNull(ondaIndex)?.itens?.forEach { 
+
+                    skala?.ondas?.getOrNull(ondaIndex)?.itens?.forEach {
                         recipients.add(it.motoristaId to it.nome)
                     }
                 } else {

@@ -154,6 +154,9 @@ fun MainAppScaffold(
                             onSendNotification = { motoristaId, nome, body ->
                                 operationalViewModel.sendNotificationBatch(motoristaId, nome, body)
                             },
+                            onRemoveFromScaleAction = { motoristaId, ondaIndex ->
+                                operationalViewModel.removeMotoristaFromOnda(ondaIndex, motoristaId)
+                            },
                             onInputFocusChange = { focused -> assistenteInputFocused = focused },
                             turno = currentTurno
                         )
