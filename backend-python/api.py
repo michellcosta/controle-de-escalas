@@ -13,6 +13,7 @@ Ou com gunicorn (produção):
 
 import os
 import json
+import difflib
 from datetime import datetime, timezone
 import requests as http_requests
 import openai
@@ -20,7 +21,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from firebase_admin import auth, firestore
 from google.cloud.firestore_v1.transforms import Increment
-from firestore_reader import FirestoreReader
+from firestore_reader import FirestoreReader, normalizar_nome
 from fcm_sender import FCMSender
 from typing import Optional, Tuple
 
@@ -553,69 +554,98 @@ def location_receive():
 
 # Prompt de sistema compartilhado pelo assistente (mesmo para texto e visão)
 _SYSTEM_PROMPT = (
-    "IMPORTANTE: Nunca responda com JSON, códigos ou estruturas técnicas. O usuário deve ver APENAS texto em português. "
-    "Quando for aplicar uma alteração (ex.: mudar rota/vaga), escreva primeiro uma frase curta e amigável (ex.: 'Pronto, alterei a rota do Michell para K7.' ou 'Alterado: vaga 10 e rota K7 para o Michell.'). "
-    "Em seguida, em uma linha separada, coloque EXATAMENTE: ACTION_JSON:{\"type\":\"...\", ...} (essa linha será removida e não aparece para o usuário). Use o nome exato do campo ondaIndex (não ondalndex). "
-    "Você é o assistente do app Controle de Escalas. Responda sobre: escalas de motoristas, "
-    "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena e devoluções. "
-    "Você também deve responder sobre a quantidade de motoristas em cada categoria (FROTA, PASSEIO, etc.) e resumos de disponibilidade. "
-    "Se o usuário perguntar 'quem sou eu' ou similar, use os dados de IDENTIDADE DO USUÁRIO para responder nome e papel. "
-    "Sempre cumprimente o usuário pelo nome se disponível. "
-    "\n\nGUIA DE USO DO APP (FAQ): "
-    "- Para escanear QR Code: Na tela do motorista, clique no ícone de câmera no menu inferior. "
-    "- Para ver devoluções: No painel admin, clique em 'Devoluções'. "
-    "- Para gerenciar motoristas: No painel admin, clique em 'Usuários'. "
-    "- Para configurar localização: No painel admin, clique em 'Configuração de Localização'. "
-    "- Para ver dias trabalhados: Clique em 'Quinzena' no menu admin ou no card da tela do motorista. "
-    "\n\nNos DADOS DA BASE você recebe: contagem por modalidade; por turno (AM/PM), cada onda com nome e hora da onda; por motorista escalado: vaga, rota, sacas, horário; "
-    "tempo estimado ao galpão (ETA por motorista); disponibilidade detalhada e resumida (quem está disponível/indisponível/não respondeu por data); "
-    "quinzena (dias trabalhados); devoluções; histórico de avisos enviados; plano e trial da base; e regras de localização (galpão e raio). "
-    "MÁXIMA ATENÇÃO: Se a imagem contiver 6 motoristas, você deve gerar 6 linhas de ACTION_JSON. NUNCA resuma ou ignore motoristas. "
-    "Ao falar de DEVOLUÇÕES use SEMPRE este formato: (1) Nome do motorista. (2) 'Total por dia: [data1] X devolução(ões); [data2] Y devolução(ões); ...' (3) Para cada devolução uma linha: 'DD/MM/AAAA HH:MM — N pacote(s). IDs: id1, id2, id3, ...' Não misture 'ID da devolução' no texto; não use lista numerada 1. 2. 3.; use só Total por dia e depois linhas com data hora — pacotes e IDs. "
-    "Ao dar INSIGHTS sobre devoluções, você pode dizer: 'O motorista [Nome] teve X devoluções esta semana, um aumento/queda de Y%'. "
-    "Use esses dados para responder com números e nomes reais. "
-    "Mantenha o contexto da conversa: se o usuário confirmar algo (ex: 'confirmado', 'sim'), interprete com base nas mensagens anteriores. "
-    "Se o usuário perguntar sobre outro assunto (hora, notícias, etc.), diga em uma frase que só pode ajudar com escalas, motoristas e localização neste app. "
-    "REGRA ESCALA: (1) Quem já está escalado está na lista 'Detalhe da escala' / 'Motoristas já escalados'. NUNCA adicione o mesmo motorista de novo. "
-    "(2) Se o usuário pedir para TROCAR/ALTERAR/MUDAR vaga, rota ou sacas de alguém que JÁ ESTÁ escalado: use ACTION_JSON com type \"update_in_scale\" e preencha só o que mudou: {\"type\":\"update_in_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"02\" (opcional),\"rota\":\"G9\" (opcional),\"sacas\":4 (opcional ou null)}. ondaIndex = onda em que o motorista está (0 = primeira). "
-    "(3) Se o usuário pedir para ADICIONAR/COLOCAR um motorista que AINDA NÃO ESTÁ na escala: você PRECISA de rota (e opcionalmente sacas). Se o usuário só disser 'adicionar Brendon na vaga 1' sem rota, NÃO emita ACTION_JSON; pergunte: 'Qual a rota do Brendon? Tem sacas?' e espere a resposta. Quando tiver rota (e sacas se aplicável), aí sim emita: {\"type\":\"add_to_scale\",\"motoristaNome\":\"Nome\",\"ondaIndex\":0,\"vaga\":\"01\",\"rota\":\"G9\",\"sacas\":null ou número}. "
-    "(4) Só use add_to_scale para motoristas que NÃO aparecem na escala. Para quem já está escalado, use sempre update_in_scale. vaga sempre 2 dígitos (01, 02). rota em maiúsculas."
-    "(5) CRIAÇÃO DO ZERO: Se não existirem ondas criadas (DADOS DA BASE vazios), você ainda deve emitir ACTION_JSON para adicionar os motoristas. O app criará as ondas automaticamente começando da '1ª ONDA' (ondaIndex: 0)."
-    "\n\nTURNO (AM/PM) - REGRAS OBRIGATÓRIAS: "
-    "(1) Se o usuário pedir 'montar a escala no AM', 'montar escala AM', 'escala do turno AM' ou similar → use SEMPRE o turno AM. "
-    "(2) Se o usuário pedir 'montar a escala no PM', 'montar escala PM', 'escala do turno PM' ou similar → use SEMPRE o turno PM. "
-    "(3) Se o usuário pedir APENAS 'montar a escala' ou 'montar escala' SEM especificar AM ou PM → NUNCA assuma um turno. PERGUNTE: 'Para qual turno deseja montar a escala? AM ou PM?' e espere a resposta antes de emitir ACTION_JSON. "
-    "(4) Em DADOS DA BASE você vê os dados de ambos os turnos. O campo TURNO ATUAL indica qual aba o usuário está no app (contexto). "
-    "(5) Se o usuário enviar uma foto sem especificar turno e os dados estiverem ambíguos, PERGUNTE: 'Esta escala é para o turno AM ou PM?' antes de prosseguir."
-    "\n\nSINÔNIMOS E VARIAÇÕES DE LINGUAGEM (interprete todas como equivalentes): "
-    "• MONTAR ESCALA: 'montar a escala', 'fazer a escala', 'organizar a escala', 'montar escala', 'fazer escala', 'arrumar a escala', 'preparar a escala'. "
-    "• STATUS/LOCALIZAÇÃO: 'quem está carregando', 'quem está na vaga', 'quem subiu', 'quem já carregou', 'status do [nome]', 'onde está o [nome]', 'como está o [nome]', 'situação do [nome]'. "
-    "• CHAMAR/AVISAR: 'chamar o [nome]', 'avisar o [nome]', 'mandar o [nome] subir', 'notificar o [nome]', 'avisa a [onda]'. "
-    "• ADICIONAR NA ESCALA: 'colocar', 'adicionar', 'incluir', 'escalar', 'botar na escala', 'entrar na onda'. "
-    "• ALTERAR: 'trocar', 'mudar', 'alterar', 'atualizar' (vaga, rota ou sacas). "
-    "• DEVOLUÇÕES: 'devoluções', 'devolução', 'quem devolveu', 'pacotes devolvidos'. "
-    "• DISPONIBILIDADE: 'quem está disponível', 'quem pode trabalhar', 'disponibilidade de amanhã', 'quem respondeu'. "
-    "• QUINZENA: 'dias trabalhados', 'quinzena', 'quantos dias o [nome] trabalhou'. "
-    "• ONDAS/TURNOS: 'primeira onda' = '1ª onda' = 'onda 1'; 'manhã' = 'AM'; 'tarde' = 'PM'. "
-    "Quando o usuário usar qualquer uma dessas variações, interprete e responda adequadamente."
-    "\n\nQUANDO RECEBER UMA FOTO: Você tem visão total para fotos. "
-    "Se a imagem contiver uma escala, identifique não só os motoristas, mas também as ONDAS (ex: 1ª Onda, 2ª Onda, 3ª Onda). "
-    "Use o campo ondaIndex (0 para a 1ª onda, 1 para a 2ª, etc.) de acordo com a ordem das ondas identificadas na foto. "
-    "Se o usuário pedir para 'organizar como na foto' ou 'separar por ondas', você DEVE re-analisar a imagem do contexto para emitir ACTION_JSON com os ondaIndex corretos. "
-    "Extraia TODOS os motoristas (sem limite de quantidade) e emita um ACTION_JSON para cada um, um por linha. NÃO esqueça de nenhum motorista presente na imagem. Confirme o que foi feito em texto amigável."
-    "\n\nENVIO DE AVISOS/MENSAGENS: Você pode enviar avisos para motoristas. "
-    "(1) Se o usuário pedir para avisar um motorista (ex: 'Avise o David para esperar'): emita ACTION_JSON:{\"type\":\"send_notification\",\"motoristaNome\":\"Nome\",\"body\":\"Mensagem\"}. "
-    "(2) Se o usuário pedir para avisar uma ONDA (ex: 'Avisa a 2ª onda que o pátio liberou'): emita ACTION_JSON:{\"type\":\"send_notification\",\"ondaIndex\":1,\"body\":\"Mensagem\"}. "
-    "Confirme sempre o envio com uma frase positiva."
+    "# IDENTIDADE\n"
+    "Você é o assistente do app Controle de Escalas, falando em português. Responda sobre: escalas de motoristas, "
+    "vagas, rotas, ondas, horários, localização/ETA, disponibilidade, quinzena, devoluções e avisos. "
+    "Cumprimente o usuário pelo nome (IDENTIDADE DO USUÁRIO) quando natural. Responda com números e nomes reais dos DADOS DA BASE. "
+    "O usuário só vê TEXTO amigável — nunca escreva JSON, códigos ou estruturas técnicas no texto. "
+    "Se perguntarem algo fora de escalas/motoristas/app, recuse com uma frase curta. "
+    "\n\n# FERRAMENTAS (AÇÕES)\n"
+    "Para QUALQUER alteração ou aviso, use as FERRAMENTAS (tool calls) — nunca escreva ACTION_JSON no texto. "
+    "Sempre escreva junto uma frase curta confirmando o que fez (ex.: 'Pronto, alterei a rota do Michell para K7.'). "
+    "- add_to_scale: ADICIONAR um motorista que AINDA NÃO está na escala. Exige rota (sacas opcional). "
+    "Se faltar a rota, NÃO chame a ferramenta: pergunte 'Qual a rota do [nome]? Tem sacas?' e espere. "
+    "- update_in_scale: TROCAR/ALTERAR vaga, rota ou sacas de quem JÁ está escalado (só os campos que mudam). "
+    "- remove_from_scale: TIRAR alguém da escala (informe a ondaIndex onde está, se souber). "
+    "- send_notification: AVISAR — 1 motorista (motoristaNome), 1 onda (ondaIndex) ou a base inteira (baseInteira=true). "
+    "Regras: ondaIndex 0 = 1ª onda; vaga sempre com 2 dígitos (01, 02); rota em MAIÚSCULAS. "
+    "NUNCA adicione motorista que já aparece em 'Motoristas já escalados' — nesse caso use update_in_scale. "
+    "Vários motoristas (ex.: foto com 6 nomes) = uma chamada para CADA um, sem pular nenhum. "
+    "Escala vazia/sem ondas? Adicione mesmo assim com ondaIndex 0 — o app cria a 1ª ONDA automaticamente. "
+    "\n\n# DATAS E TURNOS\n"
+    "DATAS ATUAIS (no final dos dados) dizem que dia é hoje e amanhã — use-as para 'hoje', 'amanhã', dias da semana. "
+    "Os dados trazem a escala de HOJE detalhada e a de AMANHÃ em resumo. "
+    "Turno explícito no pedido vence tudo ('montar AM' = AM). Sem turno explícito e ambíguo, PERGUNTE: "
+    "'Para qual turno: AM ou PM?' — TURNO ATUAL (aba do app) é contexto, não comando. Foto sem turno e ambígua: pergunte antes. "
+    "\n\n# REGRAS DE ESCALA (RESUMO)\n"
+    "1. Quem já está escalado: update_in_scale ou remove_from_scale — nunca add_to_scale. "
+    "2. Adicionar exige rota; sem rota, pergunte antes. "
+    "3. 'Montar a escala' sem mais detalhes + falta de informação essencial → pergunte antes de agir. "
+    "\n\n# DEVOLUÇÕES (FORMATO OBRIGATÓRIO)\n"
+    "Para cada motorista: primeiro 'Total por dia: [data] X devolução(ões); ...', depois uma linha por devolução: "
+    "'DD/MM/AAAA HH:MM — N pacote(s). IDs: id1, id2, ...' Sem lista numerada 1. 2. 3.; não invente IDs. "
+    "Pode dar insights simples ('[Nome] teve X devoluções esta semana'). "
+    "\n\n# GUIA DO APP (FAQ)\n"
+    "QR Code: ícone de câmera no menu inferior da tela do motorista. Devoluções: painel admin > 'Devoluções'. "
+    "Motoristas: painel admin > 'Usuários'. Localização: 'Configuração de Localização'. "
+    "Dias trabalhados: 'Quinzena' no menu admin ou no card do motorista. "
+    "\n\n# VARIAÇÕES DE LINGUAGEM (interprete como equivalentes)\n"
+    "MONTAR ESCALA: montar/fazer/organizar/arrumar/preparar a escala. STATUS: 'quem está carregando', 'quem subiu', "
+    "'onde está o [nome]', 'situação do [nome]'. AVISAR: chamar/avisar/notificar/mandar subir. ADICIONAR: colocar/incluir/"
+    "escalar/botar na escala/entrar na onda. ALTERAR: trocar/mudar/atualizar. ONDAS: 'primeira onda' = 1ª onda = ondaIndex 0; "
+    "'manhã' = AM; 'tarde' = PM. Mantenha o contexto: 'sim', 'confirmado' etc. referem-se à mensagem anterior."
 )
 
+# Ferramentas (function calling nativo) do assistente — substituem o ACTION_JSON em texto.
+_ASSISTENTE_TOOLS = [
+    {"type": "function", "function": {
+        "name": "add_to_scale",
+        "description": "Adiciona um motorista que AINDA NÃO está na escala. Exige rota; se não souber a rota, pergunte ao usuário antes de chamar.",
+        "parameters": {"type": "object", "properties": {
+            "motoristaNome": {"type": "string", "description": "Nome exato do motorista conforme DADOS DA BASE"},
+            "ondaIndex": {"type": "integer", "minimum": 0, "description": "0 = 1ª onda, 1 = 2ª onda..."},
+            "vaga": {"type": "string", "description": "Vaga com 2 dígitos (ex.: 01)"},
+            "rota": {"type": "string", "description": "Rota em maiúsculas (ex.: G9)"},
+            "sacas": {"type": "integer", "description": "Quantidade de sacas (opcional)"}
+        }, "required": ["motoristaNome", "ondaIndex", "vaga", "rota"]}}},
+    {"type": "function", "function": {
+        "name": "update_in_scale",
+        "description": "Altera vaga, rota e/ou sacas de um motorista JÁ escalado. Preencha só o que muda.",
+        "parameters": {"type": "object", "properties": {
+            "motoristaNome": {"type": "string", "description": "Nome exato do motorista"},
+            "ondaIndex": {"type": "integer", "minimum": 0, "description": "Onda em que o motorista está (0 = 1ª)"},
+            "vaga": {"type": "string", "description": "Nova vaga com 2 dígitos (opcional)"},
+            "rota": {"type": "string", "description": "Nova rota em maiúsculas (opcional)"},
+            "sacas": {"type": "integer", "description": "Nova quantidade de sacas (opcional)"}
+        }, "required": ["motoristaNome", "ondaIndex"]}}},
+    {"type": "function", "function": {
+        "name": "remove_from_scale",
+        "description": "Remove um motorista da escala de hoje (do turno atual).",
+        "parameters": {"type": "object", "properties": {
+            "motoristaNome": {"type": "string", "description": "Nome exato do motorista"},
+            "ondaIndex": {"type": "integer", "minimum": 0, "description": "Onda em que o motorista está (0 = 1ª); omita se não souber"}
+        }, "required": ["motoristaNome"]}}},
+    {"type": "function", "function": {
+        "name": "send_notification",
+        "description": "Envia aviso push. Alvo: um motorista (motoristaNome), uma onda (ondaIndex) ou a base inteira (baseInteira=true).",
+        "parameters": {"type": "object", "properties": {
+            "body": {"type": "string", "description": "Texto do aviso para o motorista"},
+            "motoristaNome": {"type": "string", "description": "Nome do motorista (avisar só ele)"},
+            "ondaIndex": {"type": "integer", "minimum": 0, "description": "Índice da onda (avisar a onda toda)"},
+            "baseInteira": {"type": "boolean", "description": "true = avisar todos os motoristas da base"}
+        }, "required": ["body"]}}},
+]
 
-def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None, user_name: str = "Usuário", user_role: str = "Membro", turno: Optional[str] = None) -> Optional[str]:
-    """Usa OpenAI GPT-4o-mini. Suporta visão (imagem base64) + texto e histórico de conversa."""
+
+def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Optional[str] = None, history: Optional[list] = None, user_name: str = "Usuário", user_role: str = "Membro", turno: Optional[str] = None) -> Tuple[Optional[str], list]:
+    """
+    Usa OpenAI (gpt-4o-mini por padrão) com function calling nativo.
+    Retorna (texto_para_o_usuario, acoes_extraidas_das_tool_calls).
+    """
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
         print("OPENAI_API_KEY não configurada.")
-        return None
+        return None, []
 
     client = openai.OpenAI(api_key=api_key)
     model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
@@ -662,19 +692,120 @@ def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Op
             messages=messages,
             max_tokens=1500,
             temperature=0.2,  # Mais determinístico para ações estruturadas
+            tools=_ASSISTENTE_TOOLS,
+            tool_choice="auto",
         )
-        result = (response.choices[0].message.content or "").strip()
-        print(f"✅ OpenAI {model} respondeu ({len(result)} chars)")
-        return result
+        message = response.choices[0].message
+        result = (message.content or "").strip()
+
+        # Converter tool calls em ações para o app
+        acoes = []
+        for tc in (message.tool_calls or []):
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except Exception:
+                print(f"⚠️ Tool call com argumentos inválidos: {tc.function.name}")
+                continue
+            if not isinstance(args, dict):
+                continue
+            acoes.append({"type": tc.function.name, **args})
+        if acoes and not result:
+            result = _texto_confirmacao_acoes(acoes)
+
+        if acoes:
+            print(f"✅ OpenAI {model} respondeu ({len(result)} chars) com {len(acoes)} tool call(s)")
+        else:
+            print(f"✅ OpenAI {model} respondeu ({len(result)} chars)")
+        return result, acoes
     except openai.AuthenticationError:
         print("❌ OpenAI: OPENAI_API_KEY inválida.")
-        return None
+        return None, []
     except openai.RateLimitError:
         print("❌ OpenAI: Rate limit atingido.")
-        return None
+        return None, []
     except Exception as e:
         print(f"❌ OpenAI request failed: {e}")
-        return None
+        return None, []
+
+
+def _texto_confirmacao_acoes(acoes: list) -> str:
+    """Texto amigável padrão quando o modelo só devolve tool calls sem texto."""
+    if not acoes:
+        return "Feito."
+    nomes = [str(a.get("motoristaNome") or "").strip() for a in acoes]
+    nomes = [n for n in nomes if n]
+    if len(acoes) == 1:
+        tipo = acoes[0].get("type")
+        if tipo == "add_to_scale":
+            return f"Pronto, adicionei {nomes[0] if nomes else 'o motorista'} na escala."
+        if tipo == "update_in_scale":
+            return f"Pronto, atualizei {nomes[0] if nomes else 'os dados do motorista'}."
+        if tipo == "remove_from_scale":
+            return f"Pronto, removi {nomes[0] if nomes else 'o motorista'} da escala."
+        if tipo == "send_notification":
+            return "Aviso enviado!"
+    if nomes:
+        return f"Pronto! Apliquei as alterações para {len(nomes)} motorista(s): " + ", ".join(nomes[:6]) + (".")
+    return "Pronto, alterações aplicadas."
+
+
+def _resolver_acoes(acoes: list, estrutura: Optional[dict]) -> list:
+    """
+    Normaliza campos das ações e resolve motoristaNome -> motoristaId
+    (comparação sem acentos/caixa + fuzzy) contra os motoristas reais da base.
+    """
+    if not acoes:
+        return []
+    motoristas = (estrutura or {}).get("motoristas") or {}
+    nomes_normalizados = list(motoristas.keys())
+
+    resolvidas = []
+    for a in acoes:
+        if not isinstance(a, dict):
+            continue
+
+        # Normalizações de formato
+        if "ondaIndex" in a:
+            try:
+                a["ondaIndex"] = max(0, int(a["ondaIndex"]))
+            except (TypeError, ValueError):
+                a["ondaIndex"] = 0
+        if a.get("vaga"):
+            v = str(a["vaga"]).strip()
+            a["vaga"] = v.zfill(2) if v.isdigit() else v.upper()
+        if a.get("rota"):
+            a["rota"] = str(a["rota"]).strip().upper()
+        if a.get("sacas") is not None:
+            try:
+                a["sacas"] = int(a["sacas"])
+            except (TypeError, ValueError):
+                a["sacas"] = None
+
+        # send_notification sem alvo específico = base inteira
+        if a.get("type") == "send_notification" \
+                and not (a.get("motoristaNome") or "").strip() \
+                and a.get("ondaIndex") is None:
+            a["baseInteira"] = True
+
+        # Resolver motoristaNome -> motoristaId
+        nome = (a.get("motoristaNome") or "").strip()
+        if nome and motoristas:
+            chave = normalizar_nome(nome)
+            alvo = motoristas.get(chave)
+            if alvo is None and chave:
+                contendo = [k for k in nomes_normalizados if k.startswith(chave) or chave in k]
+                if len(contendo) == 1:
+                    alvo = motoristas[contendo[0]]
+            if alvo is None:
+                proximos = difflib.get_close_matches(chave, nomes_normalizados, n=1, cutoff=0.55)
+                if proximos:
+                    alvo = motoristas[proximos[0]]
+            if alvo:
+                a["motoristaId"] = alvo["id"]
+                a["motoristaNome"] = alvo["nome"]  # nome canônico da base
+
+        resolvidas.append(a)
+    return resolvidas
 
 
 def _is_super_admin(user_role: str, user_id: str) -> bool:
@@ -747,7 +878,8 @@ def assistente_chat():
                 }), 429
 
         contexto_base = reader.get_contexto_base_para_assistente(base_id) if reader else ""
-        result_text = _assistente_via_openai(
+        estrutura_base = reader.get_estrutura_base_para_assistente(base_id) if reader else {}
+        result_text, acoes_tools = _assistente_via_openai(
             text, image_b64, context_base=contexto_base, history=history,
             user_name=user_name, user_role=user_role, turno=turno
         )
@@ -789,7 +921,13 @@ def assistente_chat():
                 remaining = (remaining[:idx].rstrip() + remaining[end + 1:].lstrip())
             return remaining.strip(), acts
 
-        result_text, actions = _extract_all_action_jsons(result_text)
+        # 1) Ações vindas das tool calls nativas (caminho principal)
+        actions = list(acoes_tools or [])
+
+        # 2) Fallback: ACTION_JSON em texto (legado) — mantido por robustez
+        result_text, actions_texto = _extract_all_action_jsons(result_text)
+        if actions_texto:
+            actions.extend(actions_texto)
 
         # Fallback: resposta foi só um JSON puro (modelo esqueceu o ACTION_JSON:)
         if not actions:
@@ -799,7 +937,7 @@ def assistente_chat():
                     end_brace = trimmed.rfind("}")
                     if end_brace > 0:
                         parsed = json.loads(trimmed[: end_brace + 1])
-                        if isinstance(parsed, dict) and parsed.get("type") in ("update_in_scale", "add_to_scale"):
+                        if isinstance(parsed, dict) and parsed.get("type") in ("update_in_scale", "add_to_scale", "remove_from_scale", "send_notification"):
                             actions = [parsed]
                             result_text = "Alteração aplicada."
                 except Exception:
@@ -812,6 +950,9 @@ def assistente_chat():
                     if key in ("ondalndex", "onda_index"):
                         a["ondaIndex"] = a.pop(key)
                         break
+
+        # 3) Resolver motoristas no servidor: nome -> id (fuzzy) + normalização de campos
+        actions = _resolver_acoes(actions, estrutura_base)
 
         # Incrementar contador de uso (apenas para não-super-admin)
         if not _is_super_admin(user_role, user_id):

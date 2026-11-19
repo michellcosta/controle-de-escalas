@@ -7,10 +7,39 @@ Conecta ao Firestore usando Firebase Admin SDK com Service Account.
 
 import os
 import time
+import unicodedata
 from collections import Counter
+from datetime import datetime, timedelta, timezone as tz_module
 from typing import List, Dict, Optional
 import firebase_admin
 from firebase_admin import credentials, firestore
+
+# Datas dos documentos de escala usam o horário do Brasil (as datas são
+# formadas pelos celulares em América/São Paulo). Usar UTC puro erra o dia
+# entre 00:00 e 03:00 no Brasil.
+try:
+    from zoneinfo import ZoneInfo
+    FUSO_BRASIL = ZoneInfo("America/Sao_Paulo")
+except Exception:
+    FUSO_BRASIL = tz_module(timedelta(hours=-3))
+
+DIAS_SEMANA_PT = {
+    0: "segunda-feira", 1: "terça-feira", 2: "quarta-feira",
+    3: "quinta-feira", 4: "sexta-feira", 5: "sábado", 6: "domingo",
+}
+
+
+def normalizar_nome(nome: str) -> str:
+    """Minúsculas, sem acentos, espaços colapsados — para comparar nomes."""
+    if not nome:
+        return ""
+    s = unicodedata.normalize("NFD", str(nome))
+    s = "".join(c for c in s if unicodedata.category(c) != "Mn")
+    return " ".join(s.lower().split())
+
+
+def agora_brasil() -> datetime:
+    return datetime.now(FUSO_BRASIL)
 
 
 class FirestoreReader:
@@ -18,6 +47,8 @@ class FirestoreReader:
 
     # Cache em memória: { base_id: (timestamp, contexto_str) }
     _contexto_cache: Dict[str, tuple] = {}
+    # Cache estruturado paralelo: { base_id: dict } — nomes/ids de motoristas etc.
+    _contexto_estruturado: Dict[str, dict] = {}
     _CACHE_TTL_SEGUNDOS = 120  # 2 minutos
     
     def __init__(self, service_account_path: Optional[str] = None):
@@ -236,7 +267,6 @@ class FirestoreReader:
         tempo estimado (ETA), disponibilidade, quinzena e devoluções (id, quem devolveu).
         Resultado é cacheado por _CACHE_TTL_SEGUNDOS segundos para reduzir leituras no Firestore.
         """
-        from datetime import datetime
         # Verificar cache
         agora = time.monotonic()
         cached = FirestoreReader._contexto_cache.get(base_id)
@@ -247,6 +277,7 @@ class FirestoreReader:
                 return contexto
         try:
             parts = []
+            estrutura = {"motoristas": {}, "escalados_hoje": {}, "escalados_amanha": {}}
             base_ref = self.db.collection('bases').document(base_id)
             base_doc = base_ref.get()
             base_data = base_doc.to_dict() or {}
@@ -260,8 +291,8 @@ class FirestoreReader:
                 fim_trial = base_data.get('dataFimTrial')
                 if fim_trial:
                     try:
-                        dt_fim = datetime.fromtimestamp(fim_trial / 1000.0)
-                        dias_restantes = (dt_fim - datetime.utcnow()).days
+                        dt_fim = datetime.fromtimestamp(fim_trial / 1000.0, FUSO_BRASIL)
+                        dias_restantes = (dt_fim - agora_brasil()).days
                         parts.append(f"Período de teste (Trial) termina em: {dt_fim.strftime('%d/%m/%Y')} ({max(0, dias_restantes)} dias restantes).")
                     except: pass
 
@@ -284,8 +315,8 @@ class FirestoreReader:
 
             motoristas_ref = base_ref.collection('motoristas')
             motoristas_docs = list(motoristas_ref.stream())
-            
-            # Contagem por modalidade
+
+            # Contagem por modalidade (+ mapa nome normalizado -> id para o backend resolver ações)
             contagem_modalidade = Counter()
             motoristas_nomes = []
             for d in motoristas_docs:
@@ -295,6 +326,7 @@ class FirestoreReader:
                     modalidade = m_data.get('modalidade', 'FROTA').upper()
                     if nome:
                         motoristas_nomes.append(nome)
+                        estrutura["motoristas"][normalizar_nome(nome)] = {"id": d.id, "nome": nome}
                         contagem_modalidade[modalidade] += 1
             
             motoristas_nomes.sort()
@@ -308,7 +340,11 @@ class FirestoreReader:
             if motoristas_nomes:
                 parts.append("Motoristas que podem ser escalados (use estes nomes exatos): " + ", ".join(motoristas_nomes) + ".")
 
-            hoje = datetime.utcnow().strftime('%Y-%m-%d')
+            hoje_dt = agora_brasil()
+            hoje = hoje_dt.strftime('%Y-%m-%d')
+            amanha_dt = hoje_dt + timedelta(days=1)
+            amanha = amanha_dt.strftime('%Y-%m-%d')
+            parts.append(f"Hoje é {DIAS_SEMANA_PT[hoje_dt.weekday()]}, {hoje_dt.strftime('%d/%m/%Y')}. Amanhã será {DIAS_SEMANA_PT[amanha_dt.weekday()]}, {amanha_dt.strftime('%d/%m/%Y')}.")
             escalados_hoje = set()
             # --- ESCALA DETALHADA: turno (AM/PM), onda, hora da onda, vaga, rota, sacas por motorista ---
             escala_detalhes = []
@@ -334,6 +370,7 @@ class FirestoreReader:
                         sacas_str = str(sacas) if sacas is not None else "-"
                         if mid:
                             escalados_hoje.add((mid, nome))
+                            estrutura["escalados_hoje"][f"{mid}|{idx}|{turno}"] = {"id": mid, "nome": nome, "ondaIndex": idx, "turno": turno}
                         linha = f"  {turno} | {nome_onda} (hora onda: {horario_onda or '-'}) | {nome} | vaga {vaga or '-'} | rota {rota or '-'} | sacas {sacas_str}"
                         if horario_item:
                             linha += f" | horário motorista: {horario_item}"
@@ -349,6 +386,31 @@ class FirestoreReader:
                     parts.append(f"  ... e mais {len(escala_detalhes) - 50} itens.")
             elif total_escalados > 0:
                 parts.append("Nomes escalados hoje: " + ", ".join(nomes_escalados[:20]) + ("..." if total_escalados > 20 else "") + ".")
+
+            # --- ESCALA DE AMANHÃ (compacta: contagem + nomes por turno) ---
+            try:
+                resumo_amanha = []
+                for turno_amanha in ('AM', 'PM'):
+                    doc_amanha = base_ref.collection('escalas').document(f"{amanha}_{turno_amanha}").get()
+                    if not doc_amanha.exists:
+                        resumo_amanha.append(f"{turno_amanha}: sem escala criada")
+                        continue
+                    dados_amanha = doc_amanha.to_dict() or {}
+                    nomes_amanha = []
+                    for onda_a in (dados_amanha.get('ondas') or []):
+                        for item_a in (onda_a.get('itens') or []):
+                            mid_a = (item_a.get('motoristaId') or '').strip()
+                            nome_a = (item_a.get('nome') or '').strip()
+                            if mid_a:
+                                nomes_amanha.append(nome_a)
+                                estrutura["escalados_amanha"][f"{mid_a}|{turno_amanha}"] = {"id": mid_a, "nome": nome_a, "turno": turno_amanha}
+                    if nomes_amanha:
+                        resumo_amanha.append(f"{turno_amanha}: {len(nomes_amanha)} motorista(s) escalado(s): " + ", ".join(nomes_amanha[:30]))
+                    else:
+                        resumo_amanha.append(f"{turno_amanha}: escala criada mas vazia")
+                parts.append("Escala de amanhã (" + amanha_dt.strftime('%d/%m/%Y') + "): " + "; ".join(resumo_amanha) + ".")
+            except Exception as e_amanha:
+                print(f"get_contexto escala amanha: {e_amanha}")
 
             # --- TEMPO ESTIMADO (ETA): location_responses com status ready ---
             try:
@@ -372,8 +434,6 @@ class FirestoreReader:
 
             # --- DISPONIBILIDADE: solicitações recentes (hoje e amanhã) ---
             try:
-                from datetime import timedelta
-                amanha = (datetime.utcnow() + timedelta(days=1)).strftime('%Y-%m-%d')
                 disp_ref = self.db.collection('disponibilidades')
                 disp_docs = disp_ref.where('baseId', '==', base_id).limit(30).stream()
                 disp_listas = []
@@ -407,7 +467,7 @@ class FirestoreReader:
 
             # --- QUINZENA: dias trabalhados no mês atual (1ª e 2ª quinzena) ---
             try:
-                now = datetime.utcnow()
+                now = agora_brasil()
                 mes, ano = now.month, now.year
                 quinzenas_ref = self.db.collection('quinzenas')
                 q_docs = quinzenas_ref.where('baseId', '==', base_id).where('mes', '==', mes).where('ano', '==', ano).limit(50).stream()
@@ -502,11 +562,24 @@ class FirestoreReader:
 
             contexto = " ".join(parts)
             FirestoreReader._contexto_cache[base_id] = (agora, contexto)
+            FirestoreReader._contexto_estruturado[base_id] = estrutura
             print(f"✅ Contexto da base {base_id} cacheado por {FirestoreReader._CACHE_TTL_SEGUNDOS}s")
             return contexto
         except Exception as e:
             print(f"get_contexto_base_para_assistente: {e}")
             return ""
+
+    def get_estrutura_base_para_assistente(self, base_id: str) -> dict:
+        """
+        Retorna a estrutura da base (mapa de motoristas nome->id, escalados hoje/amanhã)
+        usada para resolver ações do assistente. Garante que o contexto esteja fresco.
+        """
+        agora = time.monotonic()
+        cached = FirestoreReader._contexto_cache.get(base_id)
+        if cached is None or (agora - cached[0]) >= FirestoreReader._CACHE_TTL_SEGUNDOS:
+            self.get_contexto_base_para_assistente(base_id)
+        estrutura = FirestoreReader._contexto_estruturado.get(base_id)
+        return estrutura or {"motoristas": {}, "escalados_hoje": {}, "escalados_amanha": {}}
 
     def write_location_response(self, base_id: str, motorista_id: str, data: dict, merge: bool = True):
         """Grava documento em bases/{baseId}/location_responses/{motoristaId}"""
