@@ -1912,6 +1912,7 @@ fun formatarVaga(vaga: String): String {
  * Modal de ações do motorista (chamar para vaga ou estacionamento + editar/excluir)
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun DriverActionsDialog(
     motorista: OndaItem,
     ondas: List<Onda>,
@@ -1928,7 +1929,7 @@ fun DriverActionsDialog(
     onRemove: () -> Unit
 ) {
     val context = LocalContext.current
-    
+
     // Função para abrir WhatsApp
     fun abrirWhatsApp(telefone: String) {
         try {
@@ -1949,6 +1950,7 @@ fun DriverActionsDialog(
             Log.e("DriverActionsDialog", "Erro ao abrir WhatsApp: ${e.message}")
         }
     }
+
     var vagaEditavel by remember { mutableStateOf(motorista.vaga) }
     var rotaEditavel by remember { mutableStateOf(formatarRota(motorista.rota)) }
     var sacasEditavel by remember { mutableStateOf(motorista.sacas?.toString() ?: "") }
@@ -1956,7 +1958,18 @@ fun DriverActionsDialog(
     var showHelpDialog by remember { mutableStateOf(false) }
     var erroVaga by remember { mutableStateOf<String?>(null) }
     var erroRota by remember { mutableStateOf<String?>(null) }
-    
+
+    // Valida vaga/rota; retorna o par formatado (vazio = inválido)
+    fun validarCampos(): Pair<String, String> {
+        val vagaFormatada = formatarVaga(vagaEditavel)
+        val rotaFormatada = formatarRota(rotaEditavel)
+        val (vagaValida, mensagemVaga) = validarVagaNaOnda(ondas, ondaIndex, vagaFormatada, motorista.motoristaId)
+        val (rotaValida, mensagemRota) = validarRotaNoTurno(ondas, rotaFormatada, motorista.motoristaId)
+        erroVaga = mensagemVaga
+        erroRota = mensagemRota
+        return if (vagaValida && rotaValida) vagaFormatada to rotaFormatada else "" to ""
+    }
+
     // Dialog de confirmação de exclusão
     if (showConfirmDelete) {
         AlertDialog(
@@ -1989,78 +2002,148 @@ fun DriverActionsDialog(
             }
         )
     }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    motorista.nome,
-                    color = TextWhite,
-                    fontWeight = FontWeight.Bold
-                )
-                IconButton(
-                    onClick = { showHelpDialog = true },
-                    modifier = Modifier.size(32.dp)
+
+    // Dialog de ajuda
+    if (showHelpDialog) {
+        AlertDialog(
+            onDismissRequest = { showHelpDialog = false },
+            containerColor = DarkSurface,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        Icons.Default.Help,
-                        contentDescription = "Ajuda",
+                        Icons.Default.Info,
+                        contentDescription = null,
                         tint = NeonBlue,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
+                    Text("Ações do Motorista", color = TextWhite, fontWeight = FontWeight.Bold)
                 }
-            }
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        "Como funciona este painel:",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TextWhite,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "📝 Edição de Campos:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextWhite,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text("• Vaga: Edite a vaga de carregamento do motorista", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• Rota: Edite a rota do motorista", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• Sacas: Informe a quantidade de sacas (opcional)", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• Clique em SALVAR para confirmar as alterações", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "🎯 Ações do Motorista:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextWhite,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text("• Vaga: Chama o motorista para a vaga de carregamento", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• Estacionamento: Chama o motorista para aguardar no estacionamento", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• WhatsApp: Abre conversa no WhatsApp do motorista (se disponível)", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• CONCLUIR: Marca o carregamento como concluído", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• RESETAR STATUS: Volta o status do motorista para 'A CAMINHO'", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• Excluir (🗑️): Remove o motorista da onda", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showHelpDialog = false }) {
+                    Text("Entendi", color = NeonBlue)
+                }
+            },
+            titleContentColor = TextWhite,
+            textContentColor = TextGray
+        )
+    }
+
+    // ===== Painel principal (bottom sheet rolável — nada é cortado) =====
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            // Cabeçalho: nome + situação atual + ajuda + fechar
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // CARD 1: Campos editáveis com botão Salvar
-                GlassCard {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        // Campo Vaga (formatação ao perder foco)
-                        val vagaEditavelInteractionSource = remember { MutableInteractionSource() }
-                        val vagaEditavelFocused by vagaEditavelInteractionSource.collectIsFocusedAsState()
-                        
-                        // Aplicar formatação quando perde o foco
-                        LaunchedEffect(vagaEditavelFocused) {
-                            if (!vagaEditavelFocused && vagaEditavel.isNotBlank()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        motorista.nome,
+                        color = TextWhite,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "Vaga ${motorista.vaga.ifBlank { "-" }} • Rota ${formatarRota(motorista.rota).ifBlank { "-" }} • ${motorista.sacas ?: "-"} sacas",
+                        color = TextGray,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                IconButton(onClick = { showHelpDialog = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Help, contentDescription = "Ajuda", tint = NeonBlue, modifier = Modifier.size(20.dp))
+                }
+                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = TextGray, modifier = Modifier.size(20.dp))
+                }
+            }
+
+            // CARD 1: campos editáveis em linha + SALVAR
+            GlassCard {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Campo Vaga
+                        val vagaInteractionSource = remember { MutableInteractionSource() }
+                        val vagaFocused by vagaInteractionSource.collectIsFocusedAsState()
+                        LaunchedEffect(vagaFocused) {
+                            if (!vagaFocused && vagaEditavel.isNotBlank()) {
                                 val vagaFormatada = formatarVaga(vagaEditavel)
                                 if (vagaFormatada != vagaEditavel) {
                                     vagaEditavel = vagaFormatada
                                 }
                             }
                         }
-                        
                         OutlinedTextField(
-                            value = if (vagaEditavelFocused) vagaEditavel else formatarVaga(vagaEditavel),
+                            value = if (vagaFocused) vagaEditavel else formatarVaga(vagaEditavel),
                             onValueChange = { newValue ->
-                                // Permitir apenas números
                                 if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
                                     vagaEditavel = newValue
-                                    // Validar vaga em tempo real
-                                    val (valida, mensagem) = validarVagaNaOnda(ondas, ondaIndex, newValue, motorista.motoristaId)
+                                    val (_, mensagem) = validarVagaNaOnda(ondas, ondaIndex, newValue, motorista.motoristaId)
                                     erroVaga = mensagem
                                 }
                             },
-                            interactionSource = vagaEditavelInteractionSource,
-                            label = { Text("Vaga", color = TextGray) },
-                            leadingIcon = {
-                                Icon(Icons.Default.LocationOn, null, tint = NeonBlue, modifier = Modifier.size(18.dp))
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            interactionSource = vagaInteractionSource,
+                            label = { Text("Vaga", color = TextGray, style = MaterialTheme.typography.labelSmall) },
+                            singleLine = true,
                             isError = erroVaga != null,
-                            supportingText = erroVaga?.let { { Text(it, color = Color(0xFFEF4444)) } },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = TextWhite,
                                 unfocusedTextColor = TextWhite,
@@ -2069,39 +2152,32 @@ fun DriverActionsDialog(
                                 focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else NeonBlue,
                                 unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else TextGray
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.weight(1f)
                         )
-                        
-                        // Campo Rota (formatação ao perder foco)
-                        val rotaEditavelInteractionSource = remember { MutableInteractionSource() }
-                        val rotaEditavelFocused by rotaEditavelInteractionSource.collectIsFocusedAsState()
-                        
-                        // Aplicar formatação quando perde o foco
-                        LaunchedEffect(rotaEditavelFocused) {
-                            if (!rotaEditavelFocused && rotaEditavel.isNotBlank()) {
+
+                        // Campo Rota
+                        val rotaInteractionSource = remember { MutableInteractionSource() }
+                        val rotaFocused by rotaInteractionSource.collectIsFocusedAsState()
+                        LaunchedEffect(rotaFocused) {
+                            if (!rotaFocused && rotaEditavel.isNotBlank()) {
                                 rotaEditavel = formatarRota(rotaEditavel)
                             }
                         }
-                        
                         OutlinedTextField(
-                            value = if (rotaEditavelFocused) rotaEditavel else formatarRota(rotaEditavel),
+                            value = if (rotaFocused) rotaEditavel else formatarRota(rotaEditavel),
                             onValueChange = { newValue ->
-                                rotaEditavel = newValue // Permite digitar livremente enquanto focado
-                                // Validar rota em tempo real (após formatação)
-                                if (!rotaEditavelFocused && newValue.isNotBlank()) {
+                                rotaEditavel = newValue
+                                if (!rotaFocused && newValue.isNotBlank()) {
                                     val rotaFormatada = formatarRota(newValue)
-                                    val (valida, mensagem) = validarRotaNoTurno(ondas, rotaFormatada, motorista.motoristaId)
+                                    val (_, mensagem) = validarRotaNoTurno(ondas, rotaFormatada, motorista.motoristaId)
                                     erroRota = mensagem
                                 }
                             },
-                            interactionSource = rotaEditavelInteractionSource,
-                            label = { Text("Rota", color = TextGray) },
-                            placeholder = { Text("Ex: F-9", color = TextGray.copy(alpha = 0.5f)) },
-                            leadingIcon = {
-                                Icon(Icons.Default.Place, null, tint = NeonBlue, modifier = Modifier.size(18.dp))
-                            },
+                            interactionSource = rotaInteractionSource,
+                            label = { Text("Rota", color = TextGray, style = MaterialTheme.typography.labelSmall) },
+                            placeholder = { Text("F-9", color = TextGray.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall) },
+                            singleLine = true,
                             isError = erroRota != null,
-                            supportingText = erroRota?.let { { Text(it, color = Color(0xFFEF4444)) } },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = TextWhite,
                                 unfocusedTextColor = TextWhite,
@@ -2110,21 +2186,19 @@ fun DriverActionsDialog(
                                 focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else NeonBlue,
                                 unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else TextGray
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.weight(1.4f)
                         )
-                        
+
                         // Campo Sacas
                         OutlinedTextField(
                             value = sacasEditavel,
-                            onValueChange = { 
-                                if (it.isEmpty() || it.all { char -> char.isDigit() }) 
-                                    sacasEditavel = it 
+                            onValueChange = {
+                                if (it.isEmpty() || it.all { char -> char.isDigit() })
+                                    sacasEditavel = it
                             },
-                            label = { Text("Sacas (opcional)", color = TextGray) },
-                            placeholder = { Text("Ex: 12", color = TextGray.copy(alpha = 0.5f)) },
-                            leadingIcon = {
-                                Icon(Icons.Default.ShoppingCart, null, tint = NeonOrange, modifier = Modifier.size(18.dp))
-                            },
+                            label = { Text("Sacas", color = TextGray, style = MaterialTheme.typography.labelSmall) },
+                            placeholder = { Text("12", color = TextGray.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall) },
+                            singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = TextWhite,
@@ -2134,344 +2208,165 @@ fun DriverActionsDialog(
                                 focusedBorderColor = NeonOrange,
                                 unfocusedBorderColor = TextGray
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.weight(1f)
                         )
-                        
-                        // Botão Salvar
+                    }
+
+                    // Mensagens de erro abaixo dos campos (compactas)
+                    if (erroVaga != null || erroRota != null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            erroVaga?.let {
+                                Text(it, color = Color(0xFFEF4444), style = MaterialTheme.typography.labelSmall)
+                            }
+                            erroRota?.let {
+                                Text(it, color = Color(0xFFEF4444), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+
+                    // Botão Salvar
+                    Button(
+                        onClick = {
+                            val (vagaFormatada, rotaFormatada) = validarCampos()
+                            if (vagaFormatada.isNotEmpty() && rotaFormatada.isNotEmpty()) {
+                                onSaveChanges(vagaFormatada, rotaFormatada, sacasEditavel.toIntOrNull())
+                                onDismiss()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonBlue,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("SALVAR", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // CARD 2: ações — grade de 2 colunas (compacta, nada corta)
+            GlassCard {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Botão: Chamar para Vaga
                         Button(
                             onClick = {
-                                // Validar antes de salvar
-                                val vagaFormatada = formatarVaga(vagaEditavel)
-                                val rotaFormatada = formatarRota(rotaEditavel)
-                                val (vagaValida, mensagemVaga) = validarVagaNaOnda(ondas, ondaIndex, vagaFormatada, motorista.motoristaId)
-                                val (rotaValida, mensagemRota) = validarRotaNoTurno(ondas, rotaFormatada, motorista.motoristaId)
-                                
-                                erroVaga = mensagemVaga
-                                erroRota = mensagemRota
-                                
-                                if (vagaValida && rotaValida) {
-                                    val sacasInt = sacasEditavel.toIntOrNull()
-                                    onSaveChanges(vagaFormatada, rotaFormatada, sacasInt)
+                                val (vagaFormatada, rotaFormatada) = validarCampos()
+                                if (vagaFormatada.isNotEmpty() && rotaFormatada.isNotEmpty()) {
+                                    onChamarParaVaga(vagaFormatada, rotaFormatada)
                                     onDismiss()
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = NeonBlue,
+                                containerColor = NeonGreen,
+                                contentColor = Color.Black
+                            ),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Directions, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Vaga", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
+
+                        // Botão: Chamar para Estacionamento
+                        Button(
+                            onClick = {
+                                onChamarParaEstacionamento()
+                                onDismiss()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = NeonPurple,
                                 contentColor = Color.White
                             ),
-                            modifier = Modifier.fillMaxWidth()
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("SALVAR", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Place, null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Estacionar", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
-                }
-                
-                // CARD 2: Botões de ação
-                GlassCard {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        // Botões de ação em coluna
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Botão: Chamar para Vaga
+
+                    // Botão: WhatsApp (se telefone disponível)
+                    telefone?.let { tel ->
+                        if (tel.isNotBlank()) {
                             Button(
-                                onClick = {
-                                    // Validar antes de chamar
-                                    val vagaFormatada = formatarVaga(vagaEditavel)
-                                    val rotaFormatada = formatarRota(rotaEditavel)
-                                    val (vagaValida, mensagemVaga) = validarVagaNaOnda(ondas, ondaIndex, vagaFormatada, motorista.motoristaId)
-                                    val (rotaValida, mensagemRota) = validarRotaNoTurno(ondas, rotaFormatada, motorista.motoristaId)
-                                    
-                                    erroVaga = mensagemVaga
-                                    erroRota = mensagemRota
-                                    
-                                    if (vagaValida && rotaValida) {
-                                        onChamarParaVaga(vagaFormatada, rotaFormatada)
-                                        onDismiss()
-                                    }
-                                },
+                                onClick = { abrirWhatsApp(tel) },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = NeonGreen,
-                                    contentColor = Color.Black
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.Directions, null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    "Vaga",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            
-                            // Botão: Chamar para Estacionamento
-                            Button(
-                                onClick = {
-                                    onChamarParaEstacionamento()
-                                    onDismiss()
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = NeonPurple,
+                                    containerColor = Color(0xFF25D366), // Cor verde do WhatsApp
                                     contentColor = Color.White
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Default.Place, null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Message, null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    "Estacionamento",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            
-                            // Botão: WhatsApp (se telefone disponível)
-                            telefone?.let { tel ->
-                                if (tel.isNotBlank()) {
-                                    Button(
-                                        onClick = {
-                                            abrirWhatsApp(tel)
-                                        },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF25D366), // Cor verde do WhatsApp
-                                            contentColor = Color.White
-                                        ),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Icon(Icons.Default.Message, null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "WhatsApp",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
+                                Text("WhatsApp", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
-                }
-                
-                // Dialog de ajuda
-                if (showHelpDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showHelpDialog = false },
-                        containerColor = DarkSurface,
-                        title = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Info,
-                                    contentDescription = null,
-                                    tint = NeonBlue,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Text("Ações do Motorista", color = TextWhite, fontWeight = FontWeight.Bold)
-                            }
-                        },
-                        text = {
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Text(
-                                    "Como funciona este modal:",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = TextWhite,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                
-                                // Seção: Edição de Campos
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        "📝 Edição de Campos:",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = TextWhite,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        "• Vaga: Edite a vaga de carregamento do motorista",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• Rota: Edite a rota do motorista",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• Sacas: Informe a quantidade de sacas (opcional)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• Clique em SALVAR para confirmar as alterações",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                }
-                                
-                                // Seção: Ações do Motorista
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        "🎯 Ações do Motorista:",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = TextWhite,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        "• Vaga: Chama o motorista para a vaga de carregamento",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• Estacionamento: Chama o motorista para aguardar no estacionamento",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• WhatsApp: Abre conversa no WhatsApp do motorista (se disponível)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                }
-                                
-                                // Seção: Botões Inferiores
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        "⚙️ Botões Inferiores:",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = TextWhite,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        "• CONCLUIR: Marca o carregamento como concluído",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• RESETAR STATUS: Volta o status do motorista para 'A CAMINHO'",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• Cancelar (X): Fecha o modal sem salvar alterações",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                    Text(
-                                        "• Excluir (🗑️): Remove o motorista da onda",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextGray
-                                    )
-                                }
-                            }
-                        },
-                        confirmButton = {
-                            TextButton(onClick = { showHelpDialog = false }) {
-                                Text("Entendi", color = NeonBlue)
-                            }
-                        },
-                        titleContentColor = TextWhite,
-                        textContentColor = TextGray
-                    )
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Botão: Marcar como Concluído
+                        TextButton(
+                            onClick = {
+                                onMarcarComoConcluido()
+                                onDismiss()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "CONCLUIR",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = NeonOrange,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+
+                        // Botão: Resetar Status
+                        TextButton(
+                            onClick = {
+                                onResetarStatus()
+                                onDismiss()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                "RESETAR STATUS",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = NeonBlue,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+
+            // Ação destrutiva discreta no rodapé
+            TextButton(
+                onClick = { showConfirmDelete = true },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                // Linha 1: Concluir e Resetar Status
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Botão: Marcar como Concluído (sem ícone, apenas texto)
-                    TextButton(
-                        onClick = {
-                            onMarcarComoConcluido()
-                            onDismiss()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            "CONCLUIR",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = NeonOrange,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    
-                    // Botão Resetar Status
-                    TextButton(
-                        onClick = {
-                            onResetarStatus()
-                            onDismiss()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            "RESETAR\nSTATUS",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = NeonBlue,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Visible,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-                
-                // Linha 2: Cancelar e Excluir
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Botão Cancelar (ícone de Close)
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = "Cancelar",
-                            tint = TextGray,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    
-                    // Botão Excluir (ícone de lixeira)
-                    TextButton(
-                        onClick = {
-                            showConfirmDelete = true
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Delete,
-                            contentDescription = "Excluir",
-                            tint = Color(0xFFEF4444),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = Color(0xFFEF4444),
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    "Excluir da onda",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Color(0xFFEF4444)
+                )
             }
         }
-    )
+    }
 }
