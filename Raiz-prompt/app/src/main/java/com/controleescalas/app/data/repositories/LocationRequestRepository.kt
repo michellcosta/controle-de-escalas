@@ -50,13 +50,16 @@ class LocationRequestRepository {
             }
             val data = snapshot?.data ?: return@addSnapshotListener
             val status = data["status"] as? String ?: "pending"
+            val atualizadoEmMillis = (data["atualizadoEm"] as? com.google.firebase.Timestamp)?.toDate()?.time
             trySend(
                 LocationResponse(
                     status = status,
                     motoristaNome = data["motoristaNome"] as? String ?: "",
                     distanceKm = (data["distanceKm"] as? Number)?.toDouble(),
                     etaMinutes = (data["etaMinutes"] as? Number)?.toInt(),
-                    error = data["error"] as? String
+                    error = data["error"] as? String,
+                    metodo = data["metodo"] as? String,
+                    atualizadoEmMillis = atualizadoEmMillis
                 )
             )
         }
@@ -69,5 +72,7 @@ data class LocationResponse(
     val motoristaNome: String,
     val distanceKm: Double?,
     val etaMinutes: Int?,
-    val error: String?
+    val error: String?,
+    val metodo: String? = null,
+    val atualizadoEmMillis: Long? = null
 )

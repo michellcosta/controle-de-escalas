@@ -566,38 +566,79 @@ def location_receive():
                 "atualizadoEm": firestore.SERVER_TIMESTAMP,
             })
             return jsonify({"ok": False, "error": "Galpão não configurado"}), 200
+
+        # ==== ROTA REAL com fallback em degraus (nunca mais 'Serviço indisponível') ====
+        # 1) OpenRouteService (se ORS_API_KEY configurada — melhor qualidade)
+        # 2) OSRM demo público (não exige chave; melhor esforço)
+        # 3) Estimativa em linha reta × fator de circunviação (último recurso, marcada)
+        distance_m = None
+        duration_s = None
+        metodo = None
+
         ors_key = os.getenv('ORS_API_KEY') or os.getenv('OPENROUTESERVICE_API_KEY')
-        if not ors_key:
-            reader.write_location_response(base_id, motorista_id, {
-                "status": "error", "error": "Serviço indisponível",
-                "atualizadoEm": firestore.SERVER_TIMESTAMP,
-            })
-            return jsonify({"ok": False, "error": "Serviço indisponível"}), 500
-        url = "https://api.openrouteservice.org/v2/directions/driving-car"
-        payload = {"coordinates": [[lng, lat], [galpao["lng"], galpao["lat"]]]}
-        resp = http_requests.post(url, json=payload, headers={"Authorization": ors_key, "Content-Type": "application/json"}, timeout=15)
-        if resp.status_code != 200:
-            reader.write_location_response(base_id, motorista_id, {
-                "status": "error", "error": "Erro ao calcular rota",
-                "atualizadoEm": firestore.SERVER_TIMESTAMP,
-            })
-            return jsonify({"ok": False, "error": "Erro ao calcular rota"}), 200
-        ors_data = resp.json()
-        route = (ors_data.get('routes') or [{}])[0]
-        summary = route.get('summary') or {}
-        distance_m = summary.get('distance', 0)
-        duration_s = summary.get('duration', 0)
-        eta_min = round(duration_s / 60)
+        if ors_key:
+            try:
+                resp = http_requests.post(
+                    "https://api.openrouteservice.org/v2/directions/driving-car",
+                    json={"coordinates": [[lng, lat], [galpao["lng"], galpao["lat"]]]},
+                    headers={"Authorization": ors_key, "Content-Type": "application/json"},
+                    timeout=15)
+                if resp.status_code == 200:
+                    summary = (resp.json().get('routes') or [{}])[0].get('summary') or {}
+                    distance_m = summary.get('distance')
+                    duration_s = summary.get('duration')
+                    if distance_m and duration_s:
+                        metodo = 'ors'
+            except Exception as e:
+                print(f"⚠️ ORS falhou, caindo para OSRM: {e}")
+
+        if distance_m is None:
+            try:
+                resp = http_requests.get(
+                    f"https://router.project-osrm.org/route/v1/driving/{lng},{lat};{galpao['lng']},{galpao['lat']}?overview=false&steps=false",
+                    timeout=15)
+                if resp.status_code == 200:
+                    route = (resp.json().get('routes') or [{}])[0]
+                    distance_m = route.get('distance')
+                    duration_s = route.get('duration')
+                    if distance_m and duration_s:
+                        metodo = 'osrm'
+            except Exception as e:
+                print(f"⚠️ OSRM falhou, caindo para estimativa: {e}")
+
+        estimativa = False
+        if distance_m is None:
+            # 3) Último recurso: linha reta × circunviação urbana, velocidade média de caminhão
+            import math
+            dlat = math.radians(galpao['lat'] - lat)
+            dlng = math.radians(galpao['lng'] - lng)
+            a = (math.sin(dlat / 2) ** 2
+                 + math.cos(math.radians(lat)) * math.cos(math.radians(galpao['lat'])) * math.sin(dlng / 2) ** 2)
+            distance_m = 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)) * 1.35
+            duration_s = (distance_m / 1000) / 40 * 3600  # média 40 km/h
+            metodo = 'estimativa'
+            estimativa = True
+
+        # Fator caminhão: roteadores assumem carro; caminhão carregado é mais lento.
+        try:
+            fator = float(os.getenv('ETA_TRUCK_FACTOR', '1.2'))
+        except (TypeError, ValueError):
+            fator = 1.2
+        if metodo in ('ors', 'osrm'):
+            duration_s = duration_s * fator
+
+        eta_min = max(1, round(duration_s / 60))
         distance_km = round((distance_m / 1000) * 10) / 10
         motorista_doc = reader.db.collection('bases').document(base_id).collection('motoristas').document(motorista_id).get()
         motorista_nome = (motorista_doc.to_dict() or {}).get('nome', 'Motorista')
         reader.write_location_response(base_id, motorista_id, {
             "status": "ready", "motoristaNome": motorista_nome,
             "distanceKm": distance_km, "etaMinutes": eta_min,
+            "metodo": metodo, "estimativa": estimativa,
             "atualizadoEm": firestore.SERVER_TIMESTAMP,
         })
-        print(f"✅ Localização: {motorista_nome} - {distance_km} km, ~{eta_min} min")
-        return jsonify({"ok": True, "distanceKm": distance_km, "etaMinutes": eta_min}), 200
+        print(f"✅ Localização ({metodo}): {motorista_nome} - {distance_km} km, ~{eta_min} min")
+        return jsonify({"ok": True, "distanceKm": distance_km, "etaMinutes": eta_min, "metodo": metodo, "estimativa": estimativa}), 200
     except Exception as e:
         print(f"❌ Erro location/receive: {e}")
         import traceback

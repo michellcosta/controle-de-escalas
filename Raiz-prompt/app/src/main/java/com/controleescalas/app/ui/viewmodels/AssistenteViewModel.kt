@@ -408,9 +408,17 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                                 "assistant",
                                 "Consultando localização de $motoristaNome..."
                             )
+                            // Ignorar respostas VELHAS: um doc 'ready' de horas
+                            // atrás mostrava distância desatualizada (o motorista
+                            // pode já ter se movido). Exige resposta gravada
+                            // DEPOIS do início desta consulta.
+                            val inicioConsulta = System.currentTimeMillis()
                             val resp = withTimeoutOrNull(30_000) {
                                 locationRepo.listenToLocationResponse(baseId, motoristaId)
-                                    .first { it.status == "ready" || it.status == "error" }
+                                    .first {
+                                        (it.status == "ready" || it.status == "error") &&
+                                            (it.atualizadoEmMillis ?: 0L) >= inicioConsulta
+                                    }
                             }
                             when {
                                 resp == null -> {
@@ -422,10 +430,13 @@ class AssistenteViewModel(application: Application) : AndroidViewModel(applicati
                                 resp.status == "ready" -> {
                                     val dist = resp.distanceKm?.let { "%.1f".format(it) } ?: "?"
                                     val eta = resp.etaMinutes ?: 0
-                                    _messages.value = _messages.value + ChatMessage(
-                                        "assistant",
-                                        "$motoristaNome está a $dist km, deve chegar em aproximadamente $eta minuto(s)."
-                                    )
+                                    val texto = if (resp.metodo == "estimativa") {
+                                        "Estimativa aproximada (sem rota de estrada no momento): " +
+                                            "$motoristaNome está a ~$dist km em linha reta, chegada em ~$eta minuto(s)."
+                                    } else {
+                                        "$motoristaNome está a $dist km por estrada, deve chegar em aproximadamente $eta minuto(s)."
+                                    }
+                                    _messages.value = _messages.value + ChatMessage("assistant", texto)
                                 }
                                 else -> {
                                     _messages.value = _messages.value + ChatMessage(
