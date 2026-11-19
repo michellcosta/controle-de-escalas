@@ -189,18 +189,27 @@ class QuinzenaViewModel : ViewModel() {
             println("📄 QuinzenaViewModel: Documento ID: $docId")
             
             val docRef = firestore.collection("quinzenas").document(docId)
-            
-            val doc = docRef.get().await()
-            
-            val quinzena = if (doc.exists()) {
-                println("✅ QuinzenaViewModel: Documento existe, carregando...")
-                val quinzenaExistente = doc.toObject(QuinzenaMotorista::class.java)
-                if (quinzenaExistente != null) {
-                    println("   Primeira quinzena: ${quinzenaExistente.primeiraQuinzena.diasTrabalhados} dias, ${quinzenaExistente.primeiraQuinzena.datas.size} datas")
-                    println("   Segunda quinzena: ${quinzenaExistente.segundaQuinzena.diasTrabalhados} dias, ${quinzenaExistente.segundaQuinzena.datas.size} datas")
-                    quinzenaExistente
+
+            // B10 da auditoria: era get() → modifica em memória → set() completo,
+            // sem transação — dois escritores simultâneos (admin marca concluído
+            // enquanto o motorista confirma) perdiam um incremento. E o MESMO dia
+            // marcado duas vezes contava 2 dias trabalhados (dado que alimenta
+            // pagamento). Agora: transação + datas distintas (mesmo dia nunca
+            // conta duas vezes).
+            val isPrimeiraQuinzena = dia <= 15
+
+            val quinzenaAtualizada = firestore.runTransaction { tx ->
+                val snap = tx.get(docRef)
+                val quinzena = if (snap.exists()) {
+                    snap.toObject(QuinzenaMotorista::class.java)
+                        ?: QuinzenaMotorista(
+                            motoristaId = motoristaId,
+                            motoristaNome = motoristaNome,
+                            baseId = baseId,
+                            mes = mes,
+                            ano = ano
+                        )
                 } else {
-                    println("⚠️ QuinzenaViewModel: Documento existe mas não pôde ser convertido, criando novo...")
                     QuinzenaMotorista(
                         motoristaId = motoristaId,
                         motoristaNome = motoristaNome,
@@ -209,54 +218,44 @@ class QuinzenaViewModel : ViewModel() {
                         ano = ano
                     )
                 }
-            } else {
-                println("ℹ️ QuinzenaViewModel: Documento não existe, criando novo...")
-                QuinzenaMotorista(
-                    motoristaId = motoristaId,
-                    motoristaNome = motoristaNome,
-                    baseId = baseId,
-                    mes = mes,
-                    ano = ano
-                )
-            }
-            
-            // Determinar se é primeira ou segunda quinzena
-            val isPrimeiraQuinzena = dia <= 15
-            println("📅 QuinzenaViewModel: Dia $dia, é primeira quinzena: $isPrimeiraQuinzena")
-            
-            val quinzenaAtualizada = if (isPrimeiraQuinzena) {
-                // ✅ PERMITIR DUPLICAÇÃO: Sempre adicionar a data (permite múltiplas marcações no mesmo dia)
-                println("✅ QuinzenaViewModel: Adicionando data $data à primeira quinzena")
-                val novasDatas = quinzena.primeiraQuinzena.datas + data
-                val novaQuinzena = quinzena.copy(
-                    primeiraQuinzena = QuinzenaDetalhes(
-                        diasTrabalhados = novasDatas.size, // Total de vezes marcado (permite duplicação)
-                        datas = novasDatas
-                    ),
-                    atualizadoEm = System.currentTimeMillis()
-                )
-                println("   Novo total: ${novaQuinzena.primeiraQuinzena.diasTrabalhados} dias trabalhados (${novasDatas.count { it == data }}x no dia $data)")
-                novaQuinzena
-            } else {
-                // Segunda quinzena
-                println("✅ QuinzenaViewModel: Adicionando data $data à segunda quinzena")
-                val novasDatas = quinzena.segundaQuinzena.datas + data
-                val novaQuinzena = quinzena.copy(
-                    segundaQuinzena = QuinzenaDetalhes(
-                        diasTrabalhados = novasDatas.size, // Total de vezes marcado (permite duplicação)
-                        datas = novasDatas
-                    ),
-                    atualizadoEm = System.currentTimeMillis()
-                )
-                println("   Novo total: ${novaQuinzena.segundaQuinzena.diasTrabalhados} dias trabalhados (${novasDatas.count { it == data }}x no dia $data)")
-                novaQuinzena
-            }
-            
-            // Salvar no Firestore
-            println("💾 QuinzenaViewModel: Salvando no Firestore...")
-            docRef.set(quinzenaAtualizada).await()
-            println("✅ QuinzenaViewModel: Quinzena salva com sucesso!")
-            
+
+                if (isPrimeiraQuinzena) {
+                    val novasDatas = (quinzena.primeiraQuinzena.datas + data).distinct()
+                    if (novasDatas.size == quinzena.primeiraQuinzena.datas.size) {
+                        println("ℹ️ QuinzenaViewModel: dia $data já estava contado — nada a somar")
+                        return@runTransaction quinzena
+                    }
+                    println("✅ QuinzenaViewModel: Adicionando data $data à primeira quinzena")
+                    val nova = quinzena.copy(
+                        primeiraQuinzena = QuinzenaDetalhes(
+                            diasTrabalhados = novasDatas.size,
+                            datas = novasDatas
+                        ),
+                        atualizadoEm = System.currentTimeMillis()
+                    )
+                    println("   Novo total: ${nova.primeiraQuinzena.diasTrabalhados} dias trabalhados")
+                    nova
+                } else {
+                    val novasDatas = (quinzena.segundaQuinzena.datas + data).distinct()
+                    if (novasDatas.size == quinzena.segundaQuinzena.datas.size) {
+                        println("ℹ️ QuinzenaViewModel: dia $data já estava contado — nada a somar")
+                        return@runTransaction quinzena
+                    }
+                    println("✅ QuinzenaViewModel: Adicionando data $data à segunda quinzena")
+                    val nova = quinzena.copy(
+                        segundaQuinzena = QuinzenaDetalhes(
+                            diasTrabalhados = novasDatas.size,
+                            datas = novasDatas
+                        ),
+                        atualizadoEm = System.currentTimeMillis()
+                    )
+                    println("   Novo total: ${nova.segundaQuinzena.diasTrabalhados} dias trabalhados")
+                    nova
+                }.also { tx.set(docRef, it) }
+            }.await()
+
+            println("✅ QuinzenaViewModel: Quinzena salva com sucesso (transação)!")
+
             // Atualizar estado local se for a quinzena atual
             val calendarAtual = Calendar.getInstance()
             val mesAtual = calendarAtual.get(Calendar.MONTH) + 1
@@ -265,7 +264,7 @@ class QuinzenaViewModel : ViewModel() {
                 _minhaQuinzena.value = quinzenaAtualizada
                 println("✅ QuinzenaViewModel: Estado local atualizado")
             }
-            
+
         } catch (e: Exception) {
             println("❌ QuinzenaViewModel: Erro ao incrementar dia trabalhado: ${e.message}")
             e.printStackTrace()
@@ -307,57 +306,57 @@ class QuinzenaViewModel : ViewModel() {
             println("📄 QuinzenaViewModel: Documento ID: $docId")
             
             val docRef = firestore.collection("quinzenas").document(docId)
-            
-            val doc = docRef.get().await()
-            
-            if (!doc.exists()) {
-                println("⚠️ QuinzenaViewModel: Documento não existe, não há nada para remover")
-                return
-            }
-            
-            val quinzena = doc.toObject(QuinzenaMotorista::class.java) ?: run {
-                println("❌ QuinzenaViewModel: Erro ao converter documento")
-                _error.value = "Erro ao converter documento"
-                return
-            }
-            
-            // Determinar se é primeira ou segunda quinzena
+
+            // B10: mesma correção do incremento — transação em vez de RMW solto
+            // (dois escritores simultâneos não perdem mais alteração)
             val isPrimeiraQuinzena = dia <= 15
-            println("📅 QuinzenaViewModel: Dia $dia, é primeira quinzena: $isPrimeiraQuinzena")
-            
-            val quinzenaAtualizada = if (isPrimeiraQuinzena) {
-                // Remover todas as ocorrências da data da primeira quinzena
-                println("🗑️ QuinzenaViewModel: Removendo todas as ocorrências da data $data da primeira quinzena")
-                val datasFiltradas = quinzena.primeiraQuinzena.datas.filter { it != data }
-                val novaQuinzena = quinzena.copy(
-                    primeiraQuinzena = QuinzenaDetalhes(
-                        diasTrabalhados = datasFiltradas.size, // Total após remoção
-                        datas = datasFiltradas
-                    ),
-                    atualizadoEm = System.currentTimeMillis()
-                )
-                println("   Novo total: ${novaQuinzena.primeiraQuinzena.diasTrabalhados} dias trabalhados (removidas todas as ocorrências de $data)")
-                novaQuinzena
-            } else {
-                // Segunda quinzena
-                println("🗑️ QuinzenaViewModel: Removendo todas as ocorrências da data $data da segunda quinzena")
-                val datasFiltradas = quinzena.segundaQuinzena.datas.filter { it != data }
-                val novaQuinzena = quinzena.copy(
-                    segundaQuinzena = QuinzenaDetalhes(
-                        diasTrabalhados = datasFiltradas.size, // Total após remoção
-                        datas = datasFiltradas
-                    ),
-                    atualizadoEm = System.currentTimeMillis()
-                )
-                println("   Novo total: ${novaQuinzena.segundaQuinzena.diasTrabalhados} dias trabalhados (removidas todas as ocorrências de $data)")
-                novaQuinzena
+
+            val quinzenaAtualizada = firestore.runTransaction { tx ->
+                val snap = tx.get(docRef)
+                if (!snap.exists()) {
+                    println("⚠️ QuinzenaViewModel: Documento não existe, não há nada para remover")
+                    return@runTransaction null
+                }
+                val quinzena = snap.toObject(QuinzenaMotorista::class.java) ?: run {
+                    println("❌ QuinzenaViewModel: Erro ao converter documento")
+                    return@runTransaction null
+                }
+
+                if (isPrimeiraQuinzena) {
+                    println("🗑️ QuinzenaViewModel: Removendo todas as ocorrências da data $data da primeira quinzena")
+                    val datasFiltradas = quinzena.primeiraQuinzena.datas.filter { it != data }
+                    val nova = quinzena.copy(
+                        primeiraQuinzena = QuinzenaDetalhes(
+                            diasTrabalhados = datasFiltradas.size,
+                            datas = datasFiltradas
+                        ),
+                        atualizadoEm = System.currentTimeMillis()
+                    )
+                    println("   Novo total: ${nova.primeiraQuinzena.diasTrabalhados} dias trabalhados (removidas todas as ocorrências de $data)")
+                    tx.set(docRef, nova)
+                    nova
+                } else {
+                    println("🗑️ QuinzenaViewModel: Removendo todas as ocorrências da data $data da segunda quinzena")
+                    val datasFiltradas = quinzena.segundaQuinzena.datas.filter { it != data }
+                    val nova = quinzena.copy(
+                        segundaQuinzena = QuinzenaDetalhes(
+                            diasTrabalhados = datasFiltradas.size,
+                            datas = datasFiltradas
+                        ),
+                        atualizadoEm = System.currentTimeMillis()
+                    )
+                    println("   Novo total: ${nova.segundaQuinzena.diasTrabalhados} dias trabalhados (removidas todas as ocorrências de $data)")
+                    tx.set(docRef, nova)
+                    nova
+                }
+            }.await()
+
+            if (quinzenaAtualizada == null) {
+                return
             }
-            
-            // Salvar no Firestore
-            println("💾 QuinzenaViewModel: Salvando no Firestore...")
-            docRef.set(quinzenaAtualizada).await()
-            println("✅ QuinzenaViewModel: Quinzena salva com sucesso após remoção!")
-            
+
+            println("✅ QuinzenaViewModel: Quinzena salva com sucesso após remoção (transação)!")
+
             // Atualizar estado local se for a quinzena atual
             val calendarAtual = Calendar.getInstance()
             val mesAtual = calendarAtual.get(Calendar.MONTH) + 1
@@ -366,7 +365,7 @@ class QuinzenaViewModel : ViewModel() {
                 _minhaQuinzena.value = quinzenaAtualizada
                 println("✅ QuinzenaViewModel: Estado local atualizado após remoção")
             }
-            
+
         } catch (e: Exception) {
             println("❌ QuinzenaViewModel: Erro ao remover dia trabalhado: ${e.message}")
             e.printStackTrace()
