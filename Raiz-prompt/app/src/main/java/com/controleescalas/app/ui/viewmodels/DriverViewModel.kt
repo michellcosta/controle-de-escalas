@@ -786,40 +786,46 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
     }
     
     /**
-     * Verificar se o motorista foi excluído e limpar dados para voltar ao estado "não escalado"
+     * Verificar se o motorista foi excluído e limpar dados para voltar ao estado "não escalado".
+     * B4 da auditoria: exclusão só é confirmada quando o DOC do motorista
+     * definitivamente NÃO existe. Antes, "dois gets retornando null" — que
+     * também acontece numa falha transitória de rede (os métodos fazem
+     * catch { null }) — apagava nome/status/escala, parava geofence e
+     * monitoramento: motorista ficava SEM chamadas até reabrir o app.
+     * Leitura indefinida (erro) = não mexe em nada.
      */
     private fun checkMotoristaExcluido(motoristaId: String, baseId: String) {
         viewModelScope.launch {
             try {
-                // Verificar se o documento do motorista existe
-                val nome = motoristaRepository.getMotoristaNome(motoristaId, baseId)
-                val status = motoristaRepository.getStatusMotorista(motoristaId, baseId)
-                
-                // Se ambos forem null, o motorista foi excluído
-                if (nome == null && status == null) {
-                    println("❌ DriverViewModel: Motorista foi excluído! Limpando dados e voltando para estado 'não escalado'...")
+                val existe = motoristaRepository.motoristaExiste(motoristaId, baseId)
+                if (existe == false) {
+                    println("❌ DriverViewModel: Motorista foi excluído (doc confirmado inexistente)! Limpando dados e voltando para estado 'não escalado'...")
                     android.util.Log.w("DriverViewModel", "❌ Motorista $motoristaId foi excluído da base $baseId")
-                    
+
                     // Limpar dados locais - isso fará a tela mostrar "não escalado"
                     _motoristaNome.value = null
                     _statusInfo.value = null
                     _escalaInfo.value = null
-                    
+
                     // Parar monitoramento de localização
                     geofencingService.stopLocationUpdates()
-                    
+
                     // Parar serviço de monitoramento
                     stopStatusMonitoringService()
-                    
+
                     // Parar WorkManager
                     stopStatusCheckWork()
-                    
+
                     // Limpar listeners
                     motoristaNomeListener?.remove()
                     statusListener?.remove()
-                    
+
                     // Não fazer logout, apenas limpar os dados para mostrar estado "não escalado"
                     println("✅ DriverViewModel: Dados limpos, tela voltará para estado 'não escalado'")
+                } else if (existe == null) {
+                    println("⚠️ DriverViewModel: falha de leitura ao verificar exclusão — NÃO limpando estado (B4)")
+                } else {
+                    println("ℹ️ DriverViewModel: Motorista ainda existe — null anterior era de dado ausente (status/escala), mantendo estado")
                 }
             } catch (e: Exception) {
                 println("❌ DriverViewModel: Erro ao verificar exclusão: ${e.message}")

@@ -263,6 +263,34 @@ class MotoristaRepository {
     }
     
     /**
+     * B4 da auditoria: distingue "motorista não existe" de "falha de leitura".
+     * getMotoristaNome/getStatusMotorista fazem catch { null } — um erro de
+     * rede era indistinguível de exclusão, e quem chamava apagava o estado do
+     * motorista e parava geofence/monitoramento: ficava SEM chamadas
+     * silenciosamente até reabrir o app.
+     * Retorna: true = doc existe; false = doc NÃO existe (definitivo, pode
+     * tratar como excluído); null = não deu para saber (rede/cota/perm) — o
+     * chamador NÃO deve limpar nada.
+     */
+    suspend fun motoristaExiste(motoristaId: String, baseId: String): Boolean? {
+        if (motoristaId.isBlank() || baseId.isBlank()) return null
+        return try {
+            ensureAuth()
+            val snap = firestore
+                .collection("bases")
+                .document(baseId)
+                .collection("motoristas")
+                .document(motoristaId.trim())
+                .get()
+                .await()
+            snap.exists()
+        } catch (e: Exception) {
+            println("⚠️ MotoristaRepository.motoristaExiste: erro de leitura (NÃO é exclusão): ${e.message}")
+            null
+        }
+    }
+
+    /**
      * Buscar nome do motorista por ID
      * Se não encontrar pelo ID, tenta buscar pelo telefone (caso o ID seja o telefone)
      */
