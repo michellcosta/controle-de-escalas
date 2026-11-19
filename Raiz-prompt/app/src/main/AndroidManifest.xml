@@ -29,7 +29,8 @@
     <!-- Permissões de foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- FOREGROUND_SERVICE_DATA_SYNC removida: nenhum serviço usa mais o
+         tipo dataSync (limite de 6h/dia no Android 15 — B5 da auditoria) -->
 
     <!-- Isenção de otimização de bateria (evita que o Android mate o serviço de monitoramento) -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -74,12 +75,14 @@
             android:exported="false"
             android:foregroundServiceType="location" />
         
-        <!-- Status Monitoring Service: dataSync + location para detectar chegada ao raio em background -->
+        <!-- Status Monitoring Service: apenas tipo location. O tipo dataSync
+             (removido) tem limite de 6h/dia no Android 15 e derruba o turno
+             com ForegroundServiceDidNotStopInTimeException (B5 da auditoria). -->
         <service
             android:name=".data.StatusMonitoringService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync|location" />
+            android:foregroundServiceType="location" />
 
         <!-- Geofence Broadcast Receiver -->
         <receiver

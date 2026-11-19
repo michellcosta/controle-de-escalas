@@ -5,11 +5,13 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.controleescalas.app.R
 import com.controleescalas.app.data.models.ConfiguracaoBase
@@ -91,6 +93,34 @@ class StatusMonitoringService : Service() {
         println("✅ StatusMonitoringService: Serviço criado com sucesso")
     }
     
+    /**
+     * B5 da auditoria: o serviço é FGS do tipo location. O tipo dataSync
+     * (removido do manifest) tem limite de 6h/dia no Android 15 e derrubaria
+     * o turno inteiro com ForegroundServiceDidNotStopInTimeException.
+     * Achado 7: revalida a permissão de localização ANTES do startForeground —
+     * no restart START_STICKY (usuário revogou a permissão com o serviço
+     * morto) o Android 14+ lança SecurityException e virava crash loop.
+     */
+    private fun iniciarForeground(): Boolean {
+        val temPermissao =
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!temPermissao) {
+            Log.w(TAG, "⛔ Sem permissão de localização para o foreground; limpando sessão e encerrando")
+            println("⛔ StatusMonitoringService: permissão de localização revogada, encerrando serviço")
+            limparSessaoMonitoramento()
+            stopSelf()
+            return false
+        }
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            createForegroundNotification(),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        )
+        return true
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "🔍 onStartCommand - Action: ${intent?.action}, MotoristaId: ${intent?.getStringExtra(EXTRA_MOTORISTA_ID)}, BaseId: ${intent?.getStringExtra(EXTRA_BASE_ID)}")
         println("🔍 StatusMonitoringService.onStartCommand: Action=${intent?.action}")
@@ -107,7 +137,7 @@ class StatusMonitoringService : Service() {
                     salvarSessaoMonitoramento(motoristaId!!, baseId!!)
                     Log.d(TAG, "🚀 Iniciando foreground service...")
                     println("🚀 StatusMonitoringService: Iniciando foreground service")
-                    startForeground(NOTIFICATION_ID, createForegroundNotification())
+                    if (!iniciarForeground()) return START_NOT_STICKY
                     Log.d(TAG, "✅ Foreground iniciado, chamando startMonitoring()")
                     println("✅ StatusMonitoringService: Foreground iniciado")
                     startMonitoring()
@@ -141,7 +171,7 @@ class StatusMonitoringService : Service() {
                 if (salva == null) {
                     Log.w(TAG, "⚠️ Serviço religado sem motorista salvo, encerrando")
                     println("⚠️ StatusMonitoringService: Religado sem sessão, encerrando")
-                    startForeground(NOTIFICATION_ID, createForegroundNotification())
+                    iniciarForeground() // startForeground obrigatório antes do stop
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                         stopForeground(STOP_FOREGROUND_REMOVE)
                     } else {
@@ -155,7 +185,7 @@ class StatusMonitoringService : Service() {
                 baseId = salva.second
                 Log.d(TAG, "🔄 Retomando monitoramento após religar - MotoristaId: $motoristaId, BaseId: $baseId")
                 println("🔄 StatusMonitoringService: Retomando monitoramento de $motoristaId")
-                startForeground(NOTIFICATION_ID, createForegroundNotification())
+                if (!iniciarForeground()) return START_NOT_STICKY
                 startMonitoring()
             }
         }
