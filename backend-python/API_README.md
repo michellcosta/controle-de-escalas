@@ -116,18 +116,6 @@ Envia notificação push para todos os motoristas de uma base
 }
 ```
 
-### `GET /motorista/token`
-Verifica se um motorista tem token FCM
-
-**Query params:**
-- `baseId`: ID da base
-- `motoristaId`: ID do motorista
-
-**Exemplo:**
-```
-GET /motorista/token?baseId=xvtFbdOurhdNKVY08rDw&motoristaId=abc123
-```
-
 ## 🔒 Segurança (Produção)
 
 Para produção, adicione autenticação:

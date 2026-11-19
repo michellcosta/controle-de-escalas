@@ -383,43 +383,6 @@ def notify_status_change():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/motorista/token', methods=['GET'])
-def get_motorista_token():
-    """
-    Endpoint para verificar se um motorista tem token FCM
-    
-    Query params:
-        baseId: ID da base
-        motoristaId: ID do motorista
-    """
-    try:
-        initialize_services()
-        
-        base_id = request.args.get('baseId')
-        motorista_id = request.args.get('motoristaId')
-        
-        if not base_id or not motorista_id:
-            return jsonify({
-                "error": "Query params obrigatórios: baseId, motoristaId"
-            }), 400
-        
-        token_info = reader.get_motorista_token(base_id, motorista_id)
-        
-        if token_info:
-            return jsonify({
-                "exists": True,
-                "motorista": token_info
-            }), 200
-        else:
-            return jsonify({
-                "exists": False,
-                "message": "Motorista não encontrado ou sem FCM token"
-            }), 404
-    
-    except Exception as e:
-        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
-
-
 def _uid_is_superadmin(uid: str) -> bool:
     """True se uid estiver em SUPERADMIN_UIDS (variável de ambiente, UIDs separados por vírgula)."""
     raw = (os.getenv('SUPERADMIN_UIDS') or '').strip()
@@ -1154,7 +1117,6 @@ if __name__ == '__main__':
     print("   POST /notify/motorista          - Notificar motorista específico")
     print("   POST /notify/base               - Notificar todos da base")
     print("   POST /notify/status-change      - Notificar mudança de status (motorista + admins)")
-    print("   GET  /motorista/token           - Verificar token de motorista")
     print("   POST /location/request          - Pedir localização/ETA (admin)")
     print("   POST /location/receive          - Receber coordenadas (motorista)")
     print("   POST /assistente/chat           - Chat com IA (texto + imagem)")
