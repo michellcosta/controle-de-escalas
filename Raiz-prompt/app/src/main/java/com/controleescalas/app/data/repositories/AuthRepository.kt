@@ -221,8 +221,14 @@ class AuthRepository {
             CoroutineScope(Dispatchers.IO).launch {
                 if (!authUid.isNullOrBlank()) {
                     try {
-                        documento.update(mapOf("authUid" to authUid)).await()
-                        println("📱 authUid gravado no documento para backend")
+                        // appVersion no doc: permite ver no console qual motorista
+                        // está com qual versão — essencial para caçar aparelhos
+                        // antigos quando a cota do Firestore estoura de novo.
+                        documento.update(mapOf(
+                            "authUid" to authUid,
+                            "appVersion" to com.controleescalas.app.BuildConfig.VERSION_NAME
+                        )).await()
+                        println("📱 authUid + appVersion gravados no documento para backend")
                     } catch (e: Exception) {
                         println("⚠️ Erro ao gravar authUid (não crítico): ${e.message}")
                     }

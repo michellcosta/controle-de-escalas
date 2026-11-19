@@ -26,11 +26,14 @@ service cloud.firestore {
     }
 
     // ==== GATE DE VERSÃO ====
-    // O app registra o próprio versionCode no backend, que grava a custom claim
-    // "v" no usuário. Escrita exige v >= 12; aparelhos com app antigo (que nunca
-    // registram) ficam SOMENTE LEITURA — veem o aviso de atualização, mas não
-    // gravam nada (negado por regra não consome cota). Leituras ficam abertas
-    // para todos os autenticados.
+    // O app registra o próprio versionCode no backend (/registrar_versao), que
+    // grava a custom claim "v" no usuário. LEITURA E ESCRITA exigem v >= 12:
+    // aparelhos com app antigo não usam o banco em absoluto — veem apenas o
+    // aviso de atualização (que vem do GitHub, não daqui).
+    //
+    // ATENÇÃO (medido em produção em 19/11/2026): operação NEGADA por regra
+    // CONTINUA CONSUMINDO a cota diária. O gate protege os dados, mas quem
+    // para o gasto é o APP DESISTIR de tentar (backoff no MotoristaRepository).
     function podeEscrever() {
       return request.auth != null &&
              request.auth.token.get('v', 0) >= 12;
@@ -38,88 +41,81 @@ service cloud.firestore {
 
     // ==== REGRAS ====
 
-    // ==== REGRAS (MODO GRATUITO / LOCAL) ====
-    // Como estamos usando Login Anônimo sem Custom Claims (para não usar Functions pagas),
-    // não podemos verificar 'baseId' ou 'papel' no token.
-    // A segurança depende do PIN validado pelo App.
-
     // REGRA GLOBAL PARA COLLECTION GROUP "motoristas"
     match /{path=**}/motoristas/{userId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
       allow write: if podeEscrever();
     }
 
     // REGRA GLOBAL PARA COLLECTION GROUP "escalas" (estatísticas consultam o grupo inteiro)
     match /{path=**}/escalas/{escalaId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
     }
 
     // REGRA GLOBAL PARA COLLECTION GROUP "statusMotoristas" (consultas legadas/migração)
     match /{path=**}/statusMotoristas/{motoristaId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
     }
 
     // Cada documento em /bases/{baseId} representa uma base
     match /bases/{baseId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
       allow write: if podeEscrever();
 
       // SUBCOLECAO motoristas
       match /motoristas/{userId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO escalaHoje
       match /escalaHoje/{turnoId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO statusMotoristas
       match /statusMotoristas/{motoristaId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO status_motoristas (permitir queries para migração)
+      // Sem trava por documento: com o gate, app antigo já está barrado; uma
+      // trava pontual só converte o loop do app em tempestade de retry negado
+      // (que continua consumindo cota — ver aviso no gate de versão).
       match /status_motoristas/{motoristaId} {
-        // TRAVA ANTI-LOOP: aparelho com versão antiga (pré-v9) ficou preso no
-        // loop de escrita de status a cada 30s queimando ~20k escritas/hora da
-        // cota diária. Bloqueia apenas este documento da base de teste; negado
-        // por regra não consome cota.
-        allow read, list: if request.auth != null;
-        allow write: if podeEscrever() &&
-          !(baseId == 'BPTeizpzVhl0Ece0hE5W' && motoristaId == 'VzRLeJjv2R4A3tJgDJse');
+        allow read, list: if podeEscrever();
+        allow write: if podeEscrever();
       }
 
       // SUBCOLECAO configuracao
       match /configuracao/{docId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO location_responses (admin/assistente escuta ETA após solicitar localização)
       match /location_responses/{motoristaId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO escalas (NOVO)
       match /escalas/{escalaId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO quinzenas (NOVO)
       match /quinzenas/{quinzenaId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO disponibilidades (NOVO)
       match /disponibilidades/{disponibilidadeId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
@@ -130,9 +126,8 @@ service cloud.firestore {
         allow create: if podeEscrever()
                       && request.resource.data.baseId == baseId;
 
-        // Qualquer usuário autenticado pode ler devoluções
-        // A filtragem por motorista é feita no código do app
-        allow read: if request.auth != null;
+        // Apenas apps atualizados leem devoluções
+        allow read: if podeEscrever();
 
         // Motoristas podem excluir apenas suas próprias devoluções
         // A validação é feita no código do app
@@ -144,13 +139,13 @@ service cloud.firestore {
 
       // SUBCOLECAO usuarios (fallback legado: tokens FCM e dados de sessão)
       match /usuarios/{userId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
 
       // SUBCOLECAO avisos_enviados (histórico de avisos/notificações enviadas)
       match /avisos_enviados/{avisoId} {
-        allow read: if request.auth != null;
+        allow read: if podeEscrever();
         allow write: if podeEscrever();
       }
     }
@@ -159,7 +154,7 @@ service cloud.firestore {
     // Disponibilidades são armazenadas na raiz: disponibilidades/{baseId}_{data}
     // Motoristas precisam ler para ver suas solicitações
     match /disponibilidades/{disponibilidadeId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
       allow write: if podeEscrever(); // Admin cria, motoristas atualizam suas respostas
     }
 
@@ -167,7 +162,7 @@ service cloud.firestore {
     // Quinzenas são armazenadas na raiz: quinzenas/{baseId}_{motoristaId}_{mes}_{ano}
     // Motoristas precisam ler e escrever suas próprias quinzenas
     match /quinzenas/{quinzenaId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
       allow write: if podeEscrever();
     }
 
@@ -180,7 +175,7 @@ service cloud.firestore {
       allow create: if podeEscrever();
 
       // Permitir ler se for o próprio admin que criou OU se for super admin
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
 
       // Permitir atualizar apenas para super admin (marcar como lido, curtir)
       // Na prática, qualquer usuário logado pode atualizar (será validado no código)
@@ -194,29 +189,29 @@ service cloud.firestore {
     // Configurações do sistema (monetização, etc.)
     match /sistema/{docId} {
       // Apenas super admin pode ler/escrever
-      // Por enquanto, permitir para qualquer usuário logado (será validado no código)
-      allow read: if request.auth != null;
+      // Por enquanto, permitir para qualquer usuário com app atualizado (será validado no código)
+      allow read: if podeEscrever();
       allow write: if podeEscrever();
     }
 
     // ==== COLECAO RAIZ: controle ====
     // controle/reset_diario garante que o reset diário execute em apenas um aparelho
     match /controle/{docId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
       allow write: if podeEscrever();
     }
 
     // ==== COLECAO RAIZ: usuarios ====
     // Perfil do usuário autenticado (nome/papel usados no histórico de avisos e no assistente)
     match /usuarios/{userId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
       allow write: if podeEscrever();
     }
 
     // ==== COLECAO RAIZ: historico_acoes ====
     // Registro de ações do sistema
     match /historico_acoes/{acaoId} {
-      allow read: if request.auth != null;
+      allow read: if podeEscrever();
       allow write: if podeEscrever();
     }
   }

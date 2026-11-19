@@ -397,8 +397,18 @@ def _uid_is_superadmin(uid: str) -> bool:
     return uid in allowed
 
 
-def _verify_firebase_token():
-    """Verifica Authorization: Bearer <idToken>. Retorna (uid, None) ou (None, error_tuple)."""
+VERSAO_MINIMA_ESCRITA = 12  # precisa casar com 'podeEscrever()' no firestore.rules
+
+
+def _verify_firebase_token(exigir_versao=True):
+    """
+    Verifica Authorization: Bearer <idToken> e o GATE DE VERSÃO.
+    Exige custom claim "v" >= VERSAO_MINIMA_ESCRITA: apps antigos não usam a API
+    (economiza OpenAI/push; o Firestore já os barra pelas security rules).
+    /registrar_versao chama com exigir_versao=False — é quem GRAVA a claim;
+    exigir versão ali criaria um deadlock (claim só existe depois do registro).
+    Retorna (uid, None) ou (None, error_tuple).
+    """
     auth_header = request.headers.get('Authorization')
     if not auth_header or not auth_header.startswith('Bearer '):
         return None, ({"error": "Token de autenticação obrigatório"}, 401)
@@ -407,13 +417,15 @@ def _verify_firebase_token():
         return None, ({"error": "Token inválido"}, 401)
     try:
         decoded = auth.verify_id_token(token)
-        return decoded.get('uid'), None
     except Exception as e:
         print(f"Token verification failed: {e}")
         return None, ({"error": "Token inválido ou expirado"}, 401)
-
-
-VERSAO_MINIMA_ESCRITA = 12  # precisa casar com 'podeEscrever()' no firestore.rules
+    if exigir_versao:
+        versao = decoded.get('v', 0) or 0
+        if versao < VERSAO_MINIMA_ESCRITA:
+            print(f"⛔ App antigo bloqueado na API: uid={decoded.get('uid')} v={versao}")
+            return None, ({"error": "Versão do app muito antiga. Atualize o aplicativo.", "atualizacaoObrigatoria": True}, 403)
+    return decoded.get('uid'), None
 
 
 @app.route('/registrar_versao', methods=['POST'])
@@ -427,7 +439,8 @@ def registrar_versao():
     """
     try:
         initialize_services()
-        uid, err = _verify_firebase_token()
+        # exigir_versao=False: este endpoint É quem grava a claim de versão.
+        uid, err = _verify_firebase_token(exigir_versao=False)
         if err:
             return jsonify(err[0]), err[1]
         data = request.get_json() or {}

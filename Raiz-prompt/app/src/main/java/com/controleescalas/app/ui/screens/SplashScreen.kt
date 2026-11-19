@@ -44,7 +44,14 @@ fun SplashScreen(
     // Verificar sessão ativa
     LaunchedEffect(Unit) {
         delay(1500) // Mostrar logo por 1.5 segundos
-        
+
+        // GATE DE VERSÃO: garantir a claim "v" ANTES de qualquer leitura no
+        // Firestore (as rules negam leitura de apps sem versão registrada).
+        // O MainApp já dispara o registro em paralelo; normalmente o fast path
+        // cai aqui e retorna na hora. Na 1ª abertura pode esperar o backend
+        // (Render frio: até ~65s — o OkHttp do VersaoGate já tem esse timeout).
+        com.controleescalas.app.data.VersaoGate.registrar()
+
         val lastSession = sessionManager.getLastActiveSession()
         
         if (lastSession != null) {
