@@ -13,6 +13,7 @@ Ou com gunicorn (produção):
 
 import os
 import json
+import time
 import difflib
 from datetime import datetime, timezone
 import requests as http_requests
@@ -455,6 +456,27 @@ def _verify_firebase_token(exigir_versao=True):
     return decoded.get('uid'), None
 
 
+# Rate limit em memória para /registrar_versao (gunicorn roda 1 worker —
+# o dicionário cobre o processo inteiro). set_custom_user_claims invalida o
+# token atual do usuário: registrar em loop derruba a sessão do app e custa
+# compute de Auth. Janela de 1h, 5 chamadas por uid é folgado para uso real
+# (o app só registra no startup/login e em falha do fast path).
+_REGISTRAR_VERSAO_JANELA_SEG = 3600
+_REGISTRAR_VERSAO_MAX = 5
+_registrar_versao_hist: dict = {}
+
+
+def _registrar_versao_permitido(uid: str) -> bool:
+    agora = time.time()
+    hist = [t for t in _registrar_versao_hist.get(uid, []) if agora - t < _REGISTRAR_VERSAO_JANELA_SEG]
+    if len(hist) >= _REGISTRAR_VERSAO_MAX:
+        _registrar_versao_hist[uid] = hist
+        return False
+    hist.append(agora)
+    _registrar_versao_hist[uid] = hist
+    return True
+
+
 @app.route('/registrar_versao', methods=['POST'])
 def registrar_versao():
     """
@@ -470,6 +492,9 @@ def registrar_versao():
         uid, err = _verify_firebase_token(exigir_versao=False)
         if err:
             return jsonify(err[0]), err[1]
+        if not _registrar_versao_permitido(uid):
+            print(f"⛔ registrar_versao: rate limit atingido para uid {uid}")
+            return jsonify({"error": "Muitas tentativas de registro. Tente mais tarde."}), 429
         data = request.get_json() or {}
         try:
             version_code = int(data.get('versionCode') or 0)
