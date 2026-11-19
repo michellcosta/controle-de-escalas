@@ -37,6 +37,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // REGRA GLOBAL PARA COLLECTION GROUP "escalas" (estatísticas consultam o grupo inteiro)
+    match /{path=**}/escalas/{escalaId} {
+      allow read: if request.auth != null;
+    }
+
+    // REGRA GLOBAL PARA COLLECTION GROUP "statusMotoristas" (consultas legadas/migração)
+    match /{path=**}/statusMotoristas/{motoristaId} {
+      allow read: if request.auth != null;
+    }
+
     // Cada documento em /bases/{baseId} representa uma base
     match /bases/{baseId} {
       // Permitir criar/ler/escrever bases se estiver logado (anônimo)
@@ -91,19 +101,29 @@ service cloud.firestore {
       match /devolucoes/{devolucaoId} {
         // Qualquer usuário autenticado pode criar devoluções
         // A validação do motoristaId e baseId é feita no código do app
-        allow create: if request.auth != null 
+        allow create: if request.auth != null
                       && request.resource.data.baseId == baseId;
-        
+
         // Qualquer usuário autenticado pode ler devoluções
         // A filtragem por motorista é feita no código do app
         allow read: if request.auth != null;
-        
+
         // Motoristas podem excluir apenas suas próprias devoluções
         // A validação é feita no código do app
         allow delete: if request.auth != null;
-        
+
         // Não permitir update (devoluções são imutáveis após criação)
         allow update: if false;
+      }
+
+      // SUBCOLECAO usuarios (fallback legado: tokens FCM e dados de sessão)
+      match /usuarios/{userId} {
+        allow read, write: if request.auth != null;
+      }
+
+      // SUBCOLECAO avisos_enviados (histórico de avisos/notificações enviadas)
+      match /avisos_enviados/{avisoId} {
+        allow read, write: if request.auth != null;
       }
     }
     
@@ -152,6 +172,18 @@ service cloud.firestore {
     // ==== COLECAO RAIZ: controle ====
     // controle/reset_diario garante que o reset diário execute em apenas um aparelho
     match /controle/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ==== COLECAO RAIZ: usuarios ====
+    // Perfil do usuário autenticado (nome/papel usados no histórico de avisos e no assistente)
+    match /usuarios/{userId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ==== COLECAO RAIZ: historico_acoes ====
+    // Registro de ações do sistema
+    match /historico_acoes/{acaoId} {
       allow read, write: if request.auth != null;
     }
   }

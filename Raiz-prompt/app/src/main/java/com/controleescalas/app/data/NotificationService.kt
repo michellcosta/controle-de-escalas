@@ -353,20 +353,31 @@ class NotificationService(private val context: Context) {
         try {
             val token = getFcmToken()
             if (token != null) {
+                // O token só muda em reinstalação/rotação do FCM. Se já gravamos
+                // este mesmo valor com sucesso antes, pular para economizar cota.
+                val prefs = context.getSharedPreferences("cota_firestore", Context.MODE_PRIVATE)
+                val chaveUltimoToken = "fcm_last_${userId}_${baseId}"
+                if (prefs.getString(chaveUltimoToken, null) == token) {
+                    Log.d(TAG, "⏭️ FCM token inalterado para $userId ($baseId) — gravação pulada")
+                    return
+                }
+
                 // Tentar salvar em motoristas primeiro (sistema atual)
                 val motoristaRef = FirebaseManager.firestore
                     .collection("bases")
                     .document(baseId)
                     .collection("motoristas")
                     .document(userId)
-                
+
                 try {
                     motoristaRef.update("fcmToken", token).await()
+                    prefs.edit().putString(chaveUltimoToken, token).apply()
                     Log.d(TAG, "✅ FCM Token salvo no Firestore (motoristas) para usuário $userId")
                 } catch (e: Exception) {
                     // Se falhar, tentar criar o documento se não existir
                     try {
                         motoristaRef.set(mapOf("fcmToken" to token), com.google.firebase.firestore.SetOptions.merge()).await()
+                        prefs.edit().putString(chaveUltimoToken, token).apply()
                         Log.d(TAG, "✅ FCM Token salvo no Firestore (motoristas, criado) para usuário $userId")
                     } catch (e2: Exception) {
                         Log.e(TAG, "❌ Erro ao salvar FCM token em motoristas", e2)
@@ -378,6 +389,7 @@ class NotificationService(private val context: Context) {
                                 .collection("usuarios")
                                 .document(userId)
                             usuarioRef.update("fcmToken", token).await()
+                            prefs.edit().putString(chaveUltimoToken, token).apply()
                             Log.d(TAG, "✅ FCM Token salvo no Firestore (usuarios, fallback) para usuário $userId")
                         } catch (e3: Exception) {
                             Log.e(TAG, "❌ Erro ao salvar FCM token em usuarios também", e3)
@@ -397,12 +409,17 @@ class NotificationService(private val context: Context) {
      */
     suspend fun removeFcmTokenFromFirestore(userId: String, baseId: String) {
         try {
+            // Limpar o registro local do último token gravado, para que um login
+            // posterior desta sessão volte a gravar o token no Firestore.
+            context.getSharedPreferences("cota_firestore", Context.MODE_PRIVATE)
+                .edit().remove("fcm_last_${userId}_${baseId}").apply()
+
             val userRef = FirebaseManager.firestore
                 .collection("bases")
                 .document(baseId)
                 .collection("motoristas")
                 .document(userId)
-                
+
             userRef.update("fcmToken", null).await()
             Log.d(TAG, "✅ FCM Token removido do Firestore para usuário $userId")
         } catch (e: Exception) {

@@ -198,14 +198,7 @@ class MotoristaRepository {
                     
                     // Usar set() para sobrescrever completamente o documento
                     statusRef.set(status).await()
-                    
-                    // Verificar se foi salvo corretamente
-                    val statusVerificado = statusRef.get().await().toObject(StatusMotorista::class.java)
-                    if (statusVerificado?.estado == "A_CAMINHO") {
-                        println("✅ MotoristaRepository: Status resetado para A_CAMINHO com sucesso")
-                    } else {
-                        println("❌ MotoristaRepository: ERRO! Status não foi resetado corretamente. Estado atual: ${statusVerificado?.estado}")
-                    }
+                    println("✅ MotoristaRepository: Status resetado para A_CAMINHO com sucesso")
                 } catch (e: Exception) {
                     println("❌ MotoristaRepository: Erro ao resetar status: ${e.message}")
                     e.printStackTrace()
@@ -331,30 +324,11 @@ class MotoristaRepository {
                 println("⚠️ Erro ao buscar por telefone: ${e.message}")
             }
             
-            // Se ainda não encontrou, listar todos para debug
-            println("🔍 Listando todos os motoristas da base para debug...")
-            try {
-                val alternativa = firestore
-                    .collection("bases")
-                    .document(baseId)
-                    .collection("motoristas")
-                    .get()
-                    .await()
-                
-                println("📊 Total de motoristas na base: ${alternativa.documents.size}")
-                alternativa.documents.forEach { doc ->
-                    val m = doc.toObject(Motorista::class.java)
-                    println("  👤 Motorista: ID='${doc.id}' (Buscando: '$motoristaIdTrimmed'), Nome=${m?.nome}, Telefone=${m?.telefone}")
-                    
-                    // Verificar se há correspondência por telefone
-                    if (m?.telefone?.trim() == motoristaIdTrimmed || normalizeTelefone(m?.telefone ?: "") == normalizeTelefone(motoristaIdTrimmed)) {
-                        println("    ✅ MATCH FOUND POR TELEFONE! ID correto: '${doc.id}'")
-                    }
-                }
-            } catch (e: Exception) {
-                println("⚠️ Erro ao buscar motoristas alternativos: ${e.message}")
-            }
-            
+            // Não encontrado por ID nem por telefone. Não listamos mais a coleção
+            // inteira para debug: isso custava 1 leitura por motorista da base
+            // em cada falha de busca.
+            println("⚠️ MotoristaRepository.getMotoristaNome: motorista '$motoristaIdTrimmed' não encontrado nem por ID nem por telefone")
+
             null
         } catch (e: Exception) {
             println("❌ MotoristaRepository.getMotoristaNome: Erro ao buscar nome: ${e.message}")
@@ -832,17 +806,10 @@ class MotoristaRepository {
             }
             
             docRef.set(status).await()
-            
-            // Verificar se foi salvo corretamente
-            val verificado = docRef.get().await()
-            val statusVerificado = verificado.toObject(StatusMotorista::class.java)
-            println("✅ MotoristaRepository: Status salvo no Firestore")
-            println("   ✅ Verificação: estado=${statusVerificado?.estado}, mensagem=${statusVerificado?.mensagem}")
-            
-            if (statusVerificado?.estado != estado) {
-                println("⚠️ MotoristaRepository: ATENÇÃO! Estado salvo (${statusVerificado?.estado}) é diferente do estado solicitado ($estado)")
-            }
-            
+            // set().await() só retorna após confirmação do servidor; a leitura
+            // de verificação que existia aqui custava 1 leitura de cota por escrita.
+            println("✅ MotoristaRepository: Status salvo no Firestore (estado=$estado)")
+
             true
         } catch (e: Exception) {
             if (cotaEstourada(e)) {
@@ -851,6 +818,61 @@ class MotoristaRepository {
             }
             println("❌ MotoristaRepository: Erro ao atualizar status: ${e.message}")
             false
+        }
+    }
+
+    /**
+     * Atualizar o status de vários motoristas em lote único (1 RPC em vez de N).
+     * Retorna a quantidade de motoristas gravados com sucesso (0 se falhou tudo).
+     */
+    suspend fun atualizarStatusVariosMotoristas(
+        baseId: String,
+        motoristaIds: List<String>,
+        estado: String,
+        mensagem: String
+    ): Int {
+        if (motoristaIds.isEmpty()) return 0
+        if (System.currentTimeMillis() < gravacaoBloqueadaAte) {
+            println("⏸️ MotoristaRepository: cota do Firestore estourada. Gravação em lote só às 4h.")
+            return 0
+        }
+        return try {
+            ensureAuth()
+            var batch = firestore.batch()
+            var opsNoBatch = 0
+            var enviados = 0
+            for (motoristaId in motoristaIds) {
+                val status = StatusMotorista(
+                    motoristaId = motoristaId,
+                    baseId = baseId,
+                    estado = estado,
+                    mensagem = mensagem
+                )
+                batch.set(
+                    firestore.collection("bases").document(baseId)
+                        .collection("status_motoristas").document(motoristaId),
+                    status
+                )
+                enviados++
+                opsNoBatch++
+                if (opsNoBatch == 450) {
+                    batch.commit().await()
+                    batch = firestore.batch()
+                    opsNoBatch = 0
+                }
+            }
+            if (opsNoBatch > 0) {
+                batch.commit().await()
+            }
+            println("✅ MotoristaRepository: $enviados status atualizados em lote ($estado)")
+            enviados
+        } catch (e: Exception) {
+            if (cotaEstourada(e)) {
+                gravacaoBloqueadaAte = proximoResetCotaMillis()
+                println("⏸️ MotoristaRepository: cota estourada no lote. Gravações de status pausadas até as 4h.")
+            }
+            println("❌ MotoristaRepository: Erro ao atualizar status em lote: ${e.message}")
+            0
         }
     }
 
@@ -1004,9 +1026,11 @@ class MotoristaRepository {
             
             var resetados = 0
             var jaNoEstadoInicial = 0
+            // Gravar tudo em lotes únicos (máx. 450 por lote) em vez de um set() por motorista
+            var batch = firestore.batch()
+            var opsNoBatch = 0
             for (doc in statusSnapshot.documents) {
                 val motoristaId = doc.id
-                val statusRef = doc.reference
 
                 // Já está no estado inicial: pular a gravação para economizar cota do Firestore
                 if (doc.getString("estado") == "A_CAMINHO" &&
@@ -1029,13 +1053,21 @@ class MotoristaRepository {
                     confirmadoEm = null,
                     atualizadoEm = System.currentTimeMillis()
                 )
-                
-                statusRef.set(status).await()
+
+                batch.set(doc.reference, status)
                 resetados++
-                println("✅ MotoristaRepository: Status resetado para motorista $motoristaId")
+                opsNoBatch++
+                if (opsNoBatch == 450) {
+                    batch.commit().await()
+                    batch = firestore.batch()
+                    opsNoBatch = 0
+                }
             }
-            
-            println("✅ MotoristaRepository.resetarTodosStatusDaBase: $resetados status resetados, $jaNoEstadoInicial já estavam em A_CAMINHO (sem gravação)")
+            if (opsNoBatch > 0) {
+                batch.commit().await()
+            }
+
+            println("✅ MotoristaRepository.resetarTodosStatusDaBase: $resetados status resetados (em lote), $jaNoEstadoInicial já estavam em A_CAMINHO (sem gravação)")
             true
         } catch (e: Exception) {
             println("❌ MotoristaRepository.resetarTodosStatusDaBase: Erro - ${e.message}")

@@ -1292,10 +1292,12 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 val auth = FirebaseAuth.getInstance()
                 val currentUser = auth.currentUser ?: return@launch
                 
-                // Buscar nome do remetente (admin logado)
-                val remetenteDoc = db.collection("usuarios").document(currentUser.uid).get().await()
-                val remetenteNome = remetenteDoc.getString("nome") ?: "Admin"
-                val remetentePapel = remetenteDoc.getString("papel") ?: "admin"
+                // Nome/papel do remetente vêm da sessão local — a coleção `usuarios`
+                // não tinha regra de segurança e toda leitura aqui era negada,
+                // queimando tentativas e derrubando o histórico de avisos.
+                val sessao = com.controleescalas.app.data.SessionManager(getApplication()).getLastActiveSession()
+                val remetenteNome = sessao?.userName ?: "Admin"
+                val remetentePapel = sessao?.userRole ?: "admin"
 
                 val aviso = hashMapOf(
                     "remetenteId" to currentUser.uid,
@@ -1750,32 +1752,21 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 }
                 
                 // 1. Atualizar status de todos os motoristas para A_CAMINHO
+                // Gravação em lote único (1 RPC) em vez de um set + leitura de
+                // verificação por motorista.
+                val motoristaIds = currentEscala.ondas.flatMap { onda -> onda.itens.map { it.motoristaId } }
                 var sucessos = 0
-                var falhas = 0
-                val motoristaIds = mutableListOf<String>()
-                
-                currentEscala.ondas.forEach { onda ->
-                    onda.itens.forEach { item ->
-                        try {
-                            val success = motoristaRepository.updateStatusMotorista(
-                                motoristaId = item.motoristaId,
-                                baseId = currentBaseId,
-                                estado = "A_CAMINHO",
-                                mensagem = "Você está escalado! Siga para o galpão e aguarde instruções."
-                            )
-                            
-                            if (success) {
-                                motoristaIds.add(item.motoristaId)
-                                sucessos++
-                            } else {
-                                falhas++
-                            }
-                        } catch (e: Exception) {
-                            Log.e("OperationalViewModel", "Erro ao atualizar status de ${item.nome}: ${e.message}")
-                            falhas++
-                        }
-                    }
+                try {
+                    sucessos = motoristaRepository.atualizarStatusVariosMotoristas(
+                        baseId = currentBaseId,
+                        motoristaIds = motoristaIds,
+                        estado = "A_CAMINHO",
+                        mensagem = "Você está escalado! Siga para o galpão e aguarde instruções."
+                    ).coerceAtLeast(0)
+                } catch (e: Exception) {
+                    Log.e("OperationalViewModel", "Erro ao atualizar status em lote: ${e.message}")
                 }
+                val falhas = motoristaIds.size - sucessos
                 
                 // 2. Enviar notificações push via backend Python (cada motorista = 1 Worker → POST /notify/motorista)
                 if (motoristaIds.isNotEmpty()) {

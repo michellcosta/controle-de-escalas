@@ -909,8 +909,11 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 .putString(StatusCheckWorker.KEY_LAST_STATUS, lastStatus)
                 .build()
             
-            val workInterval = 15L
-            val flexInterval = 5L
+            // Esta checagem periódica é apenas rede de segurança: o disparo primário
+            // de chegada é o evento de geofence (imediato). 60 min em vez de 15
+            // economiza ~75% das leituras de fundo da cota do Firestore.
+            val workInterval = 60L
+            val flexInterval = 15L
             android.util.Log.d("DriverViewModel", "⚡ WorkManager configurado: intervalo=${workInterval}min (status: $lastStatus)")
             
             val periodicWork = PeriodicWorkRequestBuilder<StatusCheckWorker>(

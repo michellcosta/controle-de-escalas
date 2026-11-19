@@ -48,6 +48,9 @@ class DisponibilidadeViewModel : ViewModel() {
     
     // Listener para atualizações em tempo real
     private var disponibilidadeListener: ListenerRegistration? = null
+
+    // Cache de nomes resolvidos ("baseId:motoristaId" -> nome)
+    private val nomeCache = mutableMapOf<String, String>()
     
     /**
      * Normaliza telefone removendo caracteres não numéricos
@@ -185,6 +188,22 @@ class DisponibilidadeViewModel : ViewModel() {
      * Tenta primeiro pelo ID do documento, depois pelo telefone
      */
     private suspend fun buscarNomeMotorista(baseId: String, motoristaId: String): String? {
+        // Cache em memória: cada snapshot do listener disparava novas leituras
+        // para motoristas com nome vazio; o nome resolvido não muda com o tempo.
+        val chaveCache = "$baseId:$motoristaId"
+        nomeCache[chaveCache]?.let { return it }
+
+        val nome = buscarNomeMotoristaNoFirestore(baseId, motoristaId)
+        if (!nome.isNullOrBlank() && nome != "Motorista") {
+            nomeCache[chaveCache] = nome
+        }
+        return nome
+    }
+
+    /**
+     * Busca o nome no Firestore sem cache (1 leitura pelo ID, depois 1 consulta por telefone)
+     */
+    private suspend fun buscarNomeMotoristaNoFirestore(baseId: String, motoristaId: String): String? {
         return try {
             // Tentar buscar pelo ID do documento primeiro
             val motoristaDoc = firestore
@@ -456,9 +475,11 @@ class DisponibilidadeViewModel : ViewModel() {
         val dataConsulta = data ?: getDataAmanha()
         val docId = "${baseId}_$dataConsulta"
         
+        // Sem MetadataChanges.INCLUDE: com ele o listener disparava também para
+        // confirmações locais de escrita, multiplicando os processamentos/snapshots.
         disponibilidadeListener = firestore.collection("disponibilidades")
             .document(docId)
-            .addSnapshotListener(MetadataChanges.INCLUDE) { snapshot, error ->
+            .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("❌ Erro no listener de disponibilidade: ${error.message}")
                     _error.value = "Erro ao observar disponibilidade: ${error.message}"

@@ -35,36 +35,68 @@ class DevolucaoRepository {
     suspend fun verificarIdPacoteExiste(baseId: String, idPacote: String): Boolean {
         return try {
             ensureAuth()
-            
-            // Buscar todas as devoluções e verificar se o ID está em alguma delas
+            val devolucoes = firestore
+                .collection("bases")
+                .document(baseId)
+                .collection("devolucoes")
+
+            // Formato novo (idsPacotes é lista): array-contains traz no máximo o
+            // documento que contém o ID, em vez de ler a coleção inteira.
+            val porLista = devolucoes
+                .whereArrayContains("idsPacotes", idPacote)
+                .limit(1)
+                .get()
+                .await()
+            if (!porLista.isEmpty) return true
+
+            // Formato antigo (idPacote único) para compatibilidade
+            val porCampo = devolucoes
+                .whereEqualTo("idPacote", idPacote)
+                .limit(1)
+                .get()
+                .await()
+            !porCampo.isEmpty
+        } catch (e: Exception) {
+            println("❌ DevolucaoRepository: Erro ao verificar ID do pacote: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Verificar quais IDs de pacote já foram registrados com UMA única leitura
+     * da coleção (em vez de uma varredura completa por ID dentro do lote).
+     * Retorna o subconjunto de IDs que já existe.
+     */
+    suspend fun verificarIdsPacotesExistentes(baseId: String, idPacotes: List<String>): Set<String> {
+        if (idPacotes.isEmpty()) return emptySet()
+        return try {
+            ensureAuth()
+            val alvo = idPacotes.toSet()
+            val encontrados = mutableSetOf<String>()
+
             val snapshot = firestore
                 .collection("bases")
                 .document(baseId)
                 .collection("devolucoes")
                 .get()
                 .await()
-            
-            // Verificar em cada documento
+
             for (doc in snapshot.documents) {
                 val data = doc.data ?: continue
-                
-                // Verificar formato novo (idsPacotes)
+
+                // Formato novo (idsPacotes)
                 val idsPacotes = data["idsPacotes"] as? List<*>
-                if (idsPacotes != null && idsPacotes.contains(idPacote)) {
-                    return true
-                }
-                
-                // Verificar formato antigo (idPacote) para compatibilidade
+                idsPacotes?.forEach { if (it in alvo) encontrados.add(it.toString()) }
+
+                // Formato antigo (idPacote) para compatibilidade
                 val idPacoteAntigo = data["idPacote"] as? String
-                if (idPacoteAntigo == idPacote) {
-                    return true
-                }
+                if (idPacoteAntigo in alvo) encontrados.add(idPacoteAntigo!!)
             }
-            
-            false
+
+            encontrados
         } catch (e: Exception) {
-            println("❌ DevolucaoRepository: Erro ao verificar ID do pacote: ${e.message}")
-            false
+            println("❌ DevolucaoRepository: Erro ao verificar IDs dos pacotes: ${e.message}")
+            emptySet()
         }
     }
     
@@ -112,11 +144,11 @@ class DevolucaoRepository {
             
             val erros = mutableListOf<String>()
             val idsValidos = mutableListOf<String>()
-            
-            // Verificar quais IDs já existem e quais são válidos
+
+            // Verificar todos os IDs com uma única varredura da coleção
+            val idsExistentes = verificarIdsPacotesExistentes(baseId, idPacotes)
             for (idPacote in idPacotes) {
-                val idExiste = verificarIdPacoteExiste(baseId, idPacote)
-                if (idExiste) {
+                if (idPacote in idsExistentes) {
                     erros.add("ID $idPacote já registrado")
                 } else {
                     idsValidos.add(idPacote)

@@ -52,8 +52,19 @@ class MainApp : Application() {
         // Executar em background para não bloquear o onCreate
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                // A verificação lê todas as bases e é custosa em cota do Firestore.
+                // Basta rodar uma vez por instalação; nas demais aberturas o app pula direto.
+                val prefs = getSharedPreferences("cota_firestore", android.content.Context.MODE_PRIVATE)
+                if (prefs.getBoolean("superadmin_verificado", false)) {
+                    println("⏭️ MainApp: Super Admin já verificado nesta instalação — pulando verificação")
+                    return@launch
+                }
+
                 val superAdminRepository = SuperAdminRepository()
                 superAdminRepository.ensureSuperAdminExists()
+
+                prefs.edit().putBoolean("superadmin_verificado", true).apply()
+                println("✅ MainApp: Verificação do Super Admin concluída (não roda de novo nesta instalação)")
             } catch (e: Exception) {
                 Log.e("MainApp", "❌ Erro ao inicializar super admin: ${e.message}", e)
                 println("❌ MainApp: Erro ao inicializar super admin: ${e.message}")

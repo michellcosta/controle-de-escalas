@@ -5,6 +5,7 @@ import com.controleescalas.app.data.models.Escala
 import com.controleescalas.app.data.models.Onda
 import com.controleescalas.app.ui.screens.DriverEscalaInfo
 import com.controleescalas.app.data.models.toDriverEscalaInfo
+import com.google.firebase.firestore.FieldPath
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
@@ -195,34 +196,40 @@ class EscalaRepository {
             calendar.set(ano, mes - 1, 1) // mes - 1 porque Calendar usa 0-11
             val ultimoDia = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
             
-            // Buscar escalas de cada dia do mês
+            // Montar os IDs de todos os documentos do mês (dia x turno)
+            val formatoConsulta = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val formatoExibicao = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            val idParaDataExibicao = mutableMapOf<String, String>()
+            val idsDocumentos = mutableListOf<String>()
             for (dia in 1..ultimoDia) {
                 calendar.set(ano, mes - 1, dia)
-                val dataFormatada = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time)
-                
-                // Buscar em ambos os turnos
+                val dataFormatada = formatoConsulta.format(calendar.time)
+                val dataExibicao = formatoExibicao.format(calendar.time)
                 for (turno in listOf("AM", "PM")) {
                     val docId = "${dataFormatada}_${turno}"
-                    val doc = firestore
-                        .collection("bases")
-                        .document(baseId)
-                        .collection("escalas")
-                        .document(docId)
-                        .get()
-                        .await()
-                    
-                    if (doc.exists()) {
-                        val escala = doc.toObject(Escala::class.java)
-                        if (escala != null) {
-                            // Verificar se motorista está nesta escala
-                            val escalaInfo = escala.toDriverEscalaInfo(motoristaId)
-                            if (escalaInfo != null) {
-                                // Converter data para formato "dd/MM/yyyy"
-                                val dataFormatadaQuinzena = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(calendar.time)
-                                datasEscaladas.add(dataFormatadaQuinzena)
-                                break // Se encontrou em um turno, não precisa verificar o outro
-                            }
-                        }
+                    idsDocumentos.add(docId)
+                    idParaDataExibicao[docId] = dataExibicao
+                }
+            }
+
+            // Consultar em chunks de até 30 IDs (limite do whereIn). Em vez de até 62
+            // leituras individuais — cobradas mesmo quando o documento não existe —,
+            // são 2-3 consultas que só retornam (e só cobram) as escalas existentes.
+            for (chunk in idsDocumentos.chunked(30)) {
+                val snapshot = firestore
+                    .collection("bases")
+                    .document(baseId)
+                    .collection("escalas")
+                    .whereIn(FieldPath.documentId(), chunk)
+                    .get()
+                    .await()
+
+                for (doc in snapshot.documents) {
+                    val escala = doc.toObject(Escala::class.java) ?: continue
+                    // Verificar se o motorista está nesta escala
+                    val escalaInfo = escala.toDriverEscalaInfo(motoristaId)
+                    if (escalaInfo != null) {
+                        idParaDataExibicao[doc.id]?.let { datasEscaladas.add(it) }
                     }
                 }
             }
@@ -356,16 +363,26 @@ class EscalaRepository {
                 .await()
             
             var removidas = 0
+            // Remover em lotes (máx. 450 por lote) em vez de um delete() por escala
+            var batch = firestore.batch()
+            var opsNoBatch = 0
             for (doc in escalasSnapshot.documents) {
-                val escala = doc.toObject(Escala::class.java)
-                if (escala != null) {
-                    // Comparar datas (formato: "yyyy-MM-dd")
-                    if (escala.data < hoje) {
-                        doc.reference.delete().await()
-                        removidas++
-                        println("🗑️ EscalaRepository: Escala removida - ${doc.id} (data: ${escala.data})")
+                val escala = doc.toObject(Escala::class.java) ?: continue
+                // Comparar datas (formato: "yyyy-MM-dd")
+                if (escala.data < hoje) {
+                    batch.delete(doc.reference)
+                    removidas++
+                    opsNoBatch++
+                    if (opsNoBatch == 450) {
+                        batch.commit().await()
+                        batch = firestore.batch()
+                        opsNoBatch = 0
                     }
+                    println("🗑️ EscalaRepository: Escala marcada para remoção - ${doc.id} (data: ${escala.data})")
                 }
+            }
+            if (opsNoBatch > 0) {
+                batch.commit().await()
             }
             
             println("✅ EscalaRepository.limparOndasDoDiaAnterior: $removidas escalas removidas")

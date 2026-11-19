@@ -733,12 +733,14 @@ def assistente_chat():
         if image_b64 and len(image_b64) > 6_700_000:
             return jsonify({"error": "Imagem muito grande. Use uma foto menor (menos de ~5 MB)."}), 400
 
+        perguntas_restantes = None
         # Super admin: sem limite. Demais usuários: verificar limite diário
         if not _is_super_admin(user_role, user_id):
             hoje = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             uso_ref = reader.db.collection("bases").document(base_id).collection("assistente_uso").document(hoje)
             uso_doc = uso_ref.get()
             contagem = uso_doc.to_dict().get("contagem", 0) if uso_doc.exists else 0
+            perguntas_restantes = max(0, LIMITE_PERGUNTAS_POR_BASE - (contagem + 1))
             if contagem >= LIMITE_PERGUNTAS_POR_BASE:
                 return jsonify({
                     "error": "Limite diário de 15 perguntas atingido para esta base. Tente novamente amanhã."
@@ -825,6 +827,8 @@ def assistente_chat():
                 print(f"⚠️ Erro ao incrementar contador assistente: {inc_err}")
 
         resp_data = {"text": result_text.strip() or "Feito.", "ok": True}
+        if perguntas_restantes is not None:
+            resp_data["perguntasRestantes"] = perguntas_restantes
         if actions:
             resp_data["actions"] = actions       # lista completa (novo)
             resp_data["action"] = actions[0]     # retrocompatibilidade (1ª ação)
