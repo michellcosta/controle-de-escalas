@@ -2,6 +2,7 @@ package com.controleescalas.app.data
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -22,6 +23,22 @@ class NotificationApiService {
         .build()
     
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+
+    /**
+     * ID token do usuário autenticado para o backend validar papel/uid nos
+     * endpoints de notificação (S1 da auditoria: os endpoints /notify eram
+     * públicos). Pega o token aqui dentro para TODOS os chamadores (viewmodels
+     * e workers) passarem a autenticar sem mudança de assinatura.
+     */
+    private suspend fun obterIdToken(): String? = try {
+        FirebaseManager.auth.currentUser?.getIdToken(false)?.await()?.token
+    } catch (e: Exception) {
+        Log.e(TAG, "❌ Erro ao obter idToken: ${e.message}")
+        null
+    }
+
+    private fun Request.Builder.comAutenticacao(idToken: String?): Request.Builder =
+        apply { idToken?.let { addHeader("Authorization", "Bearer $it") } }
     
     /**
      * Envia notificação push para um motorista específico via API Python
@@ -59,13 +76,14 @@ class NotificationApiService {
             }
             
             val requestBody = jsonBody.toString().toRequestBody(jsonMediaType)
-            
+
             val request = Request.Builder()
                 .url(url)
                 .post(requestBody)
                 .addHeader("Content-Type", "application/json")
+                .comAutenticacao(obterIdToken())
                 .build()
-            
+
             Log.d(TAG, "📤 Enviando notificação via API Python: $url")
             Log.d(TAG, "📤 Body: ${jsonBody.toString()}")
             
@@ -119,6 +137,7 @@ class NotificationApiService {
                 .url(url)
                 .post(requestBody)
                 .addHeader("Content-Type", "application/json")
+                .comAutenticacao(obterIdToken())
                 .build()
             Log.d(TAG, "📤 Notificando status change: $status para $motoristaId")
             val response = client.newCall(request).execute()

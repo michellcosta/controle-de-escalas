@@ -122,23 +122,34 @@ def notify_motorista():
     """
     try:
         initialize_services()
-        
+
+        # GATE: endpoint era público — spoof de push e vetor de queima de cota.
+        uid, err = _verify_firebase_token()
+        if err:
+            return jsonify(err[0]), err[1]
+
         # Validar dados da requisição
         data = request.get_json()
         if not data:
             return jsonify({"error": "Body JSON é obrigatório"}), 400
-        
+
         base_id = data.get('baseId')
         motorista_id = data.get('motoristaId')
         title = data.get('title')
         body = data.get('body')
         data_dict = data.get('data')
-        
+
         if not all([base_id, motorista_id, title, body]):
             return jsonify({
                 "error": "Campos obrigatórios: baseId, motoristaId, title, body"
             }), 400
-        
+
+        # Apenas staff chama motorista individualmente
+        papel = _get_papel(base_id, uid)
+        if not papel or papel not in PAPEIS_STAFF:
+            print(f"notify/motorista 403: uid_fim={uid[-6:]} papel={papel}")
+            return jsonify({"error": "Apenas admin, superadmin ou auxiliar podem chamar motoristas"}), 403
+
         # Buscar token do motorista
         print(f"📖 Buscando token para motorista {motorista_id} na base {base_id}...")
         token_info = reader.get_motorista_token(base_id, motorista_id)
@@ -196,22 +207,32 @@ def notify_base():
     """
     try:
         initialize_services()
-        
+
+        # GATE: endpoint era público — avisar base inteira sem login é spoof direto.
+        uid, err = _verify_firebase_token()
+        if err:
+            return jsonify(err[0]), err[1]
+
         # Validar dados da requisição
         data = request.get_json()
         if not data:
             return jsonify({"error": "Body JSON é obrigatório"}), 400
-        
+
         base_id = data.get('baseId')
         title = data.get('title')
         body = data.get('body')
         data_dict = data.get('data')
-        
+
         if not all([base_id, title, body]):
             return jsonify({
                 "error": "Campos obrigatórios: baseId, title, body"
             }), 400
-        
+
+        papel = _get_papel(base_id, uid)
+        if not papel or papel not in PAPEIS_STAFF:
+            print(f"notify/base 403: uid_fim={uid[-6:]} papel={papel}")
+            return jsonify({"error": "Apenas admin, superadmin ou auxiliar podem avisar a base"}), 403
+
         # Buscar todos os tokens da base
         tokens = reader.get_motoristas_tokens(base_id)
         
@@ -260,6 +281,13 @@ def notify_status_change():
     try:
         initialize_services()
 
+        # GATE: quem muda o status é o app do PRÓPRIO motorista (ou staff em
+        # nome dele). Exigia nada antes — qualquer anônimo falsificava
+        # 'CHEGUEI'/'CARREGANDO' de qualquer base.
+        uid, err = _verify_firebase_token()
+        if err:
+            return jsonify(err[0]), err[1]
+
         data = request.get_json()
         if not data:
             return jsonify({"error": "Body JSON é obrigatório"}), 400
@@ -274,9 +302,15 @@ def notify_status_change():
                 "error": "Campos obrigatórios: baseId, motoristaId, status"
             }), 400
 
+        # Autorização: dono do doc (authUid gravado no login) ou staff
+        token_info = reader.get_motorista_token(base_id, motorista_id)
+        papel = _get_papel(base_id, uid)
+        if not _uid_eh_o_motorista(base_id, motorista_id, uid, token_info) and (not papel or papel not in PAPEIS_STAFF):
+            print(f"notify/status-change 403: uid_fim={uid[-6:]} papel={papel} motorista={motorista_id[-6:]}")
+            return jsonify({"error": "Apenas o motorista pode mudar seu próprio status"}), 403
+
         # Buscar nome do motorista se não fornecido
         if not motorista_nome:
-            token_info = reader.get_motorista_token(base_id, motorista_id)
             motorista_nome = (token_info or {}).get('nome', 'Motorista')
 
         # Mensagens para o motorista (como na Cloud Function)
@@ -300,8 +334,7 @@ def notify_status_change():
         }
         titulo_motorista = titulos.get(status) or "📍 Status Atualizado"
 
-        # 1. Notificar motorista
-        token_info = reader.get_motorista_token(base_id, motorista_id)
+        # 1. Notificar motorista (token_info já lido na checagem de autorização)
         if token_info:
             success, error = sender.send_to_token(
                 token=token_info['fcmToken'],
@@ -398,6 +431,37 @@ def _uid_is_superadmin(uid: str) -> bool:
 
 
 VERSAO_MINIMA_ESCRITA = 12  # precisa casar com 'podeEscrever()' no firestore.rules
+
+PAPEIS_STAFF = ('admin', 'superadmin', 'auxiliar', 'ajudante')
+
+
+def _get_papel(base_id: str, uid: str):
+    """Resolve o papel do uid na base (ou em qualquer base/superadmin). Retorna papel ou None."""
+    papel = reader.get_usuario_papel(base_id, uid)
+    if not papel:
+        papel = reader.get_usuario_papel_in_any_base(uid)
+    if not papel and _uid_is_superadmin(uid):
+        papel = 'superadmin'
+    if not papel and uid in (reader.get_superadmin_uids_from_config() or []):
+        papel = 'superadmin'
+    return papel
+
+
+def _uid_eh_o_motorista(base_id: str, motorista_id: str, uid: str, token_info: Optional[dict]) -> bool:
+    """
+    True se uid representa o motorista: mesmo id (setup de teste) ou o authUid
+    registrado no doc (gravado no login pelo app v12+). Checar uid == motoristaId
+    não basta em produção: motoristaId no payload é o ID do documento do
+    Firestore, e uid é o login anônimo do Firebase Auth — são diferentes.
+    token_info (do get_motorista_token) já carrega authUid sem leitura extra;
+    se veio None (motorista sem FCM token), lê o doc direto.
+    """
+    if uid == motorista_id:
+        return True
+    if token_info is not None:
+        return (token_info or {}).get('authUid') == uid
+    doc = reader.db.collection('bases').document(base_id).collection('motoristas').document(motorista_id).get()
+    return (doc.to_dict() or {}).get('authUid') == uid
 
 
 def _verify_firebase_token(exigir_versao=True):

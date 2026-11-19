@@ -168,7 +168,10 @@ class FirestoreReader:
             return {
                 "motorista_id": motorista_id,
                 "fcmToken": fcm_token,
-                "nome": data.get('nome', 'Motorista')
+                "nome": data.get('nome', 'Motorista'),
+                # Usado na checagem de dono (notify/status-change): uid do
+                # Firebase Auth gravado no doc pelo login do app v12+.
+                "authUid": data.get('authUid')
             }
         
         return None
