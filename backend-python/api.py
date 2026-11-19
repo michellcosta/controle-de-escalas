@@ -556,8 +556,12 @@ def location_request():
         if not token_info:
             return jsonify({"error": "Motorista não encontrado ou sem FCM token"}), 404
         motorista_nome = token_info.get('nome', 'Motorista')
+        # Achado 10 da auditoria: o write é merge=True — um novo pedido sobre um
+        # doc 'ready' antigo mantinha distanceKm/etaMinutes VELHOS junto do
+        # status pending. Nulifica para não misturar dado antigo com novo.
         reader.write_location_response(base_id, motorista_id, {
             "status": "pending", "motoristaId": motorista_id, "motoristaNome": motorista_nome,
+            "distanceKm": None, "etaMinutes": None, "error": None,
             "solicitadoEm": firestore.SERVER_TIMESTAMP,
         })
         success, error = sender.send_silent_data_only(
@@ -602,6 +606,13 @@ def location_receive():
             lat, lng = float(lat), float(lng)
         except (TypeError, ValueError):
             return jsonify({"error": "lat e lng devem ser números"}), 400
+        # Achado 8 da auditoria: float() aceita 'nan'/'inf' e faixas inválidas —
+        # eram repassados ao OSRM/ORS (proxy de abuso do serviço público) e
+        # gravados como estimativa NaN. Rejeita fora do range geográfico real.
+        import math
+        if not (math.isfinite(lat) and math.isfinite(lng)
+                and -90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+            return jsonify({"error": "Coordenadas inválidas"}), 400
         # Motorista envia sua própria localização. motoristaId no payload é o ID
         # do DOC no Firestore, e uid é o login anônimo do Firebase Auth —
         # uid == motorista_id só ocorre em setup de teste. Em produção o app
