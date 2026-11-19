@@ -596,55 +596,69 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     }
 
     /**
+     * B8 da auditoria: aplica uma transformação na escala do turno ATUAL
+     * ATOMICAMENTE sob o escalaMutex. O eco do snapshot listener (que grava
+     * _escalaAM/_escalaPM sob o MESMO mutex) não pode mais sobrescrever uma
+     * edição no meio do caminho (lost update: admin edita, chega snapshot, a
+     * edição some da tela e da próxima gravação).
+     * A gravação no Firestore fica FORA do lock — Mutex do Kotlin não é
+     * reentrante; nunca chamar funções que travam dentro da transformação.
+     * Retorna a escala atualizada, ou null se não havia escala ou a
+     * transformação decidiu abortar (chamador não salva).
+     */
+    private suspend fun editarEscalaDoTurno(transformar: (Escala) -> Escala?): Escala? =
+        escalaMutex.withLock {
+            val turno = _turnoAtual.value
+            val current = when (turno) {
+                "AM" -> _escalaAM.value
+                "PM" -> _escalaPM.value
+                else -> null
+            } ?: return@withLock null
+            val atualizada = transformar(current) ?: return@withLock null
+            when (turno) {
+                "AM" -> _escalaAM.value = atualizada
+                "PM" -> _escalaPM.value = atualizada
+            }
+            atualizada
+        }
+
+    /**
      * Atualizar vaga, rota e sacas de um motorista em uma onda
      */
     fun updateDriverInOnda(ondaIndex: Int, motorista: OndaItem, novaVaga: String, novaRota: String, novasSacas: Int? = null) {
         viewModelScope.launch {
             try {
-                val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
+                // B8: leitura → mutação → estado, atomicamente sob o escalaMutex
+                val escalaAtualizada = editarEscalaDoTurno { currentEscala ->
+                    val onda = currentEscala.ondas.getOrNull(ondaIndex) ?: return@editarEscalaDoTurno null
+
+                    // Encontrar o índice do motorista na onda
+                    val motoristaIndex = onda.itens.indexOfFirst { it.motoristaId == motorista.motoristaId }
+                    if (motoristaIndex == -1) return@editarEscalaDoTurno null
+
+                    // Atualizar o motorista
+                    val motoristaAtualizado = onda.itens[motoristaIndex].copy(
+                        vaga = novaVaga,
+                        rota = novaRota,
+                        sacas = novasSacas
+                    )
+
+                    // Atualizar a lista de motoristas na onda
+                    val itensAtualizados = onda.itens.toMutableList()
+                    itensAtualizados[motoristaIndex] = motoristaAtualizado
+
+                    val ondaAtualizada = onda.copy(itens = itensAtualizados)
+                    val ondasAtualizadas = currentEscala.ondas.toMutableList()
+                    ondasAtualizadas[ondaIndex] = ondaAtualizada
+
+                    // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
+                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    currentEscala.copy(ondas = ondasAtualizadas, data = hoje)
                 } ?: return@launch
-                
-                val onda = currentEscala.ondas.getOrNull(ondaIndex) ?: return@launch
-                
-                // Encontrar o índice do motorista na onda
-                val motoristaIndex = onda.itens.indexOfFirst { it.motoristaId == motorista.motoristaId }
-                if (motoristaIndex == -1) return@launch
-                
-                // Atualizar o motorista
-                val motoristaAtualizado = onda.itens[motoristaIndex].copy(
-                    vaga = novaVaga,
-                    rota = novaRota,
-                    sacas = novasSacas
-                )
-                
-                // Atualizar a lista de motoristas na onda
-                val itensAtualizados = onda.itens.toMutableList()
-                itensAtualizados[motoristaIndex] = motoristaAtualizado
-                
-                val ondaAtualizada = onda.copy(itens = itensAtualizados)
-                val ondasAtualizadas = currentEscala.ondas.toMutableList()
-                ondasAtualizadas[ondaIndex] = ondaAtualizada
-                
-                // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
-                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                val escalaAtualizada = currentEscala.copy(ondas = ondasAtualizadas, data = hoje)
-                
-                // Salvar
-                when (turno) {
-                    "AM" -> {
-                        _escalaAM.value = escalaAtualizada
-                        escalasCache["${escalaAtualizada.data}_AM"] = escalaAtualizada
-                    }
-                    "PM" -> {
-                        _escalaPM.value = escalaAtualizada
-                        escalasCache["${escalaAtualizada.data}_PM"] = escalaAtualizada
-                    }
-                }
-                
+
+                val turno = _turnoAtual.value
+                escalasCache["${escalaAtualizada.data}_$turno"] = escalaAtualizada
+
                 escalaRepository.saveEscala(currentBaseId, escalaAtualizada)
                 _message.value = "Dados atualizados!"
             } catch (e: Exception) {
@@ -657,66 +671,61 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
      * Adicionar nova onda ao turno atual
      */
     fun addOnda() {
-        val turno = _turnoAtual.value
-        val currentEscala = when (turno) {
-            "AM" -> _escalaAM.value
-            "PM" -> _escalaPM.value
-            else -> null
-        } ?: return
-        
-        val numeroOnda = currentEscala.ondas.size + 1
-        
-        // ✅ NOVO: Calcular horário automaticamente se houver última onda com horário
-        val ultimaOndaComHorario = currentEscala.ondas.lastOrNull { it.horario.isNotBlank() && it.horario.matches(Regex("\\d{2}:\\d{2}")) }
-        val horarioPadrao = if (ultimaOndaComHorario != null) {
-            // Calcular +20 minutos da última onda com horário
+        viewModelScope.launch {
             try {
-                val partes = ultimaOndaComHorario.horario.split(":")
-                val hora = partes[0].toInt()
-                val minuto = partes[1].toInt()
-                var minutosTotais = hora * 60 + minuto + 20
-                val novaHora = minutosTotais / 60
-                val novoMinuto = minutosTotais % 60
-                
-                if (novaHora >= 24) {
-                    "" // Se ultrapassar 23:59, deixar indefinido
-                } else {
-                    String.format("%02d:%02d", novaHora, novoMinuto)
-                }
+                val turno = _turnoAtual.value
+
+                // B8: mutação atômica sob o escalaMutex
+                val updatedEscala = editarEscalaDoTurno { currentEscala ->
+                    val numeroOnda = currentEscala.ondas.size + 1
+
+                    // ✅ NOVO: Calcular horário automaticamente se houver última onda com horário
+                    val ultimaOndaComHorario = currentEscala.ondas.lastOrNull { it.horario.isNotBlank() && it.horario.matches(Regex("\\d{2}:\\d{2}")) }
+                    val horarioPadrao = if (ultimaOndaComHorario != null) {
+                        // Calcular +20 minutos da última onda com horário
+                        try {
+                            val partes = ultimaOndaComHorario.horario.split(":")
+                            val hora = partes[0].toInt()
+                            val minuto = partes[1].toInt()
+                            var minutosTotais = hora * 60 + minuto + 20
+                            val novaHora = minutosTotais / 60
+                            val novoMinuto = minutosTotais % 60
+
+                            if (novaHora >= 24) {
+                                "" // Se ultrapassar 23:59, deixar indefinido
+                            } else {
+                                String.format("%02d:%02d", novaHora, novoMinuto)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("OperationalViewModel", "Erro ao calcular horário para nova onda: ${e.message}")
+                            "" // Em caso de erro, deixar indefinido
+                        }
+                    } else {
+                        "" // Vazio = indefinido (primeira onda ou nenhuma tem horário)
+                    }
+
+                    val novaOnda = Onda(
+                        nome = "${numeroOnda}ª ONDA",
+                        horario = horarioPadrao, // Calculado automaticamente se possível
+                        itens = emptyList()
+                    )
+
+                    val ondasAtualizadas = (currentEscala.ondas + novaOnda).toMutableList()
+                    currentEscala.copy(
+                        ondas = ondasAtualizadas
+                    )
+                } ?: return@launch
+
+                escalasCache["${updatedEscala.data}_$turno"] = updatedEscala
+
+                updateOndasForCurrentTurno()
+                escalaRepository.saveEscala(currentBaseId, ensureEscalaDataAtual(updatedEscala))
+
+                Log.d("OperationalViewModel", "✅ Nova onda adicionada. Total de ondas: ${updatedEscala.ondas.size}")
             } catch (e: Exception) {
-                Log.e("OperationalViewModel", "Erro ao calcular horário para nova onda: ${e.message}")
-                "" // Em caso de erro, deixar indefinido
+                _error.value = "Erro ao adicionar onda: ${e.message}"
             }
-        } else {
-            "" // Vazio = indefinido (primeira onda ou nenhuma tem horário)
         }
-        
-        val novaOnda = Onda(
-            nome = "${numeroOnda}ª ONDA",
-            horario = horarioPadrao, // Calculado automaticamente se possível
-            itens = emptyList()
-        )
-        
-        val ondasAtualizadas = (currentEscala.ondas + novaOnda).toMutableList()
-        val updatedEscala = currentEscala.copy(
-            ondas = ondasAtualizadas
-        )
-        
-        if (horarioPadrao.isNotBlank()) {
-            Log.d("OperationalViewModel", "✅ Nova onda criada com horário automático: $horarioPadrao (baseado na última onda: ${ultimaOndaComHorario?.horario})")
-        } else {
-            Log.d("OperationalViewModel", "✅ Nova onda criada sem horário (indefinido)")
-        }
-        
-        when (turno) {
-            "AM" -> _escalaAM.value = updatedEscala
-            "PM" -> _escalaPM.value = updatedEscala
-        }
-        
-        updateOndasForCurrentTurno()
-        saveCurrentEscala()
-        
-        Log.d("OperationalViewModel", "✅ Nova onda adicionada. Total de ondas: ${ondasAtualizadas.size}")
     }
     
     /**
@@ -725,48 +734,36 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun updateOnda(ondaIndex: Int, novoNome: String, novoHorario: String, novoTipo: String) {
         viewModelScope.launch {
             try {
-                val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
+                // B8: leitura → mutação → estado, atomicamente sob o escalaMutex
+                val escalaAtualizada = editarEscalaDoTurno { currentEscala ->
+                    val ondas = currentEscala.ondas.toMutableList()
+                    if (ondaIndex !in ondas.indices) return@editarEscalaDoTurno null
+
+                    val ondaAtualizada = ondas[ondaIndex].copy(
+                        nome = novoNome,
+                        horario = novoHorario,
+                        tipo = novoTipo
+                    )
+
+                    ondas[ondaIndex] = ondaAtualizada
+
+                    // ✅ NOVA LÓGICA: Se horário foi definido, calcular próximas ondas automaticamente
+                    if (novoHorario.isNotBlank()) {
+                        Log.d("OperationalViewModel", "🕐 updateOnda: Horário '$novoHorario' definido na onda $ondaIndex, calculando próximas ondas...")
+                        calcularEAtualizarHorariosSeguintes(ondas, ondaIndex, novoHorario)
+                        Log.d("OperationalViewModel", "✅ updateOnda: Cálculo concluído. Total de ondas: ${ondas.size}")
+                    } else {
+                        Log.d("OperationalViewModel", "⚠️ updateOnda: Horário vazio, não calculando próximas ondas")
+                    }
+
+                    // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
+                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    currentEscala.copy(ondas = ondas, data = hoje)
                 } ?: return@launch
-                
-                val ondas = currentEscala.ondas.toMutableList()
-                if (ondaIndex !in ondas.indices) return@launch
-                
-                val ondaAtualizada = ondas[ondaIndex].copy(
-                    nome = novoNome,
-                    horario = novoHorario,
-                    tipo = novoTipo
-                )
-                
-                ondas[ondaIndex] = ondaAtualizada
-                
-                // ✅ NOVA LÓGICA: Se horário foi definido, calcular próximas ondas automaticamente
-                if (novoHorario.isNotBlank()) {
-                    Log.d("OperationalViewModel", "🕐 updateOnda: Horário '$novoHorario' definido na onda $ondaIndex, calculando próximas ondas...")
-                    calcularEAtualizarHorariosSeguintes(ondas, ondaIndex, novoHorario)
-                    Log.d("OperationalViewModel", "✅ updateOnda: Cálculo concluído. Total de ondas: ${ondas.size}")
-                } else {
-                    Log.d("OperationalViewModel", "⚠️ updateOnda: Horário vazio, não calculando próximas ondas")
-                }
-                
-                // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
-                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                val escalaAtualizada = currentEscala.copy(ondas = ondas, data = hoje)
-                
-                when (turno) {
-                    "AM" -> {
-                        _escalaAM.value = escalaAtualizada
-                        escalasCache["${escalaAtualizada.data}_AM"] = escalaAtualizada
-                    }
-                    "PM" -> {
-                        _escalaPM.value = escalaAtualizada
-                        escalasCache["${escalaAtualizada.data}_PM"] = escalaAtualizada
-                    }
-                }
-                
+
+                val turno = _turnoAtual.value
+                escalasCache["${escalaAtualizada.data}_$turno"] = escalaAtualizada
+
                 updateOndasForCurrentTurno()
                 escalaRepository.saveEscala(currentBaseId, escalaAtualizada)
                 _message.value = "Onda atualizada com sucesso!"
@@ -841,34 +838,22 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun removeOnda(ondaIndex: Int) {
         viewModelScope.launch {
             try {
-                val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
+                // B8: mutação atômica sob o escalaMutex
+                val updatedEscala = editarEscalaDoTurno { currentEscala ->
+                    val ondas = currentEscala.ondas.toMutableList()
+                    if (ondaIndex !in ondas.indices) return@editarEscalaDoTurno null
+
+                    // Remover a onda da lista
+                    ondas.removeAt(ondaIndex)
+
+                    currentEscala.copy(ondas = ondas)
                 } ?: return@launch
-                
-                val ondas = currentEscala.ondas.toMutableList()
-                if (ondaIndex !in ondas.indices) return@launch
-                
-                // Remover a onda da lista
-                ondas.removeAt(ondaIndex)
-                
-                val updatedEscala = currentEscala.copy(ondas = ondas)
-                
-                when (turno) {
-                    "AM" -> {
-                        _escalaAM.value = updatedEscala
-                        escalasCache["${updatedEscala.data}_AM"] = updatedEscala
-                    }
-                    "PM" -> {
-                        _escalaPM.value = updatedEscala
-                        escalasCache["${updatedEscala.data}_PM"] = updatedEscala
-                    }
-                }
-                
+
+                val turno = _turnoAtual.value
+                escalasCache["${updatedEscala.data}_$turno"] = updatedEscala
+
                 updateOndasForCurrentTurno()
-                saveCurrentEscala()
+                escalaRepository.saveEscala(currentBaseId, ensureEscalaDataAtual(updatedEscala))
                 _message.value = "Onda removida com sucesso"
             } catch (e: Exception) {
                 _error.value = "Erro ao remover onda: ${e.message}"
@@ -882,63 +867,50 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun addMotoristaToOnda(ondaIndex: Int, motorista: com.controleescalas.app.data.models.AdminMotoristaCardData) {
         viewModelScope.launch {
             try {
-                // Obter turno e escala atual primeiro
-                val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
+                // B8: verificação de duplicado + leitura → mutação → estado,
+                // tudo atômico sob o escalaMutex
+                val updatedEscala = editarEscalaDoTurno { currentEscala ->
+                    // ✅ NOVO: Verificar se o motorista já está em alguma onda do turno ATUAL
+                    val ondaExistente = currentEscala.ondas.find { onda ->
+                        onda.itens.any { it.motoristaId == motorista.id }
+                    }
+
+                    if (ondaExistente != null) {
+                        val nomeOndaExistente = ondaExistente.nome
+                        _error.value = "${motorista.nome} já está escalado na $nomeOndaExistente"
+                        Log.w("OperationalViewModel", "Tentativa de escalar motorista ${motorista.nome} que já está na $nomeOndaExistente")
+                        return@editarEscalaDoTurno null
+                    }
+
+                    val ondas = currentEscala.ondas.toMutableList()
+                    if (ondaIndex !in ondas.indices) return@editarEscalaDoTurno null
+
+                    val onda = ondas[ondaIndex]
+                    val novoItem = OndaItem(
+                        motoristaId = motorista.id, // ✅ CORREÇÃO: Usar ID do documento, não telefone
+                        nome = motorista.nome,
+                        horario = onda.horario,
+                        vaga = "",
+                        rota = "",
+                        modalidade = motorista.modalidade // Incluir modalidade
+                    )
+
+                    // Adicionar e ordenar itens por vaga (01, 02, 03...)
+                    val itensAtualizados = (onda.itens + novoItem).sortedWith(compareBy(
+                        { it.vaga.toIntOrNull() ?: Int.MAX_VALUE } // Ordenar numericamente por vaga (01, 02, 03...)
+                    ))
+
+                    ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
+                    // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual ao salvar
+                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val updated = currentEscala.copy(ondas = ondas, data = hoje)
+
+                    Log.d("OperationalViewModel", "✅ Motorista ${motorista.nome} adicionado à onda $ondaIndex. Total de itens: ${itensAtualizados.size}")
+                    updated
                 } ?: return@launch
-                
-                // ✅ NOVO: Verificar se o motorista já está em alguma onda do turno ATUAL
-                val ondaExistente = currentEscala.ondas.find { onda ->
-                    onda.itens.any { it.motoristaId == motorista.id }
-                }
-                
-                if (ondaExistente != null) {
-                    val nomeOndaExistente = ondaExistente.nome
-                    _error.value = "${motorista.nome} já está escalado na $nomeOndaExistente"
-                    Log.w("OperationalViewModel", "Tentativa de escalar motorista ${motorista.nome} que já está na $nomeOndaExistente do turno $turno")
-                    return@launch
-                }
-                
-                val ondas = currentEscala.ondas.toMutableList()
-                if (ondaIndex !in ondas.indices) return@launch
-                
-                val onda = ondas[ondaIndex]
-                val novoItem = OndaItem(
-                    motoristaId = motorista.id, // ✅ CORREÇÃO: Usar ID do documento, não telefone
-                    nome = motorista.nome,
-                    horario = onda.horario,
-                    vaga = "",
-                    rota = "",
-                    modalidade = motorista.modalidade // Incluir modalidade
-                )
-                
-                // Adicionar e ordenar itens por vaga (01, 02, 03...)
-                val itensAtualizados = (onda.itens + novoItem).sortedWith(compareBy(
-                    { it.vaga.toIntOrNull() ?: Int.MAX_VALUE } // Ordenar numericamente por vaga (01, 02, 03...)
-                ))
-                
-                ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
-                // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual ao salvar
-                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-                val updatedEscala = currentEscala.copy(ondas = ondas, data = hoje)
-                
-                // ✅ DEBUG: Log para verificar a data antes de salvar
-                Log.d("OperationalViewModel", "🔍 DEBUG addMotoristaToOnda: Data atual calculada: $hoje")
-                Log.d("OperationalViewModel", "🔍 DEBUG addMotoristaToOnda: Data da escala antes: ${currentEscala.data}")
-                Log.d("OperationalViewModel", "🔍 DEBUG addMotoristaToOnda: Data da escala depois: ${updatedEscala.data}")
-                Log.d("OperationalViewModel", "🔍 DEBUG addMotoristaToOnda: Turno: ${updatedEscala.turno}")
-                
-                when (turno) {
-                    "AM" -> _escalaAM.value = updatedEscala
-                    "PM" -> _escalaPM.value = updatedEscala
-                }
-                
-                // Log para debug
-                Log.d("OperationalViewModel", "✅ Motorista ${motorista.nome} adicionado à onda $ondaIndex. Total de itens: ${itensAtualizados.size}")
-                
+
+                Log.d("OperationalViewModel", "🔍 DEBUG addMotoristaToOnda: Data da escala depois: ${updatedEscala.data}, turno: ${updatedEscala.turno}")
+
                 updateOndasForCurrentTurno()
                 
                 // ✅ NOVO: Resetar status do motorista ao adicionar à onda (garantir estado inicial)
@@ -1395,24 +1367,20 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     }
     fun ensureOndasCount(turno: String, count: Int) {
         viewModelScope.launch {
-            val currentEscala = when (turno) {
-                "AM" -> _escalaAM.value
-                "PM" -> _escalaPM.value
-                else -> return@launch
+            // B8: mutação atômica; achado 12: só grava quando algo mudou
+            // (antes salvava o doc inteiro mesmo sem adicionar onda nenhuma)
+            val updatedEscala = editarEscalaDoTurno { currentEscala ->
+                var ondas = currentEscala.ondas.toMutableList()
+                if (ondas.size >= count) return@editarEscalaDoTurno null
+                while (ondas.size < count) {
+                    val num = ondas.size + 1
+                    ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+                }
+                currentEscala.copy(ondas = ondas)
             } ?: return@launch
 
-            var ondas = currentEscala.ondas.toMutableList()
-            while (ondas.size < count) {
-                val num = ondas.size + 1
-                ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
-            }
-            val updatedEscala = currentEscala.copy(ondas = ondas)
-            when (turno) {
-                "AM" -> _escalaAM.value = updatedEscala
-                "PM" -> _escalaPM.value = updatedEscala
-            }
             updateOndasForCurrentTurno()
-            escalaRepository.saveEscala(currentBaseId, updatedEscala)
+            escalaRepository.saveEscala(currentBaseId, ensureEscalaDataAtual(updatedEscala))
         }
     }
 
@@ -1422,29 +1390,20 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun removeMotoristaFromOnda(ondaIndex: Int, motoristaId: String) {
         viewModelScope.launch {
             try {
-                val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
+                // B8: mutação atômica sob o escalaMutex
+                val updatedEscala = editarEscalaDoTurno { currentEscala ->
+                    val ondas = currentEscala.ondas.toMutableList()
+                    if (ondaIndex !in ondas.indices) return@editarEscalaDoTurno null
+
+                    val onda = ondas[ondaIndex]
+                    val itensAtualizados = onda.itens.filter { it.motoristaId != motoristaId }
+
+                    ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
+                    currentEscala.copy(ondas = ondas)
                 } ?: return@launch
-                
-                val ondas = currentEscala.ondas.toMutableList()
-                if (ondaIndex !in ondas.indices) return@launch
-                
-                val onda = ondas[ondaIndex]
-                val itensAtualizados = onda.itens.filter { it.motoristaId != motoristaId }
-                
-                ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
-                val updatedEscala = currentEscala.copy(ondas = ondas)
-                
-                when (turno) {
-                    "AM" -> _escalaAM.value = updatedEscala
-                    "PM" -> _escalaPM.value = updatedEscala
-                }
-                
+
                 updateOndasForCurrentTurno()
-                saveCurrentEscala()
+                escalaRepository.saveEscala(currentBaseId, ensureEscalaDataAtual(updatedEscala))
                 
                 // ✅ NOVO: Resetar status do motorista quando removido da onda
                 try {
