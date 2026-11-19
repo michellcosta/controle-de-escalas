@@ -31,11 +31,12 @@ object VersaoGate {
             val uid = user?.uid ?: return false
 
             // Fast path: claim já registrada e suficiente (persiste no servidor)
-            val vAtual = (user.claims["v"] as? Number)?.toInt() ?: 0
+            val tokenResult = user.getIdToken(false).await()
+            val vAtual = (tokenResult?.claims?.get("v") as? Number)?.toInt() ?: 0
             if (vAtual >= 12) return true
 
             val api = NotificationApiService()
-            val idToken = user.getIdToken(false).await()?.token ?: return false
+            val idToken = tokenResult?.token ?: return false
             val resultado = api.registrarVersao(idToken, BuildConfig.VERSION_CODE)
 
             if (resultado.ok) {
