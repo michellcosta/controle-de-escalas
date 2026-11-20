@@ -48,7 +48,16 @@ class StatusCheckWorker(
                 Log.e(TAG, "❌ MotoristaId ou BaseId não fornecidos")
                 return@withContext Result.failure()
             }
-            
+
+            // Achado 9 da auditoria: com o freio de cota ativo, a leitura seria
+            // negada (e operação negada consome cota). Pula o ciclo — o worker
+            // periódico volta no próximo intervalo.
+            if (MotoristaRepository.leituraBloqueada()) {
+                Log.d(TAG, "⏸️ Freio de cota ativo — pulando ciclo de leitura")
+                println("⏸️ StatusCheckWorker: cota/acesso bloqueado, ciclo pulado")
+                return@withContext Result.success()
+            }
+
             val motoristaRepository = MotoristaRepository()
             val statusAtual = motoristaRepository.getStatusMotorista(motoristaId, baseId)
             val novoStatus = statusAtual?.estado

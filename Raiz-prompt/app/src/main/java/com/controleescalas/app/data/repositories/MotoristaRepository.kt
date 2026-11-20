@@ -59,6 +59,14 @@ class MotoristaRepository {
             gravacaoBloqueadaAte = millis
             prefs().edit().putLong("gravacaoBloqueadaAte", millis).apply()
         }
+
+        /**
+         * Achado 9 da auditoria: com o freio ativo (cota estourada/acesso
+         * negado), LEITURAS dos loops de fundo também são poupadas — operação
+         * negada consome cota igual à gravada. Loops consultam isto antes de
+         * ler e pulam o ciclo.
+         */
+        fun leituraBloqueada(): Boolean = System.currentTimeMillis() < gravacaoBloqueadaAte
     }
     
     /**

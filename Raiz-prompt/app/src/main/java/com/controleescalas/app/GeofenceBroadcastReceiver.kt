@@ -148,9 +148,17 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     ) {
         withContext(Dispatchers.IO) {
             try {
+                // Achado 9 da auditoria: com o freio de cota ativo, as leituras
+                // de status aqui seriam negadas (e ops negadas consomem cota).
+                // Pula a verificação; o geofence segue com o estado em memória.
+                if (MotoristaRepository.leituraBloqueada()) {
+                    Log.d(TAG, "⏸️ Freio de cota ativo — pulando verificação de status")
+                    return@withContext
+                }
+
                 val sessionManager = com.controleescalas.app.data.SessionManager(context)
                 val sessions = sessionManager.getUserSessions()
-                
+
                 sessions.sessions.forEach { session ->
                     try {
                         val motoristaRepository = MotoristaRepository()

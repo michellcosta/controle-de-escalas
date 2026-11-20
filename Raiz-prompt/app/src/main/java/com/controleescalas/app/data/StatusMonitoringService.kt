@@ -383,6 +383,27 @@ class StatusMonitoringService : Service() {
                         Log.e(TAG, "❌ Erro no listener de status: ${error.message}", error)
                         println("❌ StatusMonitoringService: Erro no listener - ${error.message}")
                         error.printStackTrace()
+                        // Achado 8 da auditoria: erro era só logado — o serviço
+                        // virava ZUMBI (GPS a cada 30s + 2 leituras negadas a
+                        // cada 15 min = 192 leituras/dia queimando cota, com
+                        // status congelado). Negação permanente (gate/cota)
+                        // encerra o serviço limpo; o app recria ao reabrir.
+                        if (com.controleescalas.app.data.ErroFirestore.cotaOuPermissaoNegada(error)) {
+                            Log.w(TAG, "⛔ Listener negado (permissão/cota) — encerrando serviço")
+                            println("⛔ StatusMonitoringService: acesso negado, encerrando para não queimar cota")
+                            serviceScope.launch {
+                                GeofencingService(this@StatusMonitoringService).removeAllGeofences()
+                                limparSessaoMonitoramento()
+                                stopMonitoring()
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                    stopForeground(STOP_FOREGROUND_REMOVE)
+                                } else {
+                                    @Suppress("DEPRECATION")
+                                    stopForeground(true)
+                                }
+                                stopSelf()
+                            }
+                        }
                     }
                 )
                 
@@ -421,7 +442,14 @@ class StatusMonitoringService : Service() {
         periodicCheckJob = serviceScope.launch {
             while (true) {
                 delay(15 * 60 * 1000L) // Verificar a cada 15 minutos
-                
+
+                // Achado 9 da auditoria: com o freio de cota ativo, as duas
+                // leituras deste ciclo seriam negadas (consomem cota). Pula.
+                if (MotoristaRepository.leituraBloqueada()) {
+                    Log.d(TAG, "⏸️ Freio de cota ativo — pulando verificação periódica")
+                    continue
+                }
+
                 try {
                     val motoristaRepository = MotoristaRepository()
                     val escalaRepository = EscalaRepository()
