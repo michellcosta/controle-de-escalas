@@ -195,7 +195,26 @@ class SessionManager(private val context: Context) {
                 }
             }
             
-            val updatedSessions = UserSessions(cleanedSessions)
+            // BUG encontrado no teste E2E (pré-existente, intermitente): reescrever
+            // com UserSessions(cleanedSessions) ZERAVA lastActiveSessionIndex (-1),
+            // destruindo o ponteiro de auto-login. Correndo junto com o segundo
+            // saveSession do login, às vezes apagava a sessão ativa da próxima
+            // abertura (usuário caía na seleção de conta em vez de entrar direto).
+            // Preserva o índice apontando para a sessão mantida.
+            val ativaAntes = if (currentSessions.lastActiveSessionIndex in currentSessions.sessions.indices) {
+                currentSessions.sessions[currentSessions.lastActiveSessionIndex]
+            } else null
+            var novoIndice = -1
+            if (ativaAntes != null) {
+                novoIndice = cleanedSessions.indexOfFirst {
+                    it.userId == ativaAntes.userId && it.baseId == ativaAntes.baseId
+                }
+                if (novoIndice < 0 && cleanedSessions.isNotEmpty()) novoIndice = 0
+            }
+            val updatedSessions = currentSessions.copy(
+                sessions = cleanedSessions,
+                lastActiveSessionIndex = novoIndice
+            )
             preferences[SESSIONS_KEY] = json.encodeToString(updatedSessions)
             
             if (cleanedSessions.size != currentSessions.sessions.size) {
