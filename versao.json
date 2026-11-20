@@ -1,11 +1,13 @@
 {
-  "versaoCodigo": 15,
-  "versaoNome": "1.4.0-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.4.0-beta/controle-de-escalas-1.4.0-beta.apk",
-  "sha256": "",
+  "versaoCodigo": 16,
+  "versaoNome": "1.5.0-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.5.0-beta/controle-de-escalas-1.5.0-beta.apk",
+  "sha256": "007009db42e819cb05f7954d683aded218fb56ea11d88bdd6d093bdf4a8f7710",
   "novidades": [
-    "ETA realista: distância e tempo por rota de estrada (não mais linha reta)",
-    "Fix: resposta de localização nunca mais sai desatualizada",
-    "Fallback automático de roteamento (OSRM) sem depender de chave de API"
+    "SEGURANÇA: notificações e API agora exigem app atualizado e login",
+    "ETA do assistente funcionando de ponta a ponta + rota de estrada real",
+    "APK 6x menor (78MB -> 13MB): atualizações bem mais rápidas no 4G",
+    "Fix: auto-login, escala em tempo real no PM, quinzena sem contagem dupla",
+    "Fix: rede instável não derruba mais o monitoramento do motorista"
   ]
 }
