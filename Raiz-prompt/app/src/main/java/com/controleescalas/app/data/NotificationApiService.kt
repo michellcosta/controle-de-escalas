@@ -15,13 +15,7 @@ import java.util.concurrent.TimeUnit
  * Serviço para chamar a API Python de notificações
  */
 class NotificationApiService {
-    
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(NotificationApiConfig.TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(NotificationApiConfig.TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .writeTimeout(NotificationApiConfig.TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .build()
-    
+
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     /**
@@ -526,5 +520,14 @@ class NotificationApiService {
 
     companion object {
         private const val TAG = "NotificationApiService"
+
+        // Achado 10 da auditoria (infra): OkHttpClient por instância criava
+        // pool de conexões e threads próprios a cada `NotificationApiService()`
+        // (o Assistente cria uma por mensagem). Client único compartilhado.
+        private val client: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(NotificationApiConfig.TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(NotificationApiConfig.TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(NotificationApiConfig.TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .build()
     }
 }

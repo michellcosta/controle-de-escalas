@@ -16,9 +16,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     
-    <!-- Permissões de arquivo -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- Permissões de arquivo: inúteis acima do Android 9 (scoped storage; o
+         app usa FileProvider/uCrop) — limitadas ao máximo necessário
+         (achado 5 da auditoria) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     
     <!-- Permissão de câmera para scanner de QR Code/Código de Barras e Assistente -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -39,7 +41,7 @@
         android:name=".MainApp"
         android:label="Controle de Escalas"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:enableOnBackInvokedCallback="true">
         
         <activity
