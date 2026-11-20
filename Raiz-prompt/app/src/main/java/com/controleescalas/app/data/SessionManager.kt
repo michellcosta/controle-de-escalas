@@ -29,10 +29,16 @@ class SessionManager(private val context: Context) {
     companion object {
         private val SESSIONS_KEY = stringPreferencesKey("user_sessions")
         private val THEME_KEY = stringPreferencesKey("theme_mode")
-        private val json = Json { 
+        private val json = Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
         }
+
+        // Achado 9 da auditoria: cache curto do status das bases (5 min) para
+        // não reler o mesmo doc a cada validação de sessão
+        private const val BASE_CACHE_TTL = 5 * 60 * 1000L
+        private val baseStatusCache =
+            java.util.concurrent.ConcurrentHashMap<String, Pair<String, Long>>() // baseId -> (statusAprovacao, timestamp)
     }
     
     /**
@@ -251,6 +257,18 @@ class SessionManager(private val context: Context) {
         return try {
             println("🔍 SessionManager: Validando sessão - baseId: ${session.baseId}, userId: ${session.userId}, baseName: ${session.baseName}")
 
+            // Achado 9 da auditoria: a validação lia o doc da base em TODA
+            // visita à tela (1 leitura/sessão, repetida no Splash e na seleção).
+            // Cache curto de 5 min: status da base muda raramente.
+            val agora = System.currentTimeMillis()
+            baseStatusCache[session.baseId]?.let { (status, ts) ->
+                if (agora - ts < BASE_CACHE_TTL) {
+                    val validaCache = status == "ativa"
+                    println("✅ SessionManager: Base ${session.baseId} validada do cache (status: $status)")
+                    return validaCache
+                }
+            }
+
             val baseRepository = BaseRepository()
             val base = baseRepository.getBaseOuErro(session.baseId)
 
@@ -260,6 +278,7 @@ class SessionManager(private val context: Context) {
             }
 
             val isValid = base.statusAprovacao == "ativa"
+            baseStatusCache[session.baseId] = base.statusAprovacao to agora
             println("${if (isValid) "✅" else "⚠️"} SessionManager: Base ${session.baseId} (${session.baseName}) - status: ${base.statusAprovacao}, válida: $isValid")
 
             isValid

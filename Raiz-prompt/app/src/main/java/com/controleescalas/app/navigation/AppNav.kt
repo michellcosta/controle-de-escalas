@@ -125,15 +125,20 @@ fun AppNavHost() {
                                 }
                                 
                                 // Verificar status da base para outros usuários
+                                // Achado 10 da auditoria: getBase() retorna null
+                                // tanto para "não existe" quanto para erro de
+                                // rede — o usuário selecionava a conta e NADA
+                                // acontecia, sem mensagem. getBaseOuErro lança
+                                // em erro de rede (o catch de baixo avisa).
                                 val baseRepository = BaseRepository()
-                                val base = baseRepository.getBase(session.baseId)
-                                
+                                val base = baseRepository.getBaseOuErro(session.baseId)
+
                                 if (base == null) {
                                     println("❌ AppNav: Base ${session.baseId} não encontrada")
                                     // Não navegar - a sessão será removida na próxima validação
                                     return@launch
                                 }
-                                
+
                                 if (base.statusAprovacao != "ativa") {
                                     println("⚠️ AppNav: Base ${session.baseId} não está ativa (status: ${base.statusAprovacao})")
                                     // Não navegar - a sessão será removida na próxima validação
@@ -157,6 +162,13 @@ fun AppNavHost() {
                             } catch (e: Exception) {
                                 println("❌ AppNav: Erro ao verificar status da base: ${e.message}")
                                 e.printStackTrace()
+                                // Achado 10: erro visível ao usuário (antes era
+                                // só println — clique morto)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Não foi possível validar a conta. Verifique sua conexão e tente novamente.",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
                                 // Em caso de erro, não navegar (forçar revalidação)
                             }
                         }
@@ -682,7 +694,13 @@ fun AppNavHost() {
             composable(Routes.AdminDevolucoes.route) {
                 println("🔵 [HYP-C] AppNav: AdminDevolucoes route composable registered - route: ${Routes.AdminDevolucoes.route}")
                 println("🔵 AppNav: Renderizando AdminDevolucoesScreen")
-                val devolucaoViewModel: DevolucaoViewModel = viewModel()
+                // Achado 15 da auditoria: VM criado NA ENTRADA DA LISTA — a
+                // tela de detalhes compartilha o MESMO estado (antes cada
+                // composable criava um VM vazio e recarregava tudo do
+                // Firestore a cada navegação)
+                val devolucaoViewModel: DevolucaoViewModel = viewModel(
+                    viewModelStoreOwner = navController.getBackStackEntry(Routes.AdminDevolucoes.route)
+                )
                 val baseIdValue = currentUserBaseId.value ?: ""
                 println("🔵 AppNav: baseId para AdminDevolucoesScreen = '$baseIdValue'")
                 AdminDevolucoesScreen(
@@ -714,7 +732,10 @@ fun AppNavHost() {
             
             composable("${Routes.AdminDevolucaoDetalhes.route}/{motoristaId}") { backStackEntry ->
                 println("🔵 [HYP-E] AppNav: AdminDevolucaoDetalhes composable matched - route: ${backStackEntry.destination.route}")
-                val devolucaoViewModel: DevolucaoViewModel = viewModel()
+                // Achado 15: mesmo VM da lista (escopo da entrada AdminDevolucoes)
+                val devolucaoViewModel: DevolucaoViewModel = viewModel(
+                    viewModelStoreOwner = navController.getBackStackEntry(Routes.AdminDevolucoes.route)
+                )
                 val motoristaId = backStackEntry.arguments?.getString("motoristaId") ?: ""
                 println("🔵 [HYP-E] AppNav: Extracted motoristaId: '$motoristaId' (empty: ${motoristaId.isEmpty()})")
                 // Buscar o nome do motorista a partir do ID
