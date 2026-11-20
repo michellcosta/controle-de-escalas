@@ -438,7 +438,7 @@ class FirestoreReader:
             # --- DISPONIBILIDADE: solicitações recentes (hoje e amanhã) ---
             try:
                 disp_ref = self.db.collection('disponibilidades')
-                disp_docs = disp_ref.where('baseId', '==', base_id).limit(30).stream()
+                disp_docs = disp_ref.where('baseId', '==', base_id).limit(15).stream()  # achado 6: 30->15
                 disp_listas = []
                 for d in disp_docs:
                     data_disp = d.to_dict() or {}
@@ -473,7 +473,7 @@ class FirestoreReader:
                 now = agora_brasil()
                 mes, ano = now.month, now.year
                 quinzenas_ref = self.db.collection('quinzenas')
-                q_docs = quinzenas_ref.where('baseId', '==', base_id).where('mes', '==', mes).where('ano', '==', ano).limit(50).stream()
+                q_docs = quinzenas_ref.where('baseId', '==', base_id).where('mes', '==', mes).where('ano', '==', ano).limit(15).stream()  # achado 6: 50->15
                 q_resumos = []
                 for d in q_docs:
                     data_q = d.to_dict() or {}
@@ -492,7 +492,7 @@ class FirestoreReader:
             # --- DEVOLUÇÕES: por motorista → Total por dia → depois cada devolução (data hora — N pacotes. IDs: ...) ---
             try:
                 dev_ref = base_ref.collection('devolucoes')
-                dev_docs = list(dev_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(50).stream())
+                dev_docs = list(dev_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(15).stream())  # achado 6: 50->15
                 if dev_docs:
                     by_motorista = {}
                     for d in dev_docs:
@@ -541,7 +541,7 @@ class FirestoreReader:
             # --- HISTÓRICO DE NOTIFICAÇÕES (AVISOS ENVIADOS) ---
             try:
                 avisos_ref = base_ref.collection('avisos_enviados')
-                avisos_docs = list(avisos_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10).stream())
+                avisos_docs = list(avisos_ref.order_by('timestamp', direction=firestore.Query.DESCENDING).limit(5).stream())  # achado 6: 10->5
                 if avisos_docs:
                     parts.append("Últimos avisos enviados aos motoristas:")
                     for d in avisos_docs:

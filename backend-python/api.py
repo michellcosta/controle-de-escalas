@@ -403,8 +403,20 @@ VERSAO_MINIMA_ESCRITA = 12  # precisa casar com 'podeEscrever()' no firestore.ru
 PAPEIS_STAFF = ('admin', 'superadmin', 'auxiliar', 'ajudante')
 
 
+# Achado 7 da auditoria: lookup de papel custava até ~8+ leituras por request
+# (2 gets + 2 queries por authUid x 2 colecoes; o fallback varre TODAS as
+# bases). Papel muda raramente — cache em memoria por 60s (1 worker = global).
+_PAPEL_CACHE_TTL_SEG = 60
+_papel_cache: dict = {}
+
+
 def _get_papel(base_id: str, uid: str):
     """Resolve o papel do uid na base (ou em qualquer base/superadmin). Retorna papel ou None."""
+    chave = (base_id, uid)
+    agora = time.time()
+    hit = _papel_cache.get(chave)
+    if hit is not None and agora - hit[1] < _PAPEL_CACHE_TTL_SEG:
+        return hit[0]
     papel = reader.get_usuario_papel(base_id, uid)
     if not papel:
         papel = reader.get_usuario_papel_in_any_base(uid)
@@ -412,6 +424,7 @@ def _get_papel(base_id: str, uid: str):
         papel = 'superadmin'
     if not papel and uid in (reader.get_superadmin_uids_from_config() or []):
         papel = 'superadmin'
+    _papel_cache[chave] = (papel, agora)
     return papel
 
 
