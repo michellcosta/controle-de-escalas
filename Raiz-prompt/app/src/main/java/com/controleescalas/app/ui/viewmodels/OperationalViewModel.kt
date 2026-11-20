@@ -27,8 +27,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -1346,20 +1351,37 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 }
 
                 Log.d("OperationalVM", "🔔 Enviando avisos para ${recipients.size} destinatários")
-                recipients.forEach { (id, n) ->
-                    val (sent, _) = api.notifyMotorista(
-                        baseId = baseId,
-                        motoristaId = id,
-                        title = "📢 Aviso do Assistente",
-                        body = body,
-                        data = mapOf("tipo" to "aviso")
-                    )
-                    if (sent) {
-                        saveNotificationToHistory(id, n, body)
-                    }
+                // Achado 14 da auditoria: envio sequencial (1 HTTP por motorista
+                // em série) + um SessionManager novo por destinatário dentro do
+                // histórico. Agora: envio concorrente com limite e erro visível.
+                var falhas = 0
+                val semaforo = kotlinx.coroutines.sync.Semaphore(6)
+                coroutineScope {
+                    recipients.map { (id, n) ->
+                        async {
+                            semaforo.withPermit {
+                                val (sent, _) = api.notifyMotorista(
+                                    baseId = baseId,
+                                    motoristaId = id,
+                                    title = "📢 Aviso do Assistente",
+                                    body = body,
+                                    data = mapOf("tipo" to "aviso")
+                                )
+                                if (sent) {
+                                    saveNotificationToHistory(id, n, body)
+                                } else {
+                                    falhas++
+                                }
+                            }
+                        }
+                    }.awaitAll()
                 }
-                
-                _message.value = "Aviso enviado para ${recipients.size} motorista(s)"
+
+                _message.value = if (falhas > 0) {
+                    "Aviso enviado, mas $falhas de ${recipients.size} falharam. Tente reenviar."
+                } else {
+                    "Aviso enviado para ${recipients.size} motorista(s)"
+                }
             } catch (e: Exception) {
                 Log.e("OperationalVM", "❌ Erro ao enviar aviso em massa: ${e.message}")
             }

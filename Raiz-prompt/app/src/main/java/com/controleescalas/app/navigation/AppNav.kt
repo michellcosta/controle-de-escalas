@@ -385,8 +385,10 @@ fun AppNavHost() {
                     userId = currentUserId.value ?: "",
                     userRole = currentUserRole.value ?: "",
                     onLogout = {
-                        // Capturar valores ANTES de limpar
+                        // Capturar valores ANTES de limpar (baseId necessário
+                        // para salvar a sessão sem varrer bases — achado 11)
                         val userIdToUpdate = currentUserId.value
+                        val baseIdParaSessao = currentUserBaseId.value
                         val baseIdToUpdate = currentUserBaseId.value
                         
                         // Marcar que está fazendo logout para evitar recomposição
@@ -522,8 +524,10 @@ fun AppNavHost() {
                         }
                     },
                     onLogout = {
-                        // Capturar valores ANTES de limpar
+                        // Capturar valores ANTES de limpar (baseId necessário
+                        // para salvar a sessão sem varrer bases — achado 11)
                         val userIdToUpdate = currentUserId.value
+                        val baseIdParaSessao = currentUserBaseId.value
                         
                         // Marcar que está fazendo logout para evitar recomposição
                         isLoggingOut.value = true
@@ -543,45 +547,40 @@ fun AppNavHost() {
                             if (userIdToUpdate != null) {
                                 try {
                                     println("🔍 AppNav: Buscando dados do super admin para salvar sessão...")
-                                    
-                                    // Para super admin, buscar em todas as bases
-                                    val basesSnapshot = FirebaseFirestore.getInstance()
-                                        .collection("bases")
-                                        .get()
-                                        .await()
-                                    
-                                    var sessionSaved = false
-                                    for (baseDoc in basesSnapshot.documents) {
-                                        val baseId = baseDoc.id
+
+                                    // Achado 11 da auditoria: era varredura de
+                                    // TODAS as bases + 1 get por base (N+1
+                                    // leituras por logout). Com o baseId capturado
+                                    // antes de limpar o estado, 2 leituras diretas.
+                                    val baseIdSalvo = baseIdParaSessao
+                                    if (!baseIdSalvo.isNullOrBlank()) {
                                         val userDoc = FirebaseFirestore.getInstance()
                                             .collection("bases")
-                                            .document(baseId)
+                                            .document(baseIdSalvo)
                                             .collection("motoristas")
                                             .document(userIdToUpdate)
                                             .get()
                                             .await()
-                                        
-                                        if (userDoc.exists()) {
-                                            val userData = userDoc.data
-                                            if (userData?.get("papel") == "superadmin") {
-                                                val session = SavedSession(
-                                                    userId = userIdToUpdate,
-                                                    baseId = baseId,
-                                                    baseName = baseDoc.getString("nome") ?: "Transportadora",
-                                                    userName = userData["nome"] as? String ?: "Super Admin",
-                                                    userRole = "superadmin"
-                                                )
-                                                
-                                                sessionManager.saveSession(session)
-                                                println("✅ AppNav: Sessão super admin salva no logout - ${session.baseName} (${session.userName})")
-                                                sessionSaved = true
-                                                break
-                                            }
+                                        if (userDoc.exists() && userDoc.getString("papel") == "superadmin") {
+                                            val baseDoc = FirebaseFirestore.getInstance()
+                                                .collection("bases")
+                                                .document(baseIdSalvo)
+                                                .get()
+                                                .await()
+                                            val session = SavedSession(
+                                                userId = userIdToUpdate,
+                                                baseId = baseIdSalvo,
+                                                baseName = baseDoc.getString("nome") ?: "Transportadora",
+                                                userName = userDoc.getString("nome") ?: "Super Admin",
+                                                userRole = "superadmin"
+                                            )
+                                            sessionManager.saveSession(session)
+                                            println("✅ AppNav: Sessão super admin salva no logout - ${session.baseName} (${session.userName})")
+                                        } else {
+                                            println("⚠️ AppNav: Super admin não encontrado na base $baseIdSalvo")
                                         }
-                                    }
-                                    
-                                    if (!sessionSaved) {
-                                        println("⚠️ AppNav: Super admin não encontrado no Firestore")
+                                    } else {
+                                        println("⚠️ AppNav: Sem baseId em memória para salvar sessão do super admin")
                                     }
                                 } catch (e: Exception) {
                                     println("❌ AppNav: Erro ao salvar sessão super admin: ${e.message}")
@@ -618,6 +617,7 @@ fun AppNavHost() {
                     },
                     onLogout = {
                         val userIdToUpdate = currentUserId.value
+                        val baseIdParaSessao = currentUserBaseId.value
                         isLoggingOut.value = true
                         currentUserId.value = null
                         currentUserBaseId.value = null
@@ -628,34 +628,29 @@ fun AppNavHost() {
                         scope.launch {
                             if (userIdToUpdate != null) {
                                 try {
-                                    val basesSnapshot = FirebaseFirestore.getInstance()
-                                        .collection("bases")
-                                        .get()
-                                        .await()
-                                    var sessionSaved = false
-                                    for (baseDoc in basesSnapshot.documents) {
-                                        val baseId = baseDoc.id
+                                    // Achado 11: 2 leituras diretas em vez de N+1
+                                    val baseIdSalvo2 = baseIdParaSessao
+                                    if (!baseIdSalvo2.isNullOrBlank()) {
                                         val userDoc = FirebaseFirestore.getInstance()
                                             .collection("bases")
-                                            .document(baseId)
+                                            .document(baseIdSalvo2)
                                             .collection("motoristas")
                                             .document(userIdToUpdate)
                                             .get()
                                             .await()
-                                        if (userDoc.exists()) {
-                                            val userData = userDoc.data
-                                            if (userData?.get("papel") == "superadmin") {
-                                                val session = SavedSession(
-                                                    userId = userIdToUpdate,
-                                                    baseId = baseId,
-                                                    baseName = baseDoc.getString("nome") ?: "Transportadora",
-                                                    userName = userData["nome"] as? String ?: "Super Admin",
-                                                    userRole = "superadmin"
-                                                )
-                                                sessionManager.saveSession(session)
-                                                sessionSaved = true
-                                                break
-                                            }
+                                        if (userDoc.exists() && userDoc.getString("papel") == "superadmin") {
+                                            val baseDoc = FirebaseFirestore.getInstance()
+                                                .collection("bases")
+                                                .document(baseIdSalvo2)
+                                                .get()
+                                                .await()
+                                            sessionManager.saveSession(SavedSession(
+                                                userId = userIdToUpdate,
+                                                baseId = baseIdSalvo2,
+                                                baseName = baseDoc.getString("nome") ?: "Transportadora",
+                                                userName = userDoc.getString("nome") ?: "Super Admin",
+                                                userRole = "superadmin"
+                                            ))
                                         }
                                     }
                                 } catch (e: Exception) {

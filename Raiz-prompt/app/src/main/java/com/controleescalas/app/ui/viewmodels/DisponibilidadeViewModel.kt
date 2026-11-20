@@ -612,10 +612,11 @@ class DisponibilidadeViewModel : ViewModel() {
                 // Se não existe, criar automaticamente
                 if (!snapshot.exists()) {
                     println("⚠️ Disponibilidade não existe para $docId, criando...")
+                    // Achado 13 da auditoria: era criar() + delay(1000) + get()
+                    // de novo — a criação é suspend e só retorna DEPOIS de
+                    // gravar; o delay e a segunda leitura eram espera/leitura
+                    // de graça. Uma releitura basta.
                     criarDisponibilidadeParaMotorista(baseId, motoristaId, dataAmanha)
-                    // Aguardar um pouco para garantir que foi criado
-                    kotlinx.coroutines.delay(1000)
-                    // Recarregar após criar
                     snapshot = firestore.collection("disponibilidades")
                         .document(docId)
                         .get()
