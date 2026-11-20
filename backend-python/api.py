@@ -188,7 +188,9 @@ def notify_motorista():
         print(f"❌ Erro inesperado: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+        # Achado 12 da auditoria: str(e) cru vaza detalhes internos (coleções,
+        # campos, credenciais) ao cliente; traceback fica só no log do servidor.
+        return jsonify({"error": "Erro interno no servidor. Tente novamente."}), 500
 
 
 @app.route('/notify/base', methods=['POST'])
@@ -262,7 +264,9 @@ def notify_base():
         print(f"❌ Erro inesperado: {e}")
         import traceback
         traceback.print_exc()
-        return jsonify({"error": f"Erro interno: {str(e)}"}), 500
+        # Achado 12 da auditoria: str(e) cru vaza detalhes internos (coleções,
+        # campos, credenciais) ao cliente; traceback fica só no log do servidor.
+        return jsonify({"error": "Erro interno no servidor. Tente novamente."}), 500
 
 
 @app.route('/notify/status-change', methods=['POST'])

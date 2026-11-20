@@ -8,6 +8,7 @@ Usa Service Account para autenticação.
 import requests
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Tuple
 from google.oauth2 import service_account
 from google.auth.transport.requests import Request
@@ -174,29 +175,28 @@ class FCMSender:
         Returns:
             Dicionário com estatísticas: {"sucessos": int, "falhas": int}
         """
-        sucessos = 0
-        falhas = 0
-        
         print(f"\n📤 Enviando notificações para {len(tokens)} dispositivos...")
-        
-        for token_info in tokens:
+
+        # Achado 9 da auditoria: envio sequencial (até ~10s por token) somava
+        # minutos em bases grandes e bloqueava o worker do gunicorn. Envio em
+        # paralelo (I/O bound — threads resolvem).
+        def _enviar(token_info: Dict[str, str]) -> bool:
             token = token_info.get('fcmToken')
             motorista_id = token_info.get('motorista_id', 'N/A')
-            
             if not token:
                 print(f"  ⚠️ Token vazio para motorista {motorista_id}, pulando...")
-                falhas += 1
-                continue
-            
-            success, error = self.send_to_token(token, title, body, data)
-            
-            if success:
-                sucessos += 1
-            else:
-                falhas += 1
-        
+                return False
+            success, _ = self.send_to_token(token, title, body, data)
+            return success
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            resultados = list(executor.map(_enviar, tokens))
+
+        sucessos = sum(1 for r in resultados if r)
+        falhas = sum(1 for r in resultados if not r)
+
         print(f"\n📊 Resultado: {sucessos} sucessos, {falhas} falhas")
-        
+
         return {"sucessos": sucessos, "falhas": falhas}
 
     def send_silent_data_only(self, token: str, data: Dict[str, str]) -> Tuple[bool, Optional[str]]:
