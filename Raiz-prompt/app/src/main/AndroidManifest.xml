@@ -68,13 +68,6 @@
             </intent-filter>
         </service>
 
-        <!-- Background Notification Service -->
-        <service
-            android:name=".BackgroundNotificationService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-        
         <!-- Status Monitoring Service: apenas tipo location. O tipo dataSync
              (removido) tem limite de 6h/dia no Android 15 e derruba o turno
              com ForegroundServiceDidNotStopInTimeException (B5 da auditoria). -->

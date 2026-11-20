@@ -972,7 +972,11 @@ class MotoristaRepository {
                 
                 val statusMap = mutableMapOf<String, StatusMotorista>()
                 snapshot?.documents?.forEach { doc ->
-                    val status = doc.toObject(StatusMotorista::class.java)
+                    // Achado 11 da auditoria: um único doc com campo de tipo
+                    // inesperado lançava DENTRO do listener e derrubava o app
+                    // a cada snapshot. Descarta doc inválido com log.
+                    val status = runCatching { doc.toObject(StatusMotorista::class.java) }
+                        .getOrNull()
                     status?.let {
                         statusMap[it.motoristaId] = it
                     }

@@ -97,11 +97,13 @@ class NotifyStatusChangeWorker(
                 Result.success()
             } else {
                 Log.e(TAG, "❌ Falha ao enviar: $error")
-                Result.retry()
+                // Achado 14 da auditoria: retry sem teto (HTTP fora por horas =
+                // worker martelando para sempre). Teto de 5 tentativas.
+                if (runAttemptCount >= 5) Result.failure() else Result.retry()
             }
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro no Worker: ${e.message}", e)
-            Result.retry()
+            if (runAttemptCount >= 5) Result.failure() else Result.retry()
         }
     }
 }

@@ -20,14 +20,17 @@ object FirebaseManager {
     val firestore: FirebaseFirestore by lazy {
         FirebaseFirestore.getInstance().apply {
             try {
-                // Habilitar persistência offline
+                // Habilitar persistência offline.
+                // Achado 14 da auditoria: CACHE_SIZE_UNLIMITED fazia o cache do
+                // aparelho do motorista crescer sem teto (armazenamento). 100MB
+                // é o teto padrão recomendado pelo Firebase.
                 val settings = FirebaseFirestoreSettings.Builder()
                     .setPersistenceEnabled(true)
-                    .setCacheSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                    .setCacheSizeBytes(100L * 1024 * 1024)
                     .build()
-                
+
                 firestoreSettings = settings
-                Log.d(TAG, "✅ Firestore offline persistence habilitado")
+                Log.d(TAG, "✅ Firestore offline persistence habilitado (cache 100MB)")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Erro ao configurar Firestore offline persistence", e)
             }

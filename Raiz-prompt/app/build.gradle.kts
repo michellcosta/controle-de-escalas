@@ -121,7 +121,8 @@ dependencies {
 
     // ZXing for QR Code generation
     implementation("com.google.zxing:core:3.5.2")
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    // journeyapps:zxing-android-embedded REMOVIDA (achado 9): nenhum uso no
+    // código — só com.google.zxing:core é usado (QRCodeGenerator/Reader)
 
     // OkHttp para chamadas HTTP à API Python
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
