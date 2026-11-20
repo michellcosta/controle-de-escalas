@@ -37,17 +37,44 @@ class NotificationService(private val context: Context) {
         const val TYPE_ESCALA_UPDATE = "escala_update"
         const val TYPE_MOTORISTA_UPDATE = "motorista_update"
         const val TYPE_DISPONIBILIDADE_UPDATE = "disponibilidade_update"
+        const val TYPE_GENERIC = "generic"
         const val TYPE_SUPERADMIN_NOVA_BASE = "superadmin_nova_base"
         const val TYPE_SUPERADMIN_NOVO_FEEDBACK = "superadmin_novo_feedback"
         
         private const val TAG = "NotificationService"
+
+        // Achado 10 da auditoria: cache em memória das preferências de
+        // notificação. isNotificationEnabled usava runBlocking em DataStore
+        // (disco) na main thread A CADA notificação — jank/risco de ANR nos
+        // fluxos de background. Default true = mesmo default do DataStore
+        // enquanto o cache popular.
+        private val prefsCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+        @Volatile
+        private var cacheIniciado = false
     }
 
     private val settingsManager = NotificationSettingsManager(context)
     private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    
+
     init {
         createNotificationChannel()
+        iniciarCachePreferencias()
+    }
+
+    /**
+     * Um único coletor por preferência alimenta o cache; leituras passam a
+     * ser consulta em memória (sem runBlocking em disco).
+     */
+    private fun iniciarCachePreferencias() {
+        if (cacheIniciado) return
+        cacheIniciado = true
+        coroutineScope.launch {
+            launch { settingsManager.notificacaoMotoristaConcluido.collect { prefsCache[TYPE_MOTORISTA_UPDATE] = it } }
+            launch { settingsManager.notificacaoChamadaMotorista.collect { prefsCache[TYPE_CHAMADA_MOTORISTA] = it } }
+            launch { settingsManager.notificacaoStatusUpdate.collect { prefsCache[TYPE_STATUS_UPDATE] = it } }
+            launch { settingsManager.notificacaoEscalaUpdate.collect { prefsCache[TYPE_ESCALA_UPDATE] = it } }
+            launch { settingsManager.notificacaoGeneric.collect { prefsCache[TYPE_GENERIC] = it } }
+        }
     }
 
     /**
@@ -91,18 +118,15 @@ class NotificationService(private val context: Context) {
     }
 
     /**
-     * Verificar se uma notificação está habilitada (versão síncrona usando runBlocking)
+     * Verificar se uma notificação está habilitada.
+     * Achado 10 da auditoria: era runBlocking em DataStore na thread chamadora
+     * (main, nos callbacks dos listeners). Agora lê o cache em memória
+     * alimentado pelos coletores do init.
      */
     private fun isNotificationEnabled(type: String): Boolean {
-        return runBlocking {
-            when (type) {
-                TYPE_MOTORISTA_UPDATE -> settingsManager.isNotificacaoMotoristaConcluidoEnabled()
-                TYPE_CHAMADA_MOTORISTA -> settingsManager.isNotificacaoChamadaMotoristaEnabled()
-                TYPE_STATUS_UPDATE -> settingsManager.isNotificacaoStatusUpdateEnabled()
-                TYPE_ESCALA_UPDATE -> settingsManager.isNotificacaoEscalaUpdateEnabled()
-                TYPE_SUPERADMIN_NOVA_BASE, TYPE_SUPERADMIN_NOVO_FEEDBACK -> true // Sempre habilitado para super admin
-                else -> settingsManager.isNotificacaoGenericEnabled()
-            }
+        return when (type) {
+            TYPE_SUPERADMIN_NOVA_BASE, TYPE_SUPERADMIN_NOVO_FEEDBACK -> true // Sempre habilitado para super admin
+            else -> prefsCache[type] ?: true // default habilitado (mesmo do DataStore)
         }
     }
     
