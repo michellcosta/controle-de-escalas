@@ -2,6 +2,7 @@
   "versaoCodigo": 15,
   "versaoNome": "1.4.0-beta",
   "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.4.0-beta/controle-de-escalas-1.4.0-beta.apk",
+  "sha256": "",
   "novidades": [
     "ETA realista: distância e tempo por rota de estrada (não mais linha reta)",
     "Fix: resposta de localização nunca mais sai desatualizada",

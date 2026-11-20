@@ -17,7 +17,8 @@ data class AtualizacaoRemota(
     val versaoCodigo: Long,
     val versaoNome: String,
     val apkUrl: String,
-    val novidades: List<String> = emptyList()
+    val novidades: List<String> = emptyList(),
+    val sha256: String = "" // hash do APK; vazio = sem verificação (releases antigas)
 )
 
 object AppUpdateChecker {
@@ -50,7 +51,8 @@ object AppUpdateChecker {
                     versaoCodigo = json.optLong("versaoCodigo"),
                     versaoNome = json.optString("versaoNome"),
                     apkUrl = url,
-                    novidades = novidades
+                    novidades = novidades,
+                    sha256 = json.optString("sha256").trim()
                 )
             }
         } catch (_: Exception) {
@@ -77,7 +79,8 @@ object AppUpdateChecker {
     suspend fun baixar(
         context: Context,
         url: String,
-        onProgress: (Int) -> Unit = {}
+        onProgress: (Int) -> Unit = {},
+        sha256Esperado: String? = null
     ): File? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder().url(url).build()
@@ -86,6 +89,14 @@ object AppUpdateChecker {
                 val arquivo = File(context.cacheDir, "atualizacao.apk")
                 val corpo = response.body ?: return@withContext null
                 val total = corpo.contentLength()
+
+                // Achado 7 da auditoria: o versao.json pode trazer o SHA-256 do
+                // APK — valida ANTES de abrir o instalador (a assinatura segue
+                // sendo o backstop final do PackageInstaller).
+                val digest = if (!sha256Esperado.isNullOrBlank())
+                    java.security.MessageDigest.getInstance("SHA-256")
+                else null
+
                 corpo.byteStream().use { entrada ->
                     FileOutputStream(arquivo).use { saida ->
                         val buffer = ByteArray(64 * 1024)
@@ -102,10 +113,24 @@ object AppUpdateChecker {
                                     onProgress(pct)
                                 }
                             }
+                            digest?.update(buffer, 0, n)
                         }
                     }
                 }
-                if (arquivo.length() == 0L) null else arquivo
+
+                if (arquivo.length() == 0L) return@withContext null
+
+                if (digest != null) {
+                    val calculado = digest.digest().joinToString("") { "%02x".format(it) }
+                    val esperado = sha256Esperado.orEmpty().lowercase()
+                    if (calculado != esperado) {
+                        android.util.Log.e("AppUpdateChecker", "⛔ SHA-256 do APK NÃO confere! esperado=$esperado calculado=$calculado — download rejeitado")
+                        arquivo.delete()
+                        return@withContext null
+                    }
+                }
+
+                arquivo
             }
         } catch (_: Exception) {
             null

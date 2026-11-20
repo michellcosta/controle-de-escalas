@@ -158,11 +158,17 @@ fun DialogAtualizacao(
                         escopo.launch {
                             val arquivo = AppUpdateChecker.baixar(
                                 context,
-                                nova.apkUrl
-                            ) { pct -> progressoAtualizacao = pct }
+                                nova.apkUrl,
+                                onProgress = { pct -> progressoAtualizacao = pct },
+                                sha256Esperado = nova.sha256.takeIf { it.isNotBlank() }
+                            )
                             baixandoAtualizacao = false
                             if (arquivo == null) {
-                                erroAtualizacao = "Não foi possível baixar a atualização."
+                                erroAtualizacao = if (nova.sha256.isNotBlank()) {
+                                    "Download rejeitado (verificação de integridade falhou). Tente novamente."
+                                } else {
+                                    "Não foi possível baixar a atualização."
+                                }
                             } else {
                                 AppUpdateChecker.abrirInstalador(context, arquivo)
                             }

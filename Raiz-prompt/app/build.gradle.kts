@@ -1,10 +1,32 @@
 
+import groovy.json.JsonSlurper
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
     // Add the Google services Gradle plugin
     id("com.google.gms.google-services")
+}
+
+// Achado 15 da auditoria (infra): versao.json é a FONTE ÚNICA da versão —
+// versionCode/versionName aqui e o aviso de atualização/OTA no GitHub saem
+// do mesmo arquivo. Antes eram mantidos à mão em dois lugares; esquecer um
+// quebrava o gate de versão (claim) ou não disparava a atualização.
+val versaoArquivo = rootProject.file("../versao.json")
+val versaoInfo: Map<String, Any> = if (versaoArquivo.exists()) {
+    try {
+        val json = JsonSlurper().parseText(versaoArquivo.readText()) as Map<*, *>
+        val codigo = (json["versaoCodigo"] as? Number)?.toInt() ?: 1
+        val nome = json["versaoNome"] as? String ?: "dev"
+        mapOf("codigo" to codigo, "nome" to nome)
+    } catch (e: Exception) {
+        println("⚠️ versao.json inválido (${e.message}); usando fallback")
+        mapOf("codigo" to 1, "nome" to "dev")
+    }
+} else {
+    println("⚠️ versao.json não encontrado em ${versaoArquivo.path}; usando fallback")
+    mapOf("codigo" to 1, "nome" to "dev")
 }
 
 android {
@@ -15,8 +37,8 @@ android {
         applicationId = "com.controleescalas.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.4.0-beta"
+        versionCode = versaoInfo["codigo"] as Int
+        versionName = versaoInfo["nome"] as String
 
         vectorDrawables {
             useSupportLibrary = true
