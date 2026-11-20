@@ -43,15 +43,25 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        // Achado 3 da auditoria: só os idiomas do app (resources enxutos)
+        resourceConfigurations += listOf("pt", "en")
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Achados 2/3 da auditoria (APK 78MB): R8 + shrink reduzem o dex de
+            // ~18MB para ~8MB; ABIs restritas ao hardware real (x86/x86_64 são
+            // só emulador — debug mantém todas as ABIs para desenvolvimento)
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk {
+                abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+            }
             signingConfig = signingConfigs.getByName("debug")
         }
         debug {
@@ -139,7 +149,10 @@ dependencies {
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
     // ML Kit Text Recognition (OCR para escala por foto)
-    implementation("com.google.mlkit:text-recognition:16.0.0")
+    // Achado 2 da auditoria (APK 78MB): variante BUNDLED embutia o modelo
+    // OCR nativo em 4 ABIs (~38MB). A variante Play Services baixa o modelo
+    // via GMS quando necessário — aparelhos reais têm Play Services.
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:18.0.0")
 
     // ZXing for QR Code generation
     implementation("com.google.zxing:core:3.5.2")
