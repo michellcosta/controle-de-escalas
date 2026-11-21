@@ -2,6 +2,8 @@ package com.controleescalas.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -288,12 +290,7 @@ fun UserCard(
                 // Mostrar Modalidade se for motorista
                 if (motorista.papel == "motorista") {
                     Surface(
-                        color = when(motorista.modalidade) {
-                            "DEDICADO" -> Color(0xFFE65100) // Laranja Escuro
-                            "UTILITARIO" -> Color(0xFF00ACC1) // Ciano
-                            "PASSEIO" -> Color(0xFF7CB342) // Verde Claro
-                            else -> Color(0xFF3949AB) // Azul Indigo (FROTA)
-                        },
+                        color = modalidadeColor(motorista.modalidade),
                         shape = RoundedCornerShape(4.dp),
                         modifier = Modifier.padding(top = 4.dp)
                     ) {
@@ -360,7 +357,9 @@ fun AddUserDialog(
         containerColor = Color.White,
         title = { Text("Novo Usuário", color = TextBlack) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 CustomTextField(
                     value = nome,
                     onValueChange = { nome = it },
@@ -383,7 +382,6 @@ fun AddUserDialog(
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword)
                 )
                 
-                // Seletor de Papel
                 Text("Função:", color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -392,75 +390,33 @@ fun AddUserDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            selected = papel == "motorista",
-                            onClick = { papel = "motorista" },
-                            label = { Text("Motorista") },
-                            modifier = Modifier.weight(1f),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MeliBlue,
-                                selectedLabelColor = Color.Black
-                            )
-                        )
-                        FilterChip(
-                            selected = papel == "auxiliar",
-                            onClick = { papel = "auxiliar" },
-                            label = { Text("Auxiliar") },
-                            modifier = Modifier.weight(1f),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MeliBlue,
-                                selectedLabelColor = MeliBlue
-                            )
-                        )
+                        OpcaoChip("Motorista", papel == "motorista", { papel = "motorista" }, Modifier.weight(1f))
+                        OpcaoChip("Auxiliar", papel == "auxiliar", { papel = "auxiliar" }, Modifier.weight(1f))
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        FilterChip(
-                            selected = papel == "admin",
-                            onClick = { papel = "admin" },
-                            label = { Text("Admin") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = NeonPurple,
-                                selectedLabelColor = MeliBlue
-                            )
-                        )
+                        OpcaoChip("Admin", papel == "admin", { papel = "admin" }, Modifier.weight(1f))
                     }
                 }
-                
-                // Seletor de Modalidade (apenas se for motorista ou auxiliar)
+
                 if (papel == "motorista" || papel == "auxiliar") {
                     Text("Modalidade:", color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
-                    Column {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = modalidade == "FROTA",
-                                onClick = { modalidade = "FROTA" },
-                                label = { Text("Frota") },
-                                modifier = Modifier.weight(1f)
-                            )
-                            FilterChip(
-                                selected = modalidade == "PASSEIO",
-                                onClick = { modalidade = "PASSEIO" },
-                                label = { Text("Passeio") },
-                                modifier = Modifier.weight(1f)
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OpcaoChip("Frota", modalidade == "FROTA", { modalidade = "FROTA" }, Modifier.weight(1f))
+                            OpcaoChip("Passeio", modalidade == "PASSEIO", { modalidade = "PASSEIO" }, Modifier.weight(1f))
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = modalidade == "DEDICADO",
-                                onClick = { modalidade = "DEDICADO" },
-                                label = { Text("Dedicado") },
-                                modifier = Modifier.weight(1f)
-                            )
-                            FilterChip(
-                                selected = modalidade == "UTILITARIO",
-                                onClick = { modalidade = "UTILITARIO" },
-                                label = { Text("Utilitário") },
-                                modifier = Modifier.weight(1f)
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OpcaoChip("Dedicado", modalidade == "DEDICADO", { modalidade = "DEDICADO" }, Modifier.weight(1f))
+                            OpcaoChip("Utilitário", modalidade == "UTILITARIO", { modalidade = "UTILITARIO" }, Modifier.weight(1f))
                         }
                     }
                 }
@@ -498,7 +454,9 @@ fun EditUserDialog(
         containerColor = Color.White,
         title = { Text("Editar Motorista", color = TextBlack) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 CustomTextField(
                     value = nome,
                     onValueChange = { nome = it },
@@ -541,60 +499,15 @@ fun EditUserDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            FilterChip(
-                                selected = modalidade == "FROTA",
-                                onClick = { modalidade = "FROTA" },
-                                label = { Text("Frota", style = MaterialTheme.typography.labelMedium) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = LightSurfaceVariant,
-                                    selectedContainerColor = MeliBlue,
-                                    labelColor = TextGrayLightMode,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
-                            FilterChip(
-                                selected = modalidade == "PASSEIO",
-                                onClick = { modalidade = "PASSEIO" },
-                                label = { Text("Passeio", style = MaterialTheme.typography.labelMedium) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = LightSurfaceVariant,
-                                    selectedContainerColor = MeliBlue,
-                                    labelColor = TextGrayLightMode,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
+                            OpcaoChip("Frota", modalidade == "FROTA", { modalidade = "FROTA" }, Modifier.weight(1f))
+                            OpcaoChip("Passeio", modalidade == "PASSEIO", { modalidade = "PASSEIO" }, Modifier.weight(1f))
                         }
-                        
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            FilterChip(
-                                selected = modalidade == "DEDICADO",
-                                onClick = { modalidade = "DEDICADO" },
-                                label = { Text("Dedicado", style = MaterialTheme.typography.labelMedium) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = LightSurfaceVariant,
-                                    selectedContainerColor = MeliBlue,
-                                    labelColor = TextGrayLightMode,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
-                            FilterChip(
-                                selected = modalidade == "UTILITARIO",
-                                onClick = { modalidade = "UTILITARIO" },
-                                label = { Text("Utilitário", style = MaterialTheme.typography.labelMedium) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = LightSurfaceVariant,
-                                    selectedContainerColor = MeliBlue,
-                                    labelColor = TextGrayLightMode,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
+                            OpcaoChip("Dedicado", modalidade == "DEDICADO", { modalidade = "DEDICADO" }, Modifier.weight(1f))
+                            OpcaoChip("Utilitário", modalidade == "UTILITARIO", { modalidade = "UTILITARIO" }, Modifier.weight(1f))
                         }
                     }
                 }
@@ -616,48 +529,14 @@ fun EditUserDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            FilterChip(
-                                selected = funcao == "motorista",
-                                onClick = { funcao = "motorista" },
-                                label = { Text("Motorista", style = MaterialTheme.typography.labelMedium) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = LightSurfaceVariant,
-                                    selectedContainerColor = MeliBlue,
-                                    labelColor = TextGrayLightMode,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
-                            FilterChip(
-                                selected = funcao == "auxiliar",
-                                onClick = { funcao = "auxiliar" },
-                                label = { Text("Auxiliar", style = MaterialTheme.typography.labelMedium) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = LightSurfaceVariant,
-                                    selectedContainerColor = MeliBlue,
-                                    labelColor = TextGrayLightMode,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
+                            OpcaoChip("Motorista", funcao == "motorista", { funcao = "motorista" }, Modifier.weight(1f))
+                            OpcaoChip("Auxiliar", funcao == "auxiliar", { funcao = "auxiliar" }, Modifier.weight(1f))
                         }
-                        
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            FilterChip(
-                                selected = funcao == "admin",
-                                onClick = { funcao = "admin" },
-                                label = { Text("Admin", style = MaterialTheme.typography.labelMedium) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = LightSurfaceVariant,
-                                    selectedContainerColor = MeliBlue,
-                                    labelColor = TextGrayLightMode,
-                                    selectedLabelColor = Color.Black
-                                )
-                            )
+                            OpcaoChip("Admin", funcao == "admin", { funcao = "admin" }, Modifier.weight(1f))
                         }
                     }
                 }
@@ -679,5 +558,26 @@ fun EditUserDialog(
                 Text("Cancelar", color = TextGrayLightMode)
             }
         }
+    )
+}
+
+@Composable
+private fun OpcaoChip(
+    texto: String,
+    selecionado: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        selected = selecionado,
+        onClick = onClick,
+        label = { Text(texto, style = MaterialTheme.typography.labelMedium) },
+        modifier = modifier,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = LightSurfaceVariant,
+            selectedContainerColor = MeliBlue,
+            labelColor = TextGrayLightMode,
+            selectedLabelColor = Color.White
+        )
     )
 }

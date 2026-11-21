@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.LocationConfigViewModel
 import com.google.android.gms.location.LocationServices
@@ -27,8 +29,10 @@ import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
+import com.controleescalas.app.data.models.GeoPonto
 import org.osmdroid.views.overlay.Marker
 import org.osmdroid.views.overlay.Polygon
+import org.osmdroid.views.overlay.Polyline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,16 +96,10 @@ fun LocationConfigOSMScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("Configurar Localização", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onVoltar) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextWhite)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+            AppTopBar(
+                title = "Configurar Localização",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onVoltar
             )
         }
     ) { paddingValues ->
@@ -153,7 +151,7 @@ fun LocationConfigOSMScreen(
                             
                             // Desenhar círculo azul
                             val paint = android.graphics.Paint().apply {
-                                color = android.graphics.Color.parseColor("#2196F3") // Azul
+                                color = android.graphics.Color.parseColor("#3483FA")
                                 isAntiAlias = true
                             }
                             canvas.drawCircle(25f, 25f, 18f, paint)
@@ -179,58 +177,30 @@ fun LocationConfigOSMScreen(
                         map.overlays.add(markerUser)
                     }
                     
-                    // Adicionar marcador e círculo do Galpão
-                    if (galpaoState.lat != 0.0) {
-                        // Marcador
-                        val markerGalpao = Marker(map).apply {
-                            position = GeoPoint(galpaoState.lat, galpaoState.lng)
-                            title = "Galpão de Carregamento"
-                            snippet = "Raio: ${galpaoState.raioM}m"
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                        }
-                        map.overlays.add(markerGalpao)
-                        
-                        // Círculo
-                        val circleGalpao = Polygon(map).apply {
-                            points = Polygon.pointsAsCircle(
-                                GeoPoint(galpaoState.lat, galpaoState.lng),
-                                galpaoState.raioM.toDouble()
-                            )
-                            // Destaque visual se estiver no modo de edição
-                            val alpha = if (selectedMode == "galpao") 80 else 50
-                            fillPaint.color = android.graphics.Color.argb(alpha, 0, 255, 0)
-                            outlinePaint.color = android.graphics.Color.argb(255, 0, 255, 0)
-                            outlinePaint.strokeWidth = if (selectedMode == "galpao") 5f else 3f
-                        }
-                        map.overlays.add(circleGalpao)
-                    }
-                    
-                    // Adicionar marcador e círculo do Estacionamento
+                    desenharArea(
+                        map = map,
+                        context = context,
+                        titulo = "Galpão de Carregamento",
+                        pontos = galpaoState.pontos,
+                        centroLat = galpaoState.lat,
+                        centroLng = galpaoState.lng,
+                        raio = galpaoState.raioM,
+                        ativo = selectedMode == "galpao",
+                        fillRgb = Triple(16, 185, 129)
+                    )
+
                     estacionamentoState?.let { est ->
-                        if (est.lat != 0.0) {
-                            // Marcador
-                            val markerEst = Marker(map).apply {
-                                position = GeoPoint(est.lat, est.lng)
-                                title = "Estacionamento"
-                                snippet = "Raio: ${est.raioM}m"
-                                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                            }
-                            map.overlays.add(markerEst)
-                            
-                            // Círculo
-                            val circleEst = Polygon(map).apply {
-                                points = Polygon.pointsAsCircle(
-                                    GeoPoint(est.lat, est.lng),
-                                    est.raioM.toDouble()
-                                )
-                                // Destaque visual se estiver no modo de edição
-                                val alpha = if (selectedMode == "estacionamento") 80 else 50
-                                fillPaint.color = android.graphics.Color.argb(alpha, 138, 43, 226)
-                                outlinePaint.color = android.graphics.Color.argb(255, 138, 43, 226)
-                                outlinePaint.strokeWidth = if (selectedMode == "estacionamento") 5f else 3f
-                            }
-                            map.overlays.add(circleEst)
-                        }
+                        desenharArea(
+                            map = map,
+                            context = context,
+                            titulo = "Estacionamento",
+                            pontos = est.pontos,
+                            centroLat = est.lat,
+                            centroLng = est.lng,
+                            raio = est.raioM,
+                            ativo = selectedMode == "estacionamento",
+                            fillRgb = Triple(124, 58, 237)
+                        )
                     }
                     
                     // Overlay para capturar clicks
@@ -242,11 +212,7 @@ fun LocationConfigOSMScreen(
                             val projection = mapView.projection
                             val geoPoint = projection.fromPixels(e.x.toInt(), e.y.toInt()) as GeoPoint
                             
-                            if (selectedMode == "galpao") {
-                                viewModel.updateGalpaoUi(geoPoint.latitude, geoPoint.longitude)
-                            } else {
-                                viewModel.updateEstacionamentoUi(geoPoint.latitude, geoPoint.longitude)
-                            }
+                            viewModel.addPonto(selectedMode, geoPoint.latitude, geoPoint.longitude)
                             return true
                         }
                     }
@@ -256,72 +222,86 @@ fun LocationConfigOSMScreen(
                 }
             )
             
-            // Controles superiores
-            Column(
+            Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(16.dp)
                     .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                shape = RoundedCornerShape(12.dp),
+                color = Color.White,
+                shadowElevation = 4.dp,
+                tonalElevation = 0.dp
             ) {
-                // Seletor de modo
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
-                        onClick = { selectedMode = "galpao" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedMode == "galpao") NeonGreen else Color.White,
-                            contentColor = if (selectedMode == "galpao") Color.Black else TextWhite
-                        )
+                    val chipColors = FilterChipDefaults.filterChipColors(
+                        containerColor = LightSurfaceVariant,
+                        selectedContainerColor = MeliBlue,
+                        labelColor = TextGrayLightMode,
+                        selectedLabelColor = Color.White
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Galpão", fontWeight = FontWeight.Bold)
-                    }
-                    
-                    Button(
-                        onClick = { selectedMode = "estacionamento" },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedMode == "estacionamento") NeonPurple else Color.White,
-                            contentColor = if (selectedMode == "estacionamento") Color.Black else TextWhite
-                        )
-                    ) {
-                        Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Estacionamento", fontWeight = FontWeight.Bold)
-                    }
-                }
-                
-                // Info card
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(
-                            if (selectedMode == "galpao") "📍 Marcar Galpão" else "🅿️ Marcar Estacionamento",
-                            color = if (selectedMode == "galpao") NeonGreen else NeonPurple,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            "Toque no mapa para marcar a localização",
-                            color = TextGrayLightMode,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        // Adicionar informação sobre o outro marcador
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            if (selectedMode == "galpao") {
-                                if (estacionamentoState?.lat != 0.0) "✓ Estacionamento já marcado" else "ℹ️ Marque o estacionamento também"
-                            } else {
-                                if (galpaoState.lat != 0.0) "✓ Galpão já marcado" else "ℹ️ Marque o galpão também"
+                        FilterChip(
+                            selected = selectedMode == "galpao",
+                            onClick = { selectedMode = "galpao" },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Galpão", style = MaterialTheme.typography.labelMedium) },
+                            leadingIcon = {
+                                Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
                             },
-                            color = TextGrayLightMode,
-                            style = MaterialTheme.typography.bodySmall
+                            colors = chipColors
                         )
+                        FilterChip(
+                            selected = selectedMode == "estacionamento",
+                            onClick = { selectedMode = "estacionamento" },
+                            modifier = Modifier.weight(1f),
+                            label = { Text("Estacionamento", style = MaterialTheme.typography.labelMedium) },
+                            leadingIcon = {
+                                Icon(Icons.Default.LocalParking, contentDescription = null, modifier = Modifier.size(18.dp))
+                            },
+                            colors = chipColors
+                        )
+                    }
+
+                    val pontosAtivos = if (selectedMode == "galpao") {
+                        galpaoState.pontos
+                    } else {
+                        estacionamentoState?.pontos.orEmpty()
+                    }
+                    Text(
+                        if (selectedMode == "galpao") "Desenhar galpão" else "Desenhar estacionamento",
+                        color = TextBlack,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        when {
+                            pontosAtivos.size >= 3 -> "Área pronta. Toque para incluir outro canto ou salve."
+                            pontosAtivos.isEmpty() -> "Toque nos cantos da área no mapa (mínimo 3 pontos)."
+                            else -> "Faltam ${3 - pontosAtivos.size} ponto(s) para fechar a área."
+                        },
+                        color = TextGrayLightMode,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { viewModel.desfazerPonto(selectedMode) },
+                            enabled = pontosAtivos.isNotEmpty()
+                        ) {
+                            Text("Desfazer")
+                        }
+                        TextButton(
+                            onClick = { viewModel.limparArea(selectedMode) },
+                            enabled = pontosAtivos.isNotEmpty() ||
+                                (selectedMode == "galpao" && galpaoState.lat != 0.0) ||
+                                (selectedMode == "estacionamento" && (estacionamentoState?.lat ?: 0.0) != 0.0)
+                        ) {
+                            Text("Limpar")
+                        }
                     }
                 }
             }
@@ -337,30 +317,22 @@ fun LocationConfigOSMScreen(
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 90.dp),
                 containerColor = Color.White,
-                contentColor = TextWhite
+                contentColor = MeliBlue
             ) {
                 Icon(Icons.Default.LocationOn, contentDescription = "Minha Localização")
             }
             
-            // Botão de salvar
+            val pontosParaSalvar = if (selectedMode == "galpao") {
+                galpaoState.pontos
+            } else {
+                estacionamentoState?.pontos.orEmpty()
+            }
             Button(
                 onClick = {
                     if (selectedMode == "galpao") {
-                        viewModel.saveGalpao(
-                            baseId,
-                            galpaoState.lat,
-                            galpaoState.lng,
-                            galpaoState.raioM
-                        )
+                        viewModel.saveGalpao(baseId)
                     } else {
-                        estacionamentoState?.let {
-                            viewModel.saveEstacionamento(
-                                baseId,
-                                it.lat,
-                                it.lng,
-                                it.raioM
-                            )
-                        }
+                        viewModel.saveEstacionamento(baseId)
                     }
                 },
                 modifier = Modifier
@@ -371,12 +343,7 @@ fun LocationConfigOSMScreen(
                     containerColor = MeliBlue,
                     contentColor = Color.White
                 ),
-                // Desabilitar botão se não houver coordenadas marcadas
-                enabled = if (selectedMode == "galpao") {
-                    galpaoState.lat != 0.0 && galpaoState.lng != 0.0
-                } else {
-                    estacionamentoState?.lat != 0.0 && estacionamentoState?.lng != 0.0
-                }
+                enabled = pontosParaSalvar.size >= 3
             ) {
                 Icon(Icons.Default.Check, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
@@ -398,7 +365,7 @@ fun LocationConfigOSMScreen(
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 80.dp),
                     containerColor = MeliBlue,
-                    contentColor = Color.Black
+                    contentColor = Color.White
                 ) {
                     Text(msg)
                 }
@@ -441,5 +408,84 @@ private fun getCurrentLocationAndCenter(
                     onLocationFound(geoPoint)
                 }
             }
+    }
+}
+
+private fun desenharArea(
+    map: MapView,
+    context: android.content.Context,
+    titulo: String,
+    pontos: List<GeoPonto>,
+    centroLat: Double,
+    centroLng: Double,
+    raio: Int,
+    ativo: Boolean,
+    fillRgb: Triple<Int, Int, Int>
+) {
+    val (r, g, b) = fillRgb
+    val alpha = if (ativo) 80 else 50
+    val stroke = if (ativo) 5f else 3f
+
+    if (pontos.isNotEmpty()) {
+        val geoPontos = pontos.map { GeoPoint(it.lat, it.lng) }
+        if (pontos.size >= 3) {
+            val fechado = ArrayList(geoPontos).apply { add(GeoPoint(geoPontos.first().latitude, geoPontos.first().longitude)) }
+            val area = Polygon(map).apply {
+                this.points = fechado
+                fillPaint.color = android.graphics.Color.argb(alpha, r, g, b)
+                outlinePaint.color = android.graphics.Color.argb(255, r, g, b)
+                outlinePaint.strokeWidth = stroke
+                title = titulo
+            }
+            map.overlays.add(area)
+        } else if (pontos.size == 2) {
+            val linha = Polyline().apply {
+                setPoints(geoPontos)
+                outlinePaint.color = android.graphics.Color.argb(255, r, g, b)
+                outlinePaint.strokeWidth = stroke
+            }
+            map.overlays.add(linha)
+        }
+        pontos.forEachIndexed { index, ponto ->
+            val marker = Marker(map).apply {
+                position = GeoPoint(ponto.lat, ponto.lng)
+                title = "$titulo ${index + 1}"
+                setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                val icon = android.graphics.Bitmap.createBitmap(28, 28, android.graphics.Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(icon)
+                val fill = android.graphics.Paint().apply {
+                    color = android.graphics.Color.argb(255, r, g, b)
+                    isAntiAlias = true
+                }
+                canvas.drawCircle(14f, 14f, 10f, fill)
+                val borda = android.graphics.Paint().apply {
+                    color = android.graphics.Color.WHITE
+                    style = android.graphics.Paint.Style.STROKE
+                    strokeWidth = 3f
+                    isAntiAlias = true
+                }
+                canvas.drawCircle(14f, 14f, 10f, borda)
+                setIcon(android.graphics.drawable.BitmapDrawable(context.resources, icon))
+            }
+            map.overlays.add(marker)
+        }
+        return
+    }
+
+    if (centroLat != 0.0 && centroLng != 0.0) {
+        val marker = Marker(map).apply {
+            position = GeoPoint(centroLat, centroLng)
+            title = titulo
+            snippet = "Raio: ${raio}m"
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        }
+        map.overlays.add(marker)
+        val circle = Polygon(map).apply {
+            points = Polygon.pointsAsCircle(GeoPoint(centroLat, centroLng), raio.toDouble())
+            fillPaint.color = android.graphics.Color.argb(alpha, r, g, b)
+            outlinePaint.color = android.graphics.Color.argb(255, r, g, b)
+            outlinePaint.strokeWidth = stroke
+        }
+        map.overlays.add(circle)
     }
 }

@@ -10,6 +10,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.controleescalas.app.data.repositories.ConfigRepository
 import com.controleescalas.app.data.repositories.MotoristaRepository
+import com.controleescalas.app.utils.GeoArea
 import com.controleescalas.app.ui.screens.DriverStatusInfo
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -168,7 +169,7 @@ class StatusCheckWorker(
             val configRepository = ConfigRepository()
             val config = configRepository.getConfiguracaoBase(baseId)
             
-            if (config == null || config.galpao.lat == 0.0 || config.galpao.lng == 0.0) {
+            if (config == null || !GeoArea.configurado(config.galpao)) {
                 Log.d(TAG, "⚠️ Coordenadas do galpão não configuradas, pulando verificação")
                 return
             }
@@ -193,7 +194,6 @@ class StatusCheckWorker(
                 return
             }
             
-            // Calcular distância até o galpão
             val resultsGalpao = FloatArray(1)
             Location.distanceBetween(
                 location.latitude, location.longitude,
@@ -201,15 +201,14 @@ class StatusCheckWorker(
                 resultsGalpao
             )
             val distanciaGalpao = resultsGalpao[0].toDouble()
-            val raioGalpao = config.galpao.raio.toDouble()
             
             val motoristaRepository = MotoristaRepository()
-            val dentroDoGalpao = config.galpao.lat != 0.0 && distanciaGalpao <= raioGalpao
-            Log.d(TAG, "📍 Verificação de localização - Galpão: distância=${distanciaGalpao.toInt()}m, raio=${raioGalpao.toInt()}m, dentro=$dentroDoGalpao")
+            val dentroDoGalpao = GeoArea.contem(config.galpao, location.latitude, location.longitude)
+            Log.d(TAG, "📍 Verificação de localização - Galpão: distância=${distanciaGalpao.toInt()}m, dentro=$dentroDoGalpao")
 
             var dentroDoEstacionamento = false
             var distanciaEstacionamento = Double.MAX_VALUE
-            if (config.estacionamento.lat != 0.0 && config.estacionamento.lng != 0.0) {
+            if (GeoArea.configurado(config.estacionamento)) {
                 val resultsEstacionamento = FloatArray(1)
                 Location.distanceBetween(
                     location.latitude, location.longitude,
@@ -217,9 +216,8 @@ class StatusCheckWorker(
                     resultsEstacionamento
                 )
                 distanciaEstacionamento = resultsEstacionamento[0].toDouble()
-                val raioEstacionamento = config.estacionamento.raio.toDouble()
-                dentroDoEstacionamento = distanciaEstacionamento <= raioEstacionamento
-                Log.d(TAG, "📍 Verificação de localização - Estacionamento: distância=${distanciaEstacionamento.toInt()}m, raio=${raioEstacionamento.toInt()}m, dentro=$dentroDoEstacionamento")
+                dentroDoEstacionamento = GeoArea.contem(config.estacionamento, location.latitude, location.longitude)
+                Log.d(TAG, "📍 Verificação de localização - Estacionamento: distância=${distanciaEstacionamento.toInt()}m, dentro=$dentroDoEstacionamento")
             }
 
             if (dentroDoEstacionamento && GeofencingService.podeDetectarEstacionamento(currentStatus)) {

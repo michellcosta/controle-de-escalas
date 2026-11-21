@@ -7,11 +7,11 @@ import com.google.firebase.FirebaseApp
 import androidx.work.*
 import com.controleescalas.app.data.DailyResetWorker
 import com.controleescalas.app.data.repositories.SuperAdminRepository
+import com.controleescalas.app.utils.BrasilDate
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 /**
@@ -104,22 +104,7 @@ class MainApp : Application() {
         try {
             val workManager = WorkManager.getInstance(this)
             
-            // Calcular tempo até a próxima meia-noite
-            val calendar = Calendar.getInstance()
-            val agora = Calendar.getInstance()
-            
-            // Definir para meia-noite de hoje
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
-            
-            // Se já passou da meia-noite hoje, agendar para meia-noite de amanhã
-            if (calendar.timeInMillis <= agora.timeInMillis) {
-                calendar.add(Calendar.DAY_OF_MONTH, 1)
-            }
-            
-            val delayMillis = calendar.timeInMillis - agora.timeInMillis
+            val delayMillis = BrasilDate.millisAteProximaMeiaNoite()
             val delayHours = TimeUnit.MILLISECONDS.toHours(delayMillis)
             
             Log.d("MainApp", "🕛 Agendando reset diário para meia-noite (em $delayHours horas)")

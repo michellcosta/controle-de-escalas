@@ -21,13 +21,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
+import com.controleescalas.app.ui.components.PreEscalaRapidaDialog
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
+import com.controleescalas.app.ui.viewmodels.PreEscalaViewModel
 import com.controleescalas.app.data.models.DisponibilidadeMotorista
-import java.text.SimpleDateFormat
+import com.controleescalas.app.utils.BrasilDate
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,6 +44,12 @@ fun AvailabilityScreen(
     val turnosDaBase by viewModel.turnosDaBase.collectAsState()
     var turnoSelecionado by remember { mutableStateOf<String?>(null) }
     var showInfoDialog by remember { mutableStateOf(false) }
+
+    // Pré-escala rápida (quem vai trabalhar + rota → WhatsApp)
+    val preEscalaViewModel: PreEscalaViewModel = viewModel()
+    var showPreEscala by remember { mutableStateOf(false) }
+    val preEscalaMessage by preEscalaViewModel.message.collectAsState()
+    val preEscalaError by preEscalaViewModel.error.collectAsState()
 
     // Garantir que existe disponibilidade ao carregar (cria se não existir)
     // E iniciar observação em tempo real
@@ -174,6 +183,14 @@ fun AvailabilityScreen(
                         }
                     }
                 }
+
+                // Pré-escala rápida: quem vai trabalhar no turno + rota → WhatsApp
+                Spacer(modifier = Modifier.height(12.dp))
+                AppButton(
+                    text = "📋 Escala rápida + WhatsApp",
+                    onClick = { showPreEscala = true },
+                    modifier = Modifier.fillMaxWidth()
+                )
 
                 // Conteúdo da aba (motoristas por estado NO TURNO selecionado)
                 Spacer(modifier = Modifier.height(16.dp))
@@ -348,19 +365,33 @@ fun AvailabilityScreen(
             )
         }
 
-        // Feedback
-        message?.let { msg ->
+        // Feedback (disponibilidade + pré-escala)
+        val feedbackMsg = message ?: preEscalaMessage
+        val feedbackErro = preEscalaError
+        (feedbackMsg ?: feedbackErro)?.let { msg ->
             Box(modifier = Modifier.fillMaxSize().padding(padding)) {
                  Snackbar(
                     modifier = Modifier
                         .padding(16.dp)
                         .align(Alignment.BottomCenter),
-                    containerColor = MeliBlue,
-                    contentColor = Color.Black
+                    containerColor = if (feedbackErro != null) StatusError else MeliBlue,
+                    contentColor = if (feedbackErro != null) Color.White else Color.Black
                 ) {
                     Text(msg)
                 }
             }
+        }
+
+        // Dialog da pré-escala rápida (padrão: hoje)
+        val turnoParaPreEscala = turnoSelecionado ?: turnosDaBase.firstOrNull() ?: ""
+        if (showPreEscala && turnoParaPreEscala.isNotBlank()) {
+            PreEscalaRapidaDialog(
+                baseId = baseId,
+                turno = turnoParaPreEscala,
+                dataPadrao = BrasilDate.hoje(),
+                onDismiss = { showPreEscala = false },
+                viewModel = preEscalaViewModel
+            )
         }
     }
 }
@@ -393,7 +424,7 @@ fun AvailabilityItemRow(
                 if (motorista.respondidoEm != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(motorista.respondidoEm)),
+                        text = BrasilDate.format("HH:mm", Date(motorista.respondidoEm)),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -443,13 +474,5 @@ fun AvailabilityItemRow(
 /**
  * Formata data de disponibilidade (YYYY-MM-DD) para exibição (DD/MM/YYYY)
  */
-fun formatarDataDisponibilidade(data: String): String {
-    return try {
-        val sdfInput = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val sdfOutput = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-        val date = sdfInput.parse(data)
-        sdfOutput.format(date ?: Date())
-    } catch (e: Exception) {
-        data
-    }
-}
+fun formatarDataDisponibilidade(data: String): String =
+    BrasilDate.yyyyMmDdParaDdMmYyyy(data)

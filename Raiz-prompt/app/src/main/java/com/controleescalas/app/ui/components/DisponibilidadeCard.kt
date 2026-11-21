@@ -1,6 +1,8 @@
 package com.controleescalas.app.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -9,13 +11,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.data.models.DisponibilidadeMotorista
 import com.controleescalas.app.ui.theme.*
-import java.text.SimpleDateFormat
-import java.util.*
+import com.controleescalas.app.utils.BrasilDate
 
 /**
  * Card de disponibilidade POR TURNO: o motorista marca, para cada turno
@@ -32,16 +33,7 @@ fun DisponibilidadeCard(
     onMarcarTurno: (turno: String, disponivel: Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dataFormatada = remember(data) {
-        try {
-            val sdfInput = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val sdfOutput = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-            val date = sdfInput.parse(data)
-            sdfOutput.format(date ?: Date())
-        } catch (e: Exception) {
-            data
-        }
-    }
+    val dataFormatada = remember(data) { BrasilDate.yyyyMmDdParaDdMmYyyy(data) }
 
     AppCard(modifier = modifier.fillMaxWidth()) {
         Column(
@@ -121,22 +113,50 @@ fun DisponibilidadeCard(
                             )
                         }
 
-                        // Botões SIM / NÃO por turno (desabilita o já escolhido)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            AppTonalButton(
-                                text = "SIM",
-                                onClick = { onMarcarTurno(turno, true) },
-                                enabled = estado != true
+                            EscolhaSimNaoBotao(
+                                texto = "SIM",
+                                selecionado = estado == true,
+                                corSelecionado = NeonGreen,
+                                onClick = { onMarcarTurno(turno, true) }
                             )
-                            AppTonalButton(
-                                text = "NÃO",
-                                onClick = { onMarcarTurno(turno, false) },
-                                enabled = estado != false
+                            EscolhaSimNaoBotao(
+                                texto = "NÃO",
+                                selecionado = estado == false,
+                                corSelecionado = StatusError,
+                                onClick = { onMarcarTurno(turno, false) }
                             )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EscolhaSimNaoBotao(
+    texto: String,
+    selecionado: Boolean,
+    corSelecionado: Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.height(40.dp),
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selecionado) corSelecionado else Color.White,
+            contentColor = if (selecionado) Color.White else TextGrayLightMode
+        ),
+        border = if (selecionado) null else BorderStroke(1.dp, CardBorderLight),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+    ) {
+        Text(
+            text = texto,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold
+        )
     }
 }

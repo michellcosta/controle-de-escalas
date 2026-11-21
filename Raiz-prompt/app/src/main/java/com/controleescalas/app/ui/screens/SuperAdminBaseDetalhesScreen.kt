@@ -492,7 +492,9 @@ fun EditBaseDialog(
         onDismissRequest = onDismiss,
         title = { Text("Editar Transportadora", color = TextBlack) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = nome,
                     onValueChange = { nome = it },
@@ -557,7 +559,9 @@ fun GerenciarPlanoDialog(
         onDismissRequest = onDismiss,
         title = { Text("Gerenciar Plano", color = TextBlack) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 listOf("gratuito", "premium", "trial").forEach { plano ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

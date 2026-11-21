@@ -35,7 +35,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -77,15 +76,7 @@ fun AppCard(
     content: @Composable () -> Unit
 ) {
     val shape = RoundedCornerShape(12.dp)
-    val shadowed = modifier
-        .padding(vertical = 4.dp, horizontal = 1.dp)
-        .shadow(
-            elevation = 16.dp,
-            shape = shape,
-            clip = false,
-            ambientColor = Color.Black.copy(alpha = 0.18f),
-            spotColor = Color.Black.copy(alpha = 0.34f)
-        )
+    val cardModifier = modifier.padding(vertical = 4.dp)
     val inner: @Composable () -> Unit = {
         Box(modifier = Modifier.padding(16.dp)) {
             content()
@@ -94,18 +85,18 @@ fun AppCard(
     if (onClick != null) {
         Surface(
             onClick = onClick,
-            modifier = shadowed,
+            modifier = cardModifier,
             shape = shape,
             color = containerColor,
-            shadowElevation = 0.dp,
+            shadowElevation = 4.dp,
             tonalElevation = 0.dp
         ) { inner() }
     } else {
         Surface(
-            modifier = shadowed,
+            modifier = cardModifier,
             shape = shape,
             color = containerColor,
-            shadowElevation = 0.dp,
+            shadowElevation = 4.dp,
             tonalElevation = 0.dp
         ) { inner() }
     }

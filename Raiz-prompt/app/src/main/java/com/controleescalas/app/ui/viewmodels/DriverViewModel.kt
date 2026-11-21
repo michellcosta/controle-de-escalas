@@ -147,12 +147,13 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 val configRepository = ConfigRepository()
                 val config = configRepository.getConfiguracaoBase(baseId)
                 
-                if (config != null && config.galpao.lat != 0.0 && config.galpao.lng != 0.0) {
+                if (config != null && com.controleescalas.app.utils.GeoArea.configurado(config.galpao)) {
                     // Configurar geofence com coordenadas reais do galpão da base
                     geofencingService.createGalpaoGeofence(
                         config.galpao.lat,
                         config.galpao.lng,
-                        config.galpao.raio.toDouble()
+                        config.galpao.raio.toDouble(),
+                        config.galpao.pontos
                     )
                     android.util.Log.d("DriverViewModel", "✅ Coordenadas do galpão configuradas para base $baseId: (${config.galpao.lat}, ${config.galpao.lng}), raio: ${config.galpao.raio}m")
                     println("✅ DriverViewModel: Coordenadas do galpão configuradas para base $baseId: (${config.galpao.lat}, ${config.galpao.lng}), raio: ${config.galpao.raio}m")
@@ -162,12 +163,13 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 
                 // Configurar geofence do estacionamento se estiver configurado
-                if (config != null && config.estacionamento.lat != 0.0 && config.estacionamento.lng != 0.0) {
+                if (config != null && com.controleescalas.app.utils.GeoArea.configurado(config.estacionamento)) {
                     // Configurar geofence com coordenadas reais do estacionamento da base
                     geofencingService.createEstacionamentoGeofence(
                         config.estacionamento.lat,
                         config.estacionamento.lng,
-                        config.estacionamento.raio.toDouble()
+                        config.estacionamento.raio.toDouble(),
+                        config.estacionamento.pontos
                     )
                     android.util.Log.d("DriverViewModel", "✅ Coordenadas do estacionamento configuradas para base $baseId: (${config.estacionamento.lat}, ${config.estacionamento.lng}), raio: ${config.estacionamento.raio}m")
                     println("✅ DriverViewModel: Coordenadas do estacionamento configuradas para base $baseId: (${config.estacionamento.lat}, ${config.estacionamento.lng}), raio: ${config.estacionamento.raio}m")
@@ -1034,7 +1036,7 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
             baseId = baseId,
             onUpdate = { config ->
                 android.util.Log.d("DriverViewModel", "📥 Config recebida via listener - baseId=$baseId, galpao.lat=${config?.galpao?.lat}, galpao.lng=${config?.galpao?.lng}, galpao.raio=${config?.galpao?.raio}m")
-                if (config != null && config.galpao.lat != 0.0 && config.galpao.lng != 0.0) {
+                if (config != null && com.controleescalas.app.utils.GeoArea.configurado(config.galpao)) {
                     // Regra: só aplicar geofences se motorista escalado e com status válido (não CONCLUIDO)
                     if (_escalaInfo.value == null || _statusInfo.value == null || _statusInfo.value?.estado == "CONCLUIDO") {
                         android.util.Log.d("DriverViewModel", "⚠️ Motorista não escalado, sem status ou CONCLUIDO - removendo geofences, não aplicando")
@@ -1047,13 +1049,15 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                     geofencingService.createGalpaoGeofence(
                         config.galpao.lat,
                         config.galpao.lng,
-                        config.galpao.raio.toDouble()
+                        config.galpao.raio.toDouble(),
+                        config.galpao.pontos
                     )
-                    if (config.estacionamento.lat != 0.0 && config.estacionamento.lng != 0.0) {
+                    if (com.controleescalas.app.utils.GeoArea.configurado(config.estacionamento)) {
                         geofencingService.createEstacionamentoGeofence(
                             config.estacionamento.lat,
                             config.estacionamento.lng,
-                            config.estacionamento.raio.toDouble()
+                            config.estacionamento.raio.toDouble(),
+                            config.estacionamento.pontos
                         )
                     }
                 } else {

@@ -3,6 +3,7 @@ package com.controleescalas.app.data
 import com.controleescalas.app.data.models.AdminMotoristaCardData
 import com.controleescalas.app.data.models.Base
 import com.controleescalas.app.data.models.ConfiguracaoBase
+import com.controleescalas.app.data.models.Disponibilidade
 import com.controleescalas.app.data.models.Escala
 import com.controleescalas.app.data.models.GeofenceConfig
 import com.controleescalas.app.data.models.Motorista
@@ -15,10 +16,10 @@ import com.controleescalas.app.data.models.toDriverStatusInfo
 
 
 import com.controleescalas.app.ui.screens.DriverEscalaInfo
+import com.controleescalas.app.utils.BrasilDate
 import com.controleescalas.app.ui.screens.DriverStatusInfo
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
-import java.text.SimpleDateFormat
 import java.util.*
 
 /**
@@ -323,7 +324,7 @@ class Repository {
     ): DriverEscalaInfo? {
         return try {
             ensureAuth()
-            val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val hoje = BrasilDate.hoje()
             println("🔍 Repository.getEscalaDoDia: Buscando escala para motorista $motoristaId")
 
             // Buscar nos turnos cadastrados da base
@@ -363,7 +364,7 @@ class Repository {
     suspend fun getOndasDoTurno(baseId: String, turno: String): List<Onda> {
         return try {
             ensureAuth()
-            val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val hoje = BrasilDate.hoje()
             val escalaDoc = firestore
                 .collection("bases")
                 .document(baseId)
@@ -543,6 +544,32 @@ class Repository {
         } catch (e: Exception) {
             println("❌ Repository.saveEscala erro: ${e.message}")
             throw e
+        }
+    }
+
+    /**
+     * Buscar disponibilidade declarada dos motoristas para uma base e data
+     * Doc único por base+data (disponibilidades/{baseId}_{data}) contendo todos os motoristas
+     */
+    suspend fun getDisponibilidade(baseId: String, data: String): Disponibilidade? {
+        return try {
+            ensureAuth()
+            val docId = "${baseId}_$data"
+            val doc = firestore
+                .collection("disponibilidades")
+                .document(docId)
+                .get()
+                .await()
+
+            if (doc.exists()) {
+                doc.toObject(Disponibilidade::class.java)
+            } else {
+                println("ℹ️ Repository.getDisponibilidade: Nenhuma disponibilidade para $docId")
+                null
+            }
+        } catch (e: Exception) {
+            println("❌ Repository.getDisponibilidade erro: ${e.message}")
+            null
         }
     }
 }

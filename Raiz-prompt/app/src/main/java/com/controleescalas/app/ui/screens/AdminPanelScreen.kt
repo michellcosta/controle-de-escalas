@@ -265,7 +265,9 @@ fun TurnosDaBaseDialog(
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Text(
                     "Esses turnos aparecem como botões na Operação e como opções que os motoristas marcam na Disponibilidade.",
                     style = MaterialTheme.typography.bodySmall,
@@ -280,24 +282,73 @@ fun TurnosDaBaseDialog(
                     )
                 }
 
-                turnosEditaveis.forEach { turno ->
+                // Renomear: índice do turno em edição + valor corrente do campo
+                var editandoIndex by remember { mutableStateOf(-1) }
+                var valorEdicao by remember { mutableStateOf("") }
+
+                turnosEditaveis.forEachIndexed { index, turno ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = turno,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = TextBlack,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = { turnosEditaveis = turnosEditaveis - turno }) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "Remover $turno",
-                                tint = StatusError
+                        if (editandoIndex == index) {
+                            OutlinedTextField(
+                                value = valorEdicao,
+                                onValueChange = { valorEdicao = it.uppercase() },
+                                label = { Text("Renomear turno") },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f)
                             )
+                            IconButton(
+                                onClick = {
+                                    val limpo = valorEdicao.trim().uppercase()
+                                    val duplicado = limpo != turno && limpo in turnosEditaveis
+                                    if (limpo.isNotBlank() && !duplicado) {
+                                        turnosEditaveis = turnosEditaveis.mapIndexed { j, t ->
+                                            if (j == index) limpo else t
+                                        }
+                                        editandoIndex = -1
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = "Confirmar renomear",
+                                    tint = NeonGreen
+                                )
+                            }
+                            IconButton(onClick = { editandoIndex = -1 }) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Cancelar renomear",
+                                    tint = TextGrayLightMode
+                                )
+                            }
+                        } else {
+                            Text(
+                                text = turno,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = TextBlack,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = {
+                                valorEdicao = turno
+                                editandoIndex = index
+                            }) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Renomear $turno",
+                                    tint = MeliBlue
+                                )
+                            }
+                            IconButton(onClick = { turnosEditaveis = turnosEditaveis - turno }) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Remover $turno",
+                                    tint = StatusError
+                                )
+                            }
                         }
                     }
                 }
@@ -374,6 +425,7 @@ fun AdminSobreAppDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
@@ -429,6 +481,7 @@ fun AdminAjudaDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
@@ -479,8 +532,10 @@ fun AdminTermosDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
                     "Ao usar este aplicativo, você concorda com os seguintes termos:",

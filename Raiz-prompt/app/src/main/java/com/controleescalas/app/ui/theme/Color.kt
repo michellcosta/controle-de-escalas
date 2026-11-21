@@ -69,3 +69,12 @@ fun statusColor(estado: String?): Color {
         else -> TextGray
     }
 }
+
+fun modalidadeColor(modalidade: String?): Color {
+    return when (modalidade?.trim()?.uppercase()) {
+        "PASSEIO" -> Color(0xFF7CB342)
+        "DEDICADO" -> NeonPurple
+        "UTILITARIO" -> NeonCyan
+        else -> NeonBlue // FROTA
+    }
+}

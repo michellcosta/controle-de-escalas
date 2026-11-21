@@ -13,8 +13,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import com.controleescalas.app.utils.BrasilDate
 import kotlinx.coroutines.tasks.await
-import java.text.SimpleDateFormat
 import java.util.*
 
 /**
@@ -274,26 +274,13 @@ class DisponibilidadeViewModel : ViewModel() {
     /**
      * Calcula a data de amanhã no formato YYYY-MM-DD
      */
-    private fun getDataAmanha(): String {
-        val calendar = Calendar.getInstance()
-        calendar.add(Calendar.DAY_OF_YEAR, 1)
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        return sdf.format(calendar.time)
-    }
+    private fun getDataAmanha(): String = BrasilDate.amanha()
     
     /**
      * Formata data para exibição (DD/MM/YYYY)
      */
-    private fun formatarDataParaExibicao(data: String): String {
-        return try {
-            val sdfInput = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val sdfOutput = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-            val date = sdfInput.parse(data)
-            sdfOutput.format(date ?: Date())
-        } catch (e: Exception) {
-            data
-        }
-    }
+    private fun formatarDataParaExibicao(data: String): String =
+        BrasilDate.yyyyMmDdParaDdMmYyyy(data)
     
     // ==================== FUNÇÕES PARA ADMIN ====================
     

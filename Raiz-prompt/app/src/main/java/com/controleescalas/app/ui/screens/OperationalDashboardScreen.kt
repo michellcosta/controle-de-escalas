@@ -49,10 +49,11 @@ import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.data.models.AdminMotoristaCardData
+import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
+import com.controleescalas.app.utils.BrasilDate
+import com.controleescalas.app.utils.WhatsAppShare
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 /**
  * Valida se a vaga já está sendo usada na mesma onda
@@ -122,6 +123,7 @@ fun OperationalDashboardScreen(
     val ondas by viewModel.ondas.collectAsState()
     val motoristasStatus by viewModel.motoristasStatus.collectAsState()
     val motoristasDisponiveis by viewModel.motoristasDisponiveis.collectAsState()
+    val disponibilidadeMap by viewModel.disponibilidadeMap.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val message by viewModel.message.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -131,22 +133,25 @@ fun OperationalDashboardScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     
     var showAddDriverDialog by remember { mutableStateOf(false) }
-    var showFillDetailsDialog by remember { mutableStateOf(false) }
     var selectedOndaIndex by remember { mutableIntStateOf(-1) }
-    var selectedMotoristaForOnda by remember { mutableStateOf<AdminMotoristaCardData?>(null) }
     
-    // Verificar se há escala válida para compartilhar (ondas com itens)
+    // Verificar se há escala válida para compartilhar (ondas REAIS com itens;
+    // a PRÉ-ESCALA é rascunho e não entra no compartilhamento)
     val temEscalaValida = remember(ondas) {
-        ondas.isNotEmpty() && ondas.any { it.itens.isNotEmpty() }
+        val ondasReais = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
+        ondasReais.isNotEmpty() && ondasReais.any { it.itens.isNotEmpty() }
     }
     
     // Função para formatar o texto da escala para compartilhar
     fun formatarTextoEscalaParaWhatsApp(ondas: List<Onda>, turno: String): String {
-        val dataFormatada = SimpleDateFormat("dd/MM/yy", Locale.getDefault()).format(java.util.Date())
-        val turnoFormatado = if (turno == "AM") "AM" else "PM"
-        
+        val dataFormatada = BrasilDate.format("dd/MM/yy")
+        // Nome real do turno (AM0/AM/PM/SD/SN) — não converter para AM/PM
+        val turnoFormatado = turno.uppercase()
+        // PRÉ-ESCALA não vai no compartilhamento: é rascunho, não escala montada
+        val ondasReais = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
+
         val nomesOndas = listOf("PRIMEIRA", "SEGUNDA", "TERCEIRA", "QUARTA", "QUINTA", "SEXTA", "SÉTIMA", "OITAVA")
-        
+
         return buildString {
             // Cabeçalho
             appendLine("⚠️ PLANEJAMENTO _${turnoFormatado}_ ⚠️")
@@ -154,40 +159,40 @@ fun OperationalDashboardScreen(
             appendLine("🗓️ Data: $dataFormatada")
             appendLine()
             appendLine()
-            
-            // Iterar pelas ondas
-            ondas.forEachIndexed { index, onda ->
+
+            // Iterar pelas ondas reais
+            ondasReais.forEachIndexed { index, onda ->
                 if (onda.itens.isNotEmpty()) {
                     // Nome da onda (PRIMEIRA, SEGUNDA, etc.)
                     val nomeOnda = nomesOndas.getOrElse(index) { "${index + 1}ª" }
-                    
+
                     // Título da onda com horário
                     appendLine("🚨 `$nomeOnda ONDA:`  ${onda.horario}")
                     appendLine()
-                    
+
                     // Ordenar itens por vaga (numérica) antes de formatar
                     val itensOrdenados = onda.itens.sortedBy { item ->
                         item.vaga.toIntOrNull() ?: Int.MAX_VALUE
                     }
-                    
+
                     // Listar cada item
                     itensOrdenados.forEach { item ->
                         val vagaNum = item.vaga.toIntOrNull() ?: 0
                         val vagaFormatada = String.format("%02d", vagaNum)
                         val nomeMotorista = item.nome
                         val rota = item.rota
-                        
+
                         // Construir linha: VAGA XX - *Nome .. Rota*
                         append("VAGA $vagaFormatada - *$nomeMotorista .. $rota*")
-                        
+
                         // Adicionar informações de sacas se houver
                         if (item.sacas != null && item.sacas > 0) {
                             append(".(${item.sacas}.sacas)")
                         }
-                        
+
                         appendLine()
                     }
-                    
+
                     // Quebra de linha dupla entre ondas
                     appendLine()
                     appendLine()
@@ -202,23 +207,8 @@ fun OperationalDashboardScreen(
             val textoEscala = formatarTextoEscalaParaWhatsApp(ondas, turnoAtual)
             println("📤 OperationalDashboardScreen: Compartilhando escala no WhatsApp")
             println("📄 Texto gerado:\n$textoEscala")
-            
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                setPackage("com.whatsapp")
-                putExtra(Intent.EXTRA_TEXT, textoEscala)
-            }
-            
-            if (intent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(intent)
-            } else {
-                // Fallback genérico se WhatsApp não estiver instalado
-                val intentGenerico = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, textoEscala)
-                }
-                context.startActivity(Intent.createChooser(intentGenerico, "Compartilhar via"))
-            }
+
+            WhatsAppShare.compartilharTextoNoWhatsApp(context, textoEscala)
         } catch (e: Exception) {
             println("❌ Erro ao compartilhar escala: ${e.message}")
             e.printStackTrace()
@@ -246,8 +236,7 @@ fun OperationalDashboardScreen(
         topBar = {
             AppTopBar(
                 title = "Operações do Dia",
-                subtitle = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
-                    .format(java.util.Date()),
+                subtitle = BrasilDate.formatDdMmYyyy(),
                 actions = {
                     onOpenAssistente?.let { onAssistente ->
                         IconButton(onClick = onAssistente) {
@@ -273,11 +262,18 @@ fun OperationalDashboardScreen(
         floatingActionButton = {
             FloatingActionButton(
                 modifier = Modifier.padding(bottom = 104.dp),
-                onClick = { viewModel.addOnda() },
+                onClick = {
+                    // "+" abre direto a montagem rápida de motoristas
+                    // (as ondas são criadas pelo próprio dialog, modo "ondas diferentes")
+                    selectedOndaIndex = ondas.indexOfFirst {
+                        !it.nome.equals("PRÉ-ESCALA", true)
+                    }.coerceAtLeast(0)
+                    showAddDriverDialog = true
+                },
                 containerColor = MeliBlue,
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar Onda")
+                Icon(Icons.Default.Add, contentDescription = "Adicionar Motoristas")
             }
         }
     ) { paddingValues ->
@@ -333,44 +329,57 @@ fun OperationalDashboardScreen(
                 }
             }
             
-            // ETAPA 1: Dialog de Seleção de Motorista
-            if (showAddDriverDialog) {
-                AddDriverDialog(
-                    motoristas = motoristasDisponiveis,
-                    targetName = ondas.getOrNull(selectedOndaIndex)?.nome ?: "Onda",
-                    onDismiss = { 
+            if (showAddDriverDialog && selectedOndaIndex >= 0) {
+                val jaEscalados = ondas
+                    .flatMap { it.itens }
+                    .map { it.motoristaId }
+                    .toSet()
+                AddDriversMultiSelectDialog(
+                    motoristas = motoristasDisponiveis.filter { it.papel != "admin" },
+                    disponibilidadeMap = disponibilidadeMap,
+                    ondaAtualIndex = selectedOndaIndex,
+                    ondaAtualNome = ondas.getOrNull(selectedOndaIndex)?.nome ?: "Onda",
+                    motoristasJaEscalados = jaEscalados,
+                    modalidadeFiltroHabilitada = true,
+                    ondasExistentes = ondas.map { it.nome },
+                    rotasAtuais = ondas.flatMap { it.itens }
+                        .filter { it.rota.isNotBlank() }
+                        .associate { it.motoristaId to it.rota },
+                    onDismiss = { showAddDriverDialog = false },
+                    onConfirm = { selecionados, destinoOndaIndex, distribuirEm, rotas, destinosPorMotorista ->
+                        // Montagem rápida em lote: vaga fica vazia (preenchida depois).
+                        // O bulkApply remove duplicatas e preserva rota/sacas quando a
+                        // ação não informa (ex.: mover da pré-escala mantém a rota).
+                        // destinosPorMotorista usa índice no espaço de ondas REAIS
+                        // (sem PRÉ-ESCALA) — converter para índice posicional:
+                        val ondasReais = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
+                        fun posicional(realIdx: Int): Int =
+                            if (realIdx < ondasReais.size) {
+                                ondas.indexOfFirst { it.nome == ondasReais[realIdx].nome }
+                            } else {
+                                ondas.size + (realIdx - ondasReais.size)
+                            }
+
+                        val primeiraNova = ondas.size
+                        val acoes = selecionados.mapIndexed { i, motorista ->
+                            val ondaIndex = destinosPorMotorista[motorista.id]?.let(::posicional)
+                                ?: if (distribuirEm != null && distribuirEm > 0) {
+                                    primeiraNova + (i % distribuirEm)
+                                } else {
+                                    destinoOndaIndex
+                                }
+                            BulkScaleAction(
+                                isAdd = true,
+                                motoristaId = motorista.id,
+                                nome = motorista.nome,
+                                ondaIndex = ondaIndex,
+                                vaga = "",
+                                rota = rotas[motorista.id], // null = preservar rota anterior
+                                sacas = null
+                            )
+                        }
+                        viewModel.bulkApplyScaleActions(acoes)
                         showAddDriverDialog = false
-                        selectedMotoristaForOnda = null
-                    },
-                    onSelect = { motorista ->
-                        selectedMotoristaForOnda = motorista
-                        showAddDriverDialog = false
-                        showFillDetailsDialog = true
-                    }
-                )
-            }
-            
-            // ETAPA 2: Dialog para preencher Vaga, Rota e Sacas
-            if (showFillDetailsDialog && selectedMotoristaForOnda != null) {
-                FillDriverDetailsDialog(
-                    motorista = selectedMotoristaForOnda!!,
-                    targetName = ondas.getOrNull(selectedOndaIndex)?.nome ?: "Onda",
-                    ondas = ondas,
-                    ondaIndex = selectedOndaIndex,
-                    onDismiss = {
-                        showFillDetailsDialog = false
-                        selectedMotoristaForOnda = null
-                    },
-                    onConfirm = { vaga, rota, sacas ->
-                        viewModel.addMotoristaToOndaWithDetails(
-                            ondaIndex = selectedOndaIndex,
-                            motorista = selectedMotoristaForOnda!!,
-                            vaga = vaga,
-                            rota = rota,
-                            sacas = sacas
-                        )
-                        showFillDetailsDialog = false
-                        selectedMotoristaForOnda = null
                     }
                 )
             }
@@ -591,466 +600,6 @@ fun ParkingContent(
                 onCallToVaga = onCallToVaga
             )
         }
-    }
-}
-
-/**
- * Modal para preencher Vaga, Rota e Sacas antes de adicionar motorista à onda
- */
-@Composable
-fun FillDriverDetailsDialog(
-    motorista: AdminMotoristaCardData,
-    targetName: String,
-    ondas: List<Onda>,
-    ondaIndex: Int,
-    onDismiss: () -> Unit,
-    onConfirm: (vaga: String, rota: String, sacas: Int?) -> Unit
-) {
-    var vaga by remember { mutableStateOf("") }
-    var rota by remember { mutableStateOf("") }
-    var sacas by remember { mutableStateOf("") }
-    var erroVaga by remember { mutableStateOf<String?>(null) }
-    var erroRota by remember { mutableStateOf<String?>(null) }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color.White,
-        title = {
-            Column {
-                Text(
-                    "Adicionar ${motorista.nome} à $targetName",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Surface(
-                    color = when(motorista.modalidade) {
-                        "DEDICADO" -> NeonPurple.copy(alpha = 0.2f)
-                        "UTILITARIO" -> Color(0xFF00BCD4).copy(alpha = 0.2f)
-                        "PASSEIO" -> NeonOrange.copy(alpha = 0.2f)
-                        else -> NeonBlue.copy(alpha = 0.2f)
-                    },
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        text = motorista.modalidade,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = when(motorista.modalidade) {
-                            "DEDICADO" -> NeonPurple
-                            "UTILITARIO" -> Color(0xFF00BCD4)
-                            "PASSEIO" -> NeonOrange
-                            else -> NeonBlue
-                        },
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                // Campo Vaga (obrigatório com formatação automática ao perder foco)
-                val vagaInteractionSource = remember { MutableInteractionSource() }
-                val vagaFocused by vagaInteractionSource.collectIsFocusedAsState()
-                
-                // Aplicar formatação quando perde o foco
-                LaunchedEffect(vagaFocused) {
-                    if (!vagaFocused && vaga.isNotBlank()) {
-                        val vagaFormatada = formatarVaga(vaga)
-                        if (vagaFormatada != vaga) {
-                            vaga = vagaFormatada
-                        }
-                    }
-                }
-                
-                OutlinedTextField(
-                    value = if (vagaFocused) vaga else formatarVaga(vaga),
-                    onValueChange = { newValue ->
-                        // Permitir apenas números
-                        if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
-                            vaga = newValue
-                            // Validar vaga em tempo real
-                            val (valida, mensagem) = validarVagaNaOnda(ondas, ondaIndex, newValue)
-                            erroVaga = mensagem
-                        }
-                    },
-                    interactionSource = vagaInteractionSource,
-                    label = { Text("Vaga *", color = TextGrayLightMode) },
-                    leadingIcon = {
-                        Icon(Icons.Default.LocationOn, null, tint = MeliBlue)
-                    },
-                    placeholder = { Text("Ex: 01", color = TextGrayLightMode.copy(alpha = 0.5f)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = erroVaga != null,
-                    supportingText = erroVaga?.let { { Text(it, color = Color(0xFFEF4444)) } },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else MeliBlue,
-                        unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else CardBorderLight
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                // Campo Rota (obrigatório com formatação automática ao perder foco)
-                val rotaInteractionSource = remember { MutableInteractionSource() }
-                val rotaFocused by rotaInteractionSource.collectIsFocusedAsState()
-                
-                // Aplicar formatação e validação quando perde o foco
-                LaunchedEffect(rotaFocused) {
-                    if (!rotaFocused && rota.isNotBlank()) {
-                        val rotaFormatada = formatarRota(rota)
-                        rota = rotaFormatada
-                        // Validar rota após formatação
-                        val (valida, mensagem) = validarRotaNoTurno(ondas, rotaFormatada)
-                        erroRota = mensagem
-                    }
-                }
-                
-                OutlinedTextField(
-                    value = if (rotaFocused) rota else formatarRota(rota),
-                    onValueChange = { newValue ->
-                        rota = newValue // Permite digitar livremente enquanto focado
-                        // Validar rota em tempo real (após formatação)
-                        if (!rotaFocused && newValue.isNotBlank()) {
-                            val rotaFormatada = formatarRota(newValue)
-                            val (valida, mensagem) = validarRotaNoTurno(ondas, rotaFormatada)
-                            erroRota = mensagem
-                        }
-                    },
-                    interactionSource = rotaInteractionSource,
-                    label = { Text("Rota *", color = TextGrayLightMode) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Place, null, tint = MeliBlue)
-                    },
-                    placeholder = { Text("Ex: T-15", color = TextGrayLightMode.copy(alpha = 0.5f)) },
-                    isError = erroRota != null,
-                    supportingText = erroRota?.let { { Text(it, color = Color(0xFFEF4444)) } },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else MeliBlue,
-                        unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else CardBorderLight
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                // Campo Sacas (opcional)
-                OutlinedTextField(
-                    value = sacas,
-                    onValueChange = { if (it.isEmpty() || it.all { char -> char.isDigit() }) sacas = it },
-                    label = { Text("Sacas (opcional)", color = TextGrayLightMode) },
-                    leadingIcon = {
-                        Icon(Icons.Default.ShoppingCart, null, tint = NeonOrange)
-                    },
-                    placeholder = { Text("Ex: 12", color = TextGrayLightMode.copy(alpha = 0.5f)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        focusedBorderColor = NeonOrange,
-                        unfocusedBorderColor = CardBorderLight
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                
-                Text(
-                    "* Campos obrigatórios",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextGrayLightMode,
-                    fontSize = 11.sp
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    // Validar antes de salvar
-                    val vagaFormatada = formatarVaga(vaga)
-                    val rotaFormatada = formatarRota(rota)
-                    val (vagaValida, mensagemVaga) = validarVagaNaOnda(ondas, ondaIndex, vagaFormatada)
-                    val (rotaValida, mensagemRota) = validarRotaNoTurno(ondas, rotaFormatada)
-                    
-                    erroVaga = mensagemVaga
-                    erroRota = mensagemRota
-                    
-                    if (vagaFormatada.isNotBlank() && rota.isNotBlank() && vagaValida && rotaValida) {
-                        val sacasInt = sacas.toIntOrNull()
-                        onConfirm(vagaFormatada, rotaFormatada, sacasInt)
-                    }
-                },
-                enabled = vaga.isNotBlank() && rota.isNotBlank() && erroVaga == null && erroRota == null,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MeliBlue,
-                    contentColor = Color.White,
-                    disabledContainerColor = TextDisabled.copy(alpha = 0.3f)
-                )
-            ) {
-                Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("ADICIONAR", fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("CANCELAR", color = TextGrayLightMode)
-            }
-        }
-    )
-}
-
-@Composable
-fun AddDriverDialog(
-    motoristas: List<AdminMotoristaCardData>,
-    targetName: String,
-    onDismiss: () -> Unit,
-    onSelect: (AdminMotoristaCardData) -> Unit
-) {
-    var selectedModalidade by remember { mutableStateOf<String?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
-    var showInfoDialog by remember { mutableStateOf(false) }
-    
-    // ✅ NOVO: Filtrar admins e ordenar alfabeticamente
-    val motoristasFiltrados = remember(motoristas) {
-        motoristas
-            .filter { it.papel != "admin" } // Não mostrar admins
-            .sortedBy { it.nome.uppercase() } // Ordenar alfabeticamente
-    }
-    
-    // ✅ NOVO: Filtro combinado (pesquisa + modalidade)
-    val filteredMotoristas = remember(motoristasFiltrados, searchQuery, selectedModalidade) {
-        motoristasFiltrados.filter { motorista ->
-            val matchesSearch = searchQuery.isBlank() || 
-                motorista.nome.lowercase().contains(searchQuery.lowercase().trim()) ||
-                motorista.telefone.contains(searchQuery.trim())
-            
-            // Se "Todos" estiver selecionado (selectedModalidade == null), mostrar todos
-            val matchesModalidade = selectedModalidade == null || 
-                motorista.modalidade == selectedModalidade
-            
-            matchesSearch && matchesModalidade
-        }
-    }
-    
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = { 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Adicionar Motorista à $targetName", 
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                IconButton(
-                    onClick = { showInfoDialog = true },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = "Informações",
-                        tint = MeliBlue,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Campo de pesquisa (sem placeholder para ser mais compacto)
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = "Pesquisar",
-                            tint = MeliBlue
-                        )
-                    },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = MeliBlue,
-                        unfocusedBorderColor = CardBorderLight,
-                        focusedLabelColor = MeliBlue,
-                        unfocusedLabelColor = TextGrayLightMode
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                
-                // Filtro de Modalidade (organizado com opção "Todos")
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp)
-                        .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Opção "Todos" primeiro
-                    FilterChip(
-                        selected = selectedModalidade == null,
-                        onClick = { selectedModalidade = null },
-                        label = { Text("TODOS") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MeliBlue,
-                            selectedLabelColor = Color.White
-                        )
-                    )
-                    
-                    // Modalidades organizadas
-                    listOf("FROTA", "PASSEIO", "DEDICADO", "UTILITARIO").forEach { modalidade ->
-                        FilterChip(
-                            selected = selectedModalidade == modalidade,
-                            onClick = { 
-                                selectedModalidade = if (selectedModalidade == modalidade) null else modalidade 
-                            },
-                            label = { Text(modalidade) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = when(modalidade) {
-                                    "DEDICADO" -> NeonPurple
-                                    "UTILITARIO" -> NeonBlue
-                                    "PASSEIO" -> NeonOrange
-                                    else -> NeonGreen
-                                },
-                                selectedLabelColor = if (modalidade == "DEDICADO") TextWhite else Color.Black
-                            )
-                        )
-                    }
-                }
-                
-                if (filteredMotoristas.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text("Nenhum motorista disponível", color = TextGrayLightMode)
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.height(300.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(filteredMotoristas) { motorista ->
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = LightSurfaceVariant),
-                                onClick = { onSelect(motorista) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.Person, null, tint = MeliBlue)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(motorista.nome, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                                        Text(motorista.telefone, color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
-                                        // Badge Modalidade
-                                        Surface(
-                                            color = when(motorista.modalidade) {
-                                                "DEDICADO" -> Color(0xFFE65100)
-                                                "UTILITARIO" -> Color(0xFF00ACC1)
-                                                "PASSEIO" -> Color(0xFF7CB342)
-                                                else -> Color(0xFF3949AB)
-                                            },
-                                            shape = RoundedCornerShape(4.dp),
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        ) {
-                                            Text(
-                                                text = motorista.modalidade,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("FECHAR", color = MeliBlue) }
-        }
-    )
-    
-    // Diálogo de informações
-    if (showInfoDialog) {
-        AlertDialog(
-            onDismissRequest = { showInfoDialog = false },
-            containerColor = Color.White,
-            title = { 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MeliBlue,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text("Como usar", color = TextBlack)
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "• Use o campo de pesquisa para buscar por nome ou telefone",
-                        color = TextGrayLightMode,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        "• Selecione uma modalidade para filtrar (FROTA, PASSEIO, DEDICADO, UTILITÁRIO)",
-                        color = TextGrayLightMode,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        "• Use 'TODOS' para ver todos os motoristas",
-                        color = TextGrayLightMode,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        "• Clique em um motorista para adicioná-lo à onda",
-                        color = TextGrayLightMode,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        "• Apenas motoristas e auxiliares são exibidos (admins não aparecem)",
-                        color = TextGrayLightMode,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { showInfoDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
-                ) {
-                    Text("ENTENDI", color = Color.White)
-                }
-            }
-        )
     }
 }
 
@@ -1319,24 +868,14 @@ fun WaveOperationCard(
                             if (onda.tipo != "NORMAL") {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Surface(
-                                    color = when (onda.tipo.uppercase()) {
-                                        "DEDICADO" -> NeonPurple.copy(alpha = 0.2f)
-                                        "FROTA" -> NeonBlue.copy(alpha = 0.2f)
-                                        "PASSEIO" -> NeonOrange.copy(alpha = 0.2f)
-                                        else -> LightSurfaceVariant
-                                    },
+                                    color = modalidadeColor(onda.tipo).copy(alpha = 0.2f),
                                     shape = MaterialTheme.shapes.small
                                 ) {
                                     Text(
                                         text = onda.tipo.uppercase(),
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = when (onda.tipo.uppercase()) {
-                                            "DEDICADO" -> NeonPurple
-                                            "FROTA" -> NeonBlue
-                                            "PASSEIO" -> NeonOrange
-                                            else -> TextGrayLightMode
-                                        },
+                                        color = modalidadeColor(onda.tipo),
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1640,12 +1179,7 @@ fun DriverOperationRow(
     
     val corStatus = statusColor(estadoAtual)
     
-    val modalidadeColor = when (motorista.modalidade) {
-        "DEDICADO" -> NeonPurple
-        "UTILITARIO" -> NeonCyan
-        "PASSEIO" -> NeonOrange
-        else -> NeonBlue
-    }
+    val corModalidade = modalidadeColor(motorista.modalidade)
     
     Surface(
         color = LightSurfaceVariant,
@@ -1767,12 +1301,12 @@ fun DriverOperationRow(
                 
                 // Modalidade
                 Surface(
-                    color = modalidadeColor.copy(alpha = 0.2f),
+                    color = corModalidade.copy(alpha = 0.2f),
                     shape = RoundedCornerShape(4.dp)
                 ) {
                     Text(
                         text = motorista.modalidade,
-                        color = modalidadeColor,
+                        color = corModalidade,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 10.sp,
@@ -2003,6 +1537,7 @@ fun DriverActionsDialog(
             },
             text = {
                 Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(

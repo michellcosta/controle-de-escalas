@@ -98,7 +98,8 @@ data class OndaItem(
     val horario: String = "", // Horário específico do motorista
     val hasPdf: Boolean = false,
     val sacas: Int? = null, // Quantidade de sacas (ex: 1, 2, 3, 9...)
-    val modalidade: String = "FROTA" // FROTA, PASSEIO, DEDICADO, UTILITARIO
+    val modalidade: String = "FROTA", // FROTA, PASSEIO, DEDICADO, UTILITARIO
+    val nota: String? = null // Observação livre (pré-escala: vuc, saca...)
 )
 
 data class StatusMotorista(
@@ -125,11 +126,17 @@ data class ConfiguracaoBase(
     val turnos: List<String> = listOf("AM0", "AM", "PM", "SD", "SN")
 )
 
+data class GeoPonto(
+    val lat: Double = 0.0,
+    val lng: Double = 0.0
+)
+
 data class GeofenceConfig(
     val lat: Double = 0.0,
     val lng: Double = 0.0,
     val raio: Int = 100,
-    val ativo: Boolean = true
+    val ativo: Boolean = true,
+    val pontos: List<GeoPonto> = emptyList()
 )
 
 data class MotoristaLocation(

@@ -34,7 +34,8 @@ data class GeofenceUi(
     val lat: Double,
     val lng: Double,
     val raioM: Int,
-    val ativo: Boolean = true
+    val ativo: Boolean = true,
+    val pontos: List<com.controleescalas.app.data.models.GeoPonto> = emptyList()
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

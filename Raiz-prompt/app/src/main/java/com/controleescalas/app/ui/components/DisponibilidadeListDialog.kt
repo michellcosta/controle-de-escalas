@@ -1,6 +1,8 @@
 package com.controleescalas.app.ui.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -18,8 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.controleescalas.app.data.models.DisponibilidadeMotorista
 import com.controleescalas.app.data.models.DisponibilidadeStatus
 import com.controleescalas.app.ui.theme.*
-import java.text.SimpleDateFormat
-import java.util.*
+import com.controleescalas.app.utils.BrasilDate
 
 /**
  * Dialog para o admin visualizar a lista de disponibilidade dos motoristas
@@ -32,14 +33,7 @@ fun DisponibilidadeListDialog(
     onDismiss: () -> Unit,
     onCreateEscala: (List<String>) -> Unit // IDs dos disponíveis
 ) {
-    val dataFormatada = try {
-        val sdfInput = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        val sdfOutput = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-        val date = sdfInput.parse(data)
-        sdfOutput.format(date ?: Date())
-    } catch (e: Exception) {
-        data
-    }
+    val dataFormatada = BrasilDate.yyyyMmDdParaDdMmYyyy(data)
     
     val motoristasDisponiveis = motoristas.filter { it.disponivel == true }
     val motoristasIndisponiveis = motoristas.filter { it.disponivel == false }
@@ -65,7 +59,10 @@ fun DisponibilidadeListDialog(
             }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+            ) {
                 // Estatísticas
                 status?.let { stats ->
                     Row(
@@ -96,7 +93,7 @@ fun DisponibilidadeListDialog(
                 
                 // Lista de motoristas
                 LazyColumn(
-                    modifier = Modifier.height(400.dp),
+                    modifier = Modifier.heightIn(max = 400.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // Disponíveis

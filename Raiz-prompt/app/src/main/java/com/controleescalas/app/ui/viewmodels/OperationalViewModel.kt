@@ -20,6 +20,7 @@ import com.controleescalas.app.data.RetryUtils
 import com.controleescalas.app.data.NotificationApiService
 import com.controleescalas.app.data.NotifyMotoristaWorker
 import com.controleescalas.app.data.NotifyStatusChangeWorker
+import com.controleescalas.app.utils.BrasilDate
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,7 +35,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
-import java.text.SimpleDateFormat
 import java.util.*
 
 /**
@@ -100,7 +100,14 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     // Lista de motoristas disponíveis para adicionar
     private val _motoristasDisponiveis = MutableStateFlow<List<com.controleescalas.app.data.models.AdminMotoristaCardData>>(emptyList())
     val motoristasDisponiveis: StateFlow<List<com.controleescalas.app.data.models.AdminMotoristaCardData>> = _motoristasDisponiveis.asStateFlow()
-    
+
+    // Disponibilidade declarada para hoje: motoristaId -> estado no turno selecionado
+    // (true = disponível, false = indisponível, null/ausente = sem resposta)
+    private val _disponibilidadeMap = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
+    val disponibilidadeMap: StateFlow<Map<String, Boolean?>> = _disponibilidadeMap.asStateFlow()
+    private var disponibilidadeDoc: com.controleescalas.app.data.models.Disponibilidade? = null
+    private val disponibilidadeRepository = com.controleescalas.app.data.Repository()
+
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     
@@ -157,8 +164,9 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val hoje = BrasilDate.hoje()
                 escalaDataHoje = hoje
+                carregarDisponibilidadeHoje(baseId)
 
                 // Turnos cadastrados da base (padrão AM0/AM/PM/SD/SN se não cadastrado)
                 val turnos = configRepository.getTurnosBase(baseId)
@@ -239,12 +247,35 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun changeTurno(novoTurno: String) {
         _turnoAtual.value = novoTurno
         updateOndasForCurrentTurno()
+        atualizarDisponibilidadeMap()
         // B7 da auditoria: o listener de escala captura o turno no registro —
         // sem re-registrar, a escala PM nunca recebia atualizações realtime
         // (admin via dado congelado após trocar de aba).
         if (currentBaseId.isNotBlank() && escalaDataHoje.isNotBlank()) {
             startEscalaListener(currentBaseId, escalaDataHoje)
         }
+    }
+
+    /**
+     * Carrega a disponibilidade declarada para hoje (badge no dialog de montagem rápida).
+     * Disparo em paralelo para não atrasar o loadData.
+     */
+    private fun carregarDisponibilidadeHoje(baseId: String) {
+        viewModelScope.launch {
+            try {
+                disponibilidadeDoc = disponibilidadeRepository.getDisponibilidade(baseId, BrasilDate.hoje())
+                atualizarDisponibilidadeMap()
+            } catch (e: Exception) {
+                println("⚠️ OperationalVM: Erro ao carregar disponibilidade: ${e.message}")
+                _disponibilidadeMap.value = emptyMap()
+            }
+        }
+    }
+
+    private fun atualizarDisponibilidadeMap() {
+        _disponibilidadeMap.value = disponibilidadeDoc?.motoristas
+            ?.associate { it.motoristaId to it.estadoNoTurno(_turnoAtual.value) }
+            ?: emptyMap()
     }
 
     private fun updateOndasForCurrentTurno() {
@@ -421,7 +452,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     Log.d("OperationalViewModel", "✅ Motorista ${motorista.nome} marcado como concluído pelo admin")
                     
                     // Incrementar dia trabalhado na quinzena
-                    val dataAtual = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                    val dataAtual = BrasilDate.formatDdMmYyyy()
                     try {
                         quinzenaViewModel.incrementarDiaTrabalhado(
                             baseId = currentBaseId,
@@ -707,7 +738,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     ondasAtualizadas[ondaIndex] = ondaAtualizada
 
                     // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
-                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val hoje = BrasilDate.hoje()
                     currentEscala.copy(ondas = ondasAtualizadas, data = hoje)
                 } ?: return@launch
 
@@ -812,7 +843,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     }
 
                     // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
-                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val hoje = BrasilDate.hoje()
                     currentEscala.copy(ondas = ondas, data = hoje)
                 } ?: return@launch
 
@@ -957,7 +988,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
 
                     ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
                     // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual ao salvar
-                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val hoje = BrasilDate.hoje()
                     val updated = currentEscala.copy(ondas = ondas, data = hoje)
 
                     Log.d("OperationalViewModel", "✅ Motorista ${motorista.nome} adicionado à onda $ondaIndex. Total de itens: ${itensAtualizados.size}")
@@ -1053,7 +1084,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 
                 ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
                 // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual ao salvar
-                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val hoje = BrasilDate.hoje()
                 val updatedEscala = currentEscala.copy(ondas = ondas, data = hoje)
                 
                 // ✅ DEBUG: Log para verificar a data antes de salvar
@@ -1134,7 +1165,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                             if (itemIdx >= 0) {
                                 itensOnda[itemIdx] = item.copy(vaga = vagaNormalized, rota = rotaNormalized, sacas = sacasNormalized)
                                 asOndas[idx] = asOndas[idx].copy(itens = itensOnda.sortedBy { it.vaga.toIntOrNull() ?: Int.MAX_VALUE })
-                                val updateEscala = currentEscala.copy(ondas = asOndas, data = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
+                                val updateEscala = currentEscala.copy(ondas = asOndas, data = BrasilDate.hoje())
                                 
                                 setEscalaDoTurno(turno, updateEscala)
                                 updateOndasForCurrentTurno()
@@ -1177,7 +1208,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                         it.vaga.toIntOrNull() ?: Int.MAX_VALUE 
                     }
                     ondas[ondaIndex] = onda.copy(itens = itensAtualizados)
-                    val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val hoje = BrasilDate.hoje()
                     val updatedEscala = currentEscala.copy(ondas = ondas, data = hoje)
 
                     setEscalaDoTurno(turno, updatedEscala)
@@ -1214,7 +1245,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     var currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@withLock
 
                     val ondas = currentEscala.ondas.toMutableList()
-                    val dataEscala = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    val dataEscala = BrasilDate.hoje()
 
                     android.util.Log.d("OperationalVM", "🚀 Iniciando processamento de ${actions.size} ações em massa")
                     
@@ -1223,13 +1254,16 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                         val nome = action.nome
                         val ondaIndex = action.ondaIndex
                         val vaga = action.vaga ?: ""
-                        val rota = action.rota ?: ""
-                        val sacas = action.sacas
 
-                        android.util.Log.d("OperationalVM", "📦 Processando: $nome (ID: $motoristaId) -> Onda $ondaIndex, Vaga $vaga, Rota $rota")
+                        android.util.Log.d("OperationalVM", "📦 Processando: $nome (ID: $motoristaId) -> Onda $ondaIndex, Vaga $vaga, Rota ${action.rota ?: "(preservar)"}")
 
-                        // 1. Remover de qualquer onda que ele já esteja (Troca de onda/vaga limpa)
+                        // 1. Remover de qualquer onda que ele já esteja, capturando os dados
+                        //    atuais: ao mover (ex.: da PRÉ-ESCALA para uma onda real), rota,
+                        //    sacas, modalidade e nota são PRESERVADOS quando a ação não informa.
+                        var itemAnterior: OndaItem? = null
                         for (i in ondas.indices) {
+                            val anterior = ondas[i].itens.firstOrNull { it.motoristaId == motoristaId }
+                            if (anterior != null) itemAnterior = anterior
                             val itensFiltrados = ondas[i].itens.filter { it.motoristaId != motoristaId }
                             if (itensFiltrados.size != ondas[i].itens.size) {
                                 ondas[i] = ondas[i].copy(itens = itensFiltrados)
@@ -1237,26 +1271,31 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                         }
 
                         // 2. Garantir que a onda de destino existe
+                        //    (numeração ignora a PRÉ-ESCALA: 1ª, 2ª, 3ª... são ondas reais)
                         while (ondaIndex >= ondas.size) {
-                            val num = ondas.size + 1
-                            ondas.add(Onda(nome = "${num}ª ONDA", horario = "", itens = emptyList()))
+                            val numero = ondas.count { !it.nome.equals("PRÉ-ESCALA", true) } + 1
+                            ondas.add(Onda(nome = "${numero}ª ONDA", horario = "", itens = emptyList()))
                         }
 
-                        // 3. Adicionar na onda correta com os dados novos
+                        // 3. Adicionar na onda correta; null na ação = preservar o valor anterior
                         val targetOnda = ondas[ondaIndex]
-                        val vagaNormalized = vaga.trim().let { v -> 
-                            if (v.isEmpty()) "" else if (v.length == 1) "0$v" else v 
+                        val rota = action.rota ?: itemAnterior?.rota ?: ""
+                        val sacas = action.sacas ?: itemAnterior?.sacas
+                        val vagaNormalized = vaga.trim().let { v ->
+                            if (v.isEmpty()) "" else if (v.length == 1) "0$v" else v
                         }
                         val rotaNormalized = rota.trim().uppercase()
-                        
+
                         val novoItem = OndaItem(
                             motoristaId = motoristaId,
                             nome = nome,
                             horario = targetOnda.horario,
                             vaga = vagaNormalized,
                             rota = rotaNormalized,
+                            hasPdf = itemAnterior?.hasPdf ?: false,
                             sacas = sacas,
-                            modalidade = "FROTA"
+                            modalidade = itemAnterior?.modalidade ?: "FROTA",
+                            nota = itemAnterior?.nota
                         )
                         
                         val itensAtualizados = (targetOnda.itens + novoItem).sortedBy { 
@@ -1277,7 +1316,12 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                         } catch (_: Exception) {}
                     }
 
-                    val updatedEscala = currentEscala.copy(ondas = ondas, data = dataEscala)
+                    // PRÉ-ESCALA vazia (todos distribuídos) sai da lista automaticamente
+                    val ondasFinais = ondas.filterNot {
+                        it.nome.equals("PRÉ-ESCALA", true) && it.itens.isEmpty()
+                    }
+
+                    val updatedEscala = currentEscala.copy(ondas = ondasFinais, data = dataEscala)
                     setEscalaDoTurno(turno, updatedEscala)
                     updateOndasForCurrentTurno()
                     escalaRepository.saveEscala(currentBaseId, updatedEscala)
@@ -1479,7 +1523,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
      * Garantir que a escala tenha a data atual antes de salvar
      */
     private fun ensureEscalaDataAtual(escala: Escala): Escala {
-        val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val hoje = BrasilDate.hoje()
         return if (escala.data != hoje) {
             escala.copy(data = hoje)
         } else {
@@ -1723,7 +1767,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             
             if (updated) {
                 // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
-                val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val hoje = BrasilDate.hoje()
                 val escalaAtualizada = currentEscala.copy(ondas = ondasAtualizadas, data = hoje)
                 
                 setEscalaDoTurno(turno, escalaAtualizada)
@@ -1753,20 +1797,24 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     _isLoading.value = false
                     return@launch
                 }
-                
+
+                // Notificar apenas motoristas em ONDAS REAIS — quem está só na
+                // PRÉ-ESCALA ainda não tem onda/vaga e não deve ser notificado
+                val ondasReais = currentEscala.ondas.filterNot { it.nome.equals("PRÉ-ESCALA", true) }
+
                 // Contar total de motoristas
-                val totalMotoristas = currentEscala.ondas.sumOf { it.itens.size }
-                
+                val totalMotoristas = ondasReais.sumOf { it.itens.size }
+
                 if (totalMotoristas == 0) {
                     _error.value = "Adicione motoristas antes de notificar"
                     _isLoading.value = false
                     return@launch
                 }
-                
+
                 // 1. Atualizar status de todos os motoristas para A_CAMINHO
                 // Gravação em lote único (1 RPC) em vez de um set + leitura de
                 // verificação por motorista.
-                val motoristaIds = currentEscala.ondas.flatMap { onda -> onda.itens.map { it.motoristaId } }
+                val motoristaIds = ondasReais.flatMap { onda -> onda.itens.map { it.motoristaId } }
                 var sucessos = 0
                 try {
                     sucessos = motoristaRepository.atualizarStatusVariosMotoristas(

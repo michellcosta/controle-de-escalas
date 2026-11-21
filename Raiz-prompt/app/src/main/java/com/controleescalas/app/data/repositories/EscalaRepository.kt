@@ -5,6 +5,7 @@ import com.controleescalas.app.data.models.Escala
 import com.controleescalas.app.data.models.Onda
 import com.controleescalas.app.ui.screens.DriverEscalaInfo
 import com.controleescalas.app.data.models.toDriverEscalaInfo
+import com.controleescalas.app.utils.BrasilDate
 import com.google.firebase.firestore.FieldPath
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
@@ -44,7 +45,7 @@ class EscalaRepository {
     ): DriverEscalaInfo? {
         return try {
             ensureAuth()
-            val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val hoje = BrasilDate.hoje()
             println("🔍 EscalaRepository.getEscalaDoDia: Buscando escala para motorista $motoristaId na base $baseId para data $hoje (APENAS HOJE)")
 
             // Buscar nos turnos cadastrados da base APENAS de hoje
@@ -111,7 +112,7 @@ class EscalaRepository {
     suspend fun getOndasDoTurno(baseId: String, turno: String): List<Onda> {
         return try {
             ensureAuth()
-            val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val hoje = BrasilDate.hoje()
             val escalaDoc = firestore
                 .collection("bases")
                 .document(baseId)
@@ -159,6 +160,34 @@ class EscalaRepository {
     }
     
     /**
+     * Buscar escalas recentes da base (últimos N dias, incluindo hoje/amanhã)
+     * Usado para sugerir "rotas recentes" na montagem rápida
+     */
+    suspend fun getEscalasRecentes(baseId: String, dias: Int = 7): List<Escala> {
+        return try {
+            ensureAuth()
+            val cal = BrasilDate.calendar()
+            cal.add(Calendar.DAY_OF_YEAR, -dias)
+            val corte = BrasilDate.formatYyyyMmDd(cal.time)
+
+            val snapshot = firestore
+                .collection("bases")
+                .document(baseId)
+                .collection("escalas")
+                .whereGreaterThanOrEqualTo("data", corte)
+                .get()
+                .await()
+
+            val escalas = snapshot.documents.mapNotNull { it.toObject(Escala::class.java) }
+            println("✅ EscalaRepository.getEscalasRecentes: ${escalas.size} escalas desde $corte")
+            escalas
+        } catch (e: Exception) {
+            println("❌ EscalaRepository.getEscalasRecentes erro: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /**
      * Salvar escala no Firestore
      */
     suspend fun saveEscala(baseId: String, escala: Escala) {
@@ -202,13 +231,17 @@ class EscalaRepository {
             val datasEscaladas = mutableSetOf<String>()
 
             // Calcular primeiro e último dia do mês
-            val calendar = Calendar.getInstance()
+            val calendar = BrasilDate.calendar()
             calendar.set(ano, mes - 1, 1) // mes - 1 porque Calendar usa 0-11
             val ultimoDia = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
 
             // Montar os IDs de todos os documentos do mês (dia x turno)
-            val formatoConsulta = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val formatoExibicao = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            val formatoConsulta = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).apply {
+                timeZone = BrasilDate.fuso
+            }
+            val formatoExibicao = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply {
+                timeZone = BrasilDate.fuso
+            }
             val idParaDataExibicao = mutableMapOf<String, String>()
             val idsDocumentos = mutableListOf<String>()
             val turnosBusca = if (turnos.isNotEmpty()) turnos else listOf("AM", "PM")
@@ -265,7 +298,7 @@ class EscalaRepository {
         onError: (Exception) -> Unit,
         turnos: List<String> = listOf("AM", "PM")
     ): List<com.google.firebase.firestore.ListenerRegistration> {
-        val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val hoje = BrasilDate.hoje()
         val turnosBusca = if (turnos.isNotEmpty()) turnos else listOf("AM", "PM")
         val listeners = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
         
@@ -363,7 +396,7 @@ class EscalaRepository {
     suspend fun limparOndasDoDiaAnterior(baseId: String): Boolean {
         return try {
             ensureAuth()
-            val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val hoje = BrasilDate.hoje()
             println("🧹 EscalaRepository.limparOndasDoDiaAnterior: Limpando ondas anteriores a $hoje para base $baseId")
             
             // Buscar todas as escalas da base

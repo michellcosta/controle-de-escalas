@@ -5,14 +5,10 @@ import android.util.Log
 import androidx.work.*
 import com.controleescalas.app.data.repositories.EscalaRepository
 import com.controleescalas.app.data.repositories.MotoristaRepository
+import com.controleescalas.app.utils.BrasilDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
@@ -29,7 +25,6 @@ class DailyResetWorker(
         private const val TAG = "DailyResetWorker"
         const val WORK_NAME = "daily_reset_work"
         private const val CONTROLE_PATH = "controle/reset_diario"
-        private val FUSO = TimeZone.getTimeZone("America/Sao_Paulo")
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
@@ -110,8 +105,7 @@ class DailyResetWorker(
     /**
      * Data de hoje (São Paulo) no formato yyyy-MM-dd
      */
-    private fun hojeString(): String =
-        SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = FUSO }.format(Date())
+    private fun hojeString(): String = BrasilDate.hoje()
 
     /**
      * Tenta capturar o direito de executar o reset de hoje numa transaction no Firestore.
@@ -176,17 +170,7 @@ class DailyResetWorker(
      */
     private fun reagendarProximaMeiaNoite() {
         try {
-            val calendar = Calendar.getInstance()
-            val agora = Calendar.getInstance()
-            
-            // Definir para meia-noite de amanhã
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
-            calendar.add(Calendar.DAY_OF_MONTH, 1)
-            
-            val delayMillis = calendar.timeInMillis - agora.timeInMillis
+            val delayMillis = BrasilDate.millisAteProximaMeiaNoite()
             val delayHours = java.util.concurrent.TimeUnit.MILLISECONDS.toHours(delayMillis)
             
             Log.d(TAG, "🕛 Re-agendando reset para próxima meia-noite (em $delayHours horas)")

@@ -3,7 +3,9 @@ package com.controleescalas.app.data.repositories
 import android.util.Log
 import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.models.ConfiguracaoBase
+import com.controleescalas.app.data.models.GeoPonto
 import com.controleescalas.app.data.models.GeofenceConfig
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.tasks.await
 
@@ -32,8 +34,7 @@ class ConfigRepository {
                     onError(Exception(error.message))
                     return@addSnapshotListener
                 }
-                val config = snapshot?.toObject(ConfiguracaoBase::class.java)
-                onUpdate(config)
+                onUpdate(fromSnapshot(snapshot))
             }
     }
     
@@ -50,9 +51,40 @@ class ConfigRepository {
                 .get()
                 .await()
             
-            doc.toObject(ConfiguracaoBase::class.java)
+            fromSnapshot(doc)
         } catch (e: Exception) {
             null
+        }
+    }
+
+    private fun fromSnapshot(snapshot: DocumentSnapshot?): ConfiguracaoBase? {
+        if (snapshot == null || !snapshot.exists()) return null
+        val config = snapshot.toObject(ConfiguracaoBase::class.java) ?: return null
+        val data = snapshot.data ?: return config
+        val galpaoMap = data["galpao"] as? Map<*, *>
+        val estacionamentoMap = data["estacionamento"] as? Map<*, *>
+        return config.copy(
+            galpao = config.galpao.copy(
+                pontos = parsePontos(galpaoMap?.get("pontos")).ifEmpty { config.galpao.pontos }
+            ),
+            estacionamento = config.estacionamento.copy(
+                pontos = parsePontos(estacionamentoMap?.get("pontos")).ifEmpty { config.estacionamento.pontos }
+            )
+        )
+    }
+
+    private fun parsePontos(raw: Any?): List<GeoPonto> {
+        val lista = raw as? List<*> ?: return emptyList()
+        return lista.mapNotNull { item ->
+            when (item) {
+                is GeoPonto -> item
+                is Map<*, *> -> {
+                    val lat = (item["lat"] as? Number)?.toDouble() ?: return@mapNotNull null
+                    val lng = (item["lng"] as? Number)?.toDouble() ?: return@mapNotNull null
+                    GeoPonto(lat, lng)
+                }
+                else -> null
+            }
         }
     }
     
@@ -62,36 +94,32 @@ class ConfigRepository {
     suspend fun saveGeofenceConfig(
         baseId: String,
         tipo: String, // "galpao" ou "estacionamento"
-        lat: Double,
-        lng: Double,
-        raio: Int
+        geofence: GeofenceConfig
     ): Boolean {
         return try {
             // Buscar configuração atual para preservar os outros campos
             val configAtual = getConfiguracaoBase(baseId)
             
-            // Criar nova configuração preservando os valores existentes
-            val novoGeofence = GeofenceConfig(lat = lat, lng = lng, raio = raio, ativo = true)
             val config = ConfiguracaoBase(
                 baseId = baseId,
                 galpao = if (tipo == "galpao") {
-                    novoGeofence
+                    geofence
                 } else {
-                    // Preservar o galpão existente ou criar vazio se não existir
                     configAtual?.galpao ?: GeofenceConfig()
                 },
                 estacionamento = if (tipo == "estacionamento") {
-                    novoGeofence
+                    geofence
                 } else {
-                    // Preservar o estacionamento existente ou criar vazio se não existir
                     configAtual?.estacionamento ?: GeofenceConfig()
                 },
-                // Preservar os turnos cadastrados (não resetar para o padrão)
                 turnos = configAtual?.turnos ?: ConfiguracaoBase().turnos
             )
             
             val path = "bases/$baseId/configuracao/principal"
-            Log.d("ConfigRepository", "💾 Salvando $tipo em $path - lat=$lat, lng=$lng, raio=$raio")
+            Log.d(
+                "ConfigRepository",
+                "💾 Salvando $tipo em $path - lat=${geofence.lat}, lng=${geofence.lng}, raio=${geofence.raio}, pontos=${geofence.pontos.size}"
+            )
             firestore
                 .collection("bases")
                 .document(baseId)

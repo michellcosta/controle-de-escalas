@@ -2,6 +2,8 @@ package com.controleescalas.app.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.composed
@@ -93,7 +95,9 @@ fun EditWaveDialog(
         },
         text = {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 // Nome da Onda
@@ -257,11 +261,13 @@ fun TimePickerDialog(
                 TimePicker(
                     state = timePickerState,
                     colors = TimePickerDefaults.colors(
+                        clockDialColor = Color(0xFFF5F5F5),
                         clockDialSelectedContentColor = Color.White,
-                        clockDialColor = MeliBlue,
+                        clockDialUnselectedContentColor = TextBlack,
                         selectorColor = MeliBlue,
                         periodSelectorBorderColor = MeliBlue,
                         periodSelectorSelectedContainerColor = MeliBlue,
+                        periodSelectorSelectedContentColor = Color.White,
                         timeSelectorSelectedContainerColor = MeliBlue,
                         timeSelectorUnselectedContainerColor = LightSurfaceVariant,
                         timeSelectorSelectedContentColor = Color.White,

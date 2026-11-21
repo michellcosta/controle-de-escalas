@@ -15,7 +15,9 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.controleescalas.app.R
 import com.controleescalas.app.data.models.ConfiguracaoBase
+import com.controleescalas.app.data.models.GeofenceConfig
 import com.controleescalas.app.data.repositories.ConfigRepository
+import com.controleescalas.app.utils.GeoArea
 import com.controleescalas.app.data.repositories.EscalaRepository
 import com.controleescalas.app.data.repositories.MotoristaRepository
 import com.controleescalas.app.ui.screens.DriverStatusInfo
@@ -70,9 +72,11 @@ class StatusMonitoringService : Service() {
     @Volatile private var galpaoLat: Double = 0.0
     @Volatile private var galpaoLng: Double = 0.0
     @Volatile private var galpaoRaio: Double = 0.0
+    @Volatile private var galpaoConfig: GeofenceConfig = GeofenceConfig()
     @Volatile private var estacionamentoLat: Double = 0.0
     @Volatile private var estacionamentoLng: Double = 0.0
     @Volatile private var estacionamentoRaio: Double = 0.0
+    @Volatile private var estacionamentoConfig: GeofenceConfig = GeofenceConfig()
     private var notificationService: NotificationService? = null
     private var periodicCheckJob: kotlinx.coroutines.Job? = null
     private var locationCheckJob: kotlinx.coroutines.Job? = null
@@ -536,7 +540,7 @@ class StatusMonitoringService : Service() {
      * Retorna true quando o serviço deve encerrar (status concluído).
      */
     private suspend fun medirRaioUmaVez(motoristaId: String, baseId: String): Boolean {
-        if (!configPronta || galpaoLat == 0.0 || galpaoLng == 0.0) return false
+        if (!configPronta || !GeoArea.configurado(galpaoConfig)) return false
 
         val location = obterLocalizacaoRecente() ?: return false
 
@@ -569,9 +573,9 @@ class StatusMonitoringService : Service() {
             latGalpao, lngGalpao
         )
 
-        val dentroDoGalpao = galpaoDist <= raioGalpao
+        val dentroDoGalpao = GeoArea.contem(galpaoConfig, location.latitude, location.longitude)
         val agora = System.currentTimeMillis()
-        val estDist = if (estacionamentoLat != 0.0 && estacionamentoLng != 0.0) {
+        val estDist = if (GeoArea.configurado(estacionamentoConfig)) {
             distanceBetween(
                 location.latitude, location.longitude,
                 estacionamentoLat, estacionamentoLng
@@ -579,7 +583,8 @@ class StatusMonitoringService : Service() {
         } else {
             Double.MAX_VALUE
         }
-        val dentroDoEstacionamento = estDist <= estacionamentoRaio && estacionamentoLat != 0.0
+        val dentroDoEstacionamento = GeoArea.configurado(estacionamentoConfig) &&
+            GeoArea.contem(estacionamentoConfig, location.latitude, location.longitude)
         Log.d(
             TAG,
             "📍 Raio: galpão=${galpaoDist.toInt()}m dentro=$dentroDoGalpao | " +
@@ -638,20 +643,22 @@ class StatusMonitoringService : Service() {
     }
 
     private fun aplicarConfiguracao(config: ConfiguracaoBase?) {
-        if (config == null || config.galpao.lat == 0.0 || config.galpao.lng == 0.0) {
+        if (config == null || !GeoArea.configurado(config.galpao)) {
             configPronta = false
             Log.d(TAG, "Configuração do galpão ainda indisponível")
             return
         }
         configPronta = false
+        galpaoConfig = config.galpao
         galpaoLat = config.galpao.lat
         galpaoLng = config.galpao.lng
         galpaoRaio = config.galpao.raio.toDouble()
+        estacionamentoConfig = config.estacionamento
         estacionamentoLat = config.estacionamento.lat
         estacionamentoLng = config.estacionamento.lng
         estacionamentoRaio = config.estacionamento.raio.toDouble()
         configPronta = true
-        Log.d(TAG, "Configuração em memória: galpão=($galpaoLat, $galpaoLng) raio=${galpaoRaio.toInt()}m")
+        Log.d(TAG, "Configuração em memória: galpão=($galpaoLat, $galpaoLng) pontos=${config.galpao.pontos.size}")
     }
 
     private suspend fun obterLocalizacaoRecente(): Location? {

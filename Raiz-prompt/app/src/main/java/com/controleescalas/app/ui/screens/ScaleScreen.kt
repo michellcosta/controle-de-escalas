@@ -3,7 +3,6 @@ package com.controleescalas.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,6 +27,7 @@ import com.controleescalas.app.ui.components.CustomTextField
 import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AddDriversMultiSelectDialog
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.data.models.AdminMotoristaCardData
 import com.controleescalas.app.ui.viewmodels.ScaleViewModel
@@ -44,6 +44,7 @@ fun ScaleScreen(
 ) {
     val escala by viewModel.escala.collectAsState()
     val motoristasDisponiveis by viewModel.motoristasDisponiveis.collectAsState()
+    val disponibilidadeMap by viewModel.disponibilidadeMap.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -190,105 +191,40 @@ fun ScaleScreen(
                 }
             }
             
-            // Dialog de Seleção de Motorista
+            // Dialog de Seleção Múltipla de Motoristas (montagem rápida)
             if (showAddDriverDialog) {
-                AlertDialog(
-                    onDismissRequest = { showAddDriverDialog = false },
-                    containerColor = Color.White,
-                    title = { 
-                        Text(
-                            "Adicionar Motorista à Onda ${selectedOndaIndex + 1}", 
-                            color = TextWhite,
-                            style = MaterialTheme.typography.titleLarge
-                        ) 
-                    },
-                    text = {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            if (motoristasDisponiveis.isEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(200.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Person,
-                                            contentDescription = null,
-                                            tint = TextGrayLightMode,
-                                            modifier = Modifier.size(48.dp)
-                                        )
-                                        Text(
-                                            "Nenhum motorista cadastrado",
-                                            color = TextGrayLightMode,
-                                            style = MaterialTheme.typography.bodyMedium
-                                        )
-                                        Text(
-                                            "Cadastre motoristas primeiro",
-                                            color = TextGrayLightMode,
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                }
+                val jaEscalados = escala?.ondas
+                    ?.flatMap { it.itens }
+                    ?.map { it.motoristaId }
+                    ?.toSet() ?: emptySet()
+                val ondaAtualNome = escala?.ondas?.getOrNull(selectedOndaIndex)?.nome ?: ""
+                AddDriversMultiSelectDialog(
+                    motoristas = motoristasDisponiveis,
+                    disponibilidadeMap = disponibilidadeMap,
+                    ondaAtualIndex = selectedOndaIndex,
+                    ondaAtualNome = ondaAtualNome,
+                    motoristasJaEscalados = jaEscalados,
+                    ondasExistentes = escala?.ondas?.map { it.nome } ?: emptyList(),
+                    rotasAtuais = escala?.ondas?.flatMap { it.itens }
+                        ?.filter { it.rota.isNotBlank() }
+                        ?.associate { it.motoristaId to it.rota } ?: emptyMap(),
+                    onDismiss = { showAddDriverDialog = false },
+                    onConfirm = { selecionados, destinoOndaIndex, distribuirEm, rotas, destinosPorMotorista ->
+                        // destinosPorMotorista usa índice no espaço de ondas REAIS
+                        // (sem PRÉ-ESCALA) — converter para índice posicional:
+                        val ondasAtuais = escala?.ondas ?: emptyList()
+                        val ondasReais = ondasAtuais.filter { !it.nome.equals("PRÉ-ESCALA", true) }
+                        fun posicional(realIdx: Int): Int =
+                            if (realIdx < ondasReais.size) {
+                                ondasAtuais.indexOfFirst { it.nome == ondasReais[realIdx].nome }
                             } else {
-                                Text(
-                                    "Selecione um motorista:",
-                                    color = TextGrayLightMode,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
-                                LazyColumn(
-                                    modifier = Modifier.height(300.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(motoristasDisponiveis) { motorista ->
-                                        Card(
-                                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE5E5EA)),
-                                            onClick = {
-                                                viewModel.addMotoristaToOnda(selectedOndaIndex, motorista)
-                                                showAddDriverDialog = false
-                                            },
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(16.dp),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.Person, 
-                                                    contentDescription = null, 
-                                                    tint = MeliBlue,
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                                Column {
-                                                    Text(
-                                                        motorista.nome,
-                                                        color = TextWhite,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        motorista.telefone,
-                                                        color = TextGrayLightMode,
-                                                        style = MaterialTheme.typography.bodySmall
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                ondasAtuais.size + (realIdx - ondasReais.size)
                             }
+                        val destinosPosicionais = destinosPorMotorista.mapValues { (_, realIdx) ->
+                            posicional(realIdx)
                         }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showAddDriverDialog = false }) {
-                            Text("FECHAR", color = MeliBlue)
-                        }
+                        viewModel.addMotoristasBatch(selecionados, destinoOndaIndex, distribuirEm, rotas, destinosPosicionais)
+                        showAddDriverDialog = false
                     }
                 )
             }

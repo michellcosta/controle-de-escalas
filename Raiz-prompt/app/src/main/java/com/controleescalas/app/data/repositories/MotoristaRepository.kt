@@ -43,8 +43,7 @@ class MotoristaRepository {
             ErroFirestore.cotaOuPermissaoNegada(erro)
 
         private fun proximoResetCotaMillis(): Long {
-            val fuso = java.util.TimeZone.getTimeZone("America/Sao_Paulo")
-            val calendario = java.util.Calendar.getInstance(fuso)
+            val calendario = com.controleescalas.app.utils.BrasilDate.calendar()
             if (calendario.get(java.util.Calendar.HOUR_OF_DAY) >= 4) {
                 calendario.add(java.util.Calendar.DAY_OF_YEAR, 1)
             }

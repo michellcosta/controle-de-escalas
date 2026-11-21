@@ -1,13 +1,16 @@
 {
-  "versaoCodigo": 17,
-  "versaoNome": "1.6.0-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.6.0-beta/controle-de-escalas-1.6.0-beta.apk",
-  "sha256": "d25eaf1f687c727311fe69ad6a34e0d5cafb2985d63bec204041b05563fdd145",
+  "versaoCodigo": 18,
+  "versaoNome": "1.7.0-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.7.0-beta/controle-de-escalas-1.7.0-beta.apk",
+  "sha256": "PENDENTE",
   "novidades": [
-    "Visual novo estilo Mercado Livre: topo amarelo, cards brancos e fundo cinza claro",
-    "Barra de navegação flutuante, com espaço acima do menu do Android",
-    "Admin edita os turnos da base (AM0, AM, PM, SD, SN) e a disponibilidade segue esses turnos",
-    "Status automático no pátio/estacionamento mais confiável",
-    "App trava na vertical para não virar a tela no celular"
+    "Montagem rápida da escala: seleciona vários motoristas de uma vez e distribui nas ondas 1, 2, 3...",
+    "Escala rápida + WhatsApp na tela de Disponibilidade: quem vai trabalhar em cada turno com a rota",
+    "Pré-escala fica salva no dia; ao montar as ondas, as rotas já vêm preenchidas",
+    "Rota é única por motorista na escala rápida (chip desabilitado mostrando o dono)",
+    "Motoristas já escalados podem ser movidos de onda mantendo rota e sacas",
+    "Turnos da base agora podem ser renomeados no Painel Admin",
+    "Dialogs com rolagem: nada mais é cortado em telas grandes ou fonte ampliada",
+    "Correções: compartilhar e notificar ignoram o rascunho da pré-escala; cabeçalho usa o turno real (AM0/SD/SN)"
   ]
 }

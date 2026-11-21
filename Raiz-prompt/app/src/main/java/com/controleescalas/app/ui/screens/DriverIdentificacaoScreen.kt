@@ -333,6 +333,7 @@ fun DriverIdentificacaoScreen(
                 },
                 text = {
                     Column(
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(

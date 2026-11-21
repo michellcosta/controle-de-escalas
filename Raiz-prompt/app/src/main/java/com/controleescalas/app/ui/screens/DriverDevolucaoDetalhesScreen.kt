@@ -1,6 +1,8 @@
 package com.controleescalas.app.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -229,7 +231,7 @@ fun DriverDevolucaoDetalhesScreen(
                     Text("Excluir Devolução", color = TextBlack, fontWeight = FontWeight.Bold)
                 },
                 text = {
-                    Column {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         Text(
                             "Deseja realmente excluir esta devolução?",
                             color = TextBlack

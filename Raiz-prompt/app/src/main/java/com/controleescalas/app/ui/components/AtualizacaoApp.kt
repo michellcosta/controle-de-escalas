@@ -6,6 +6,8 @@ import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -73,7 +75,10 @@ fun DialogAtualizacao(
             }
         },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+            ) {
                 Text(
                     "Versão ${nova.versaoNome} já está disponível (Atual: $versaoInstaladaNome)",
                     modifier = Modifier.fillMaxWidth(),

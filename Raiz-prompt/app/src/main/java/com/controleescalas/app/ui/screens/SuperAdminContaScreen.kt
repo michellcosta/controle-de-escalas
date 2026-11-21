@@ -250,7 +250,9 @@ fun AlterarPinDialog(
         onDismissRequest = onDismiss,
         title = { Text("Alterar PIN", color = TextBlack) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = pinAtual,
                     onValueChange = { pinAtual = it },

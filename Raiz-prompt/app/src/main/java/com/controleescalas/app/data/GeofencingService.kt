@@ -15,7 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.controleescalas.app.data.models.GeoPonto
 import com.controleescalas.app.data.repositories.MotoristaRepository
+import com.controleescalas.app.utils.GeoArea
 import android.util.Log
 import kotlin.math.*
 
@@ -65,11 +67,13 @@ class GeofencingService(private val context: Context) {
     private var galpaoLat: Double? = null
     private var galpaoLng: Double? = null
     private var galpaoRadius: Double = GEOFENCE_RADIUS_METERS
+    private var galpaoPontos: List<GeoPonto> = emptyList()
     
     // Armazenar coordenadas do estacionamento
     private var estacionamentoLat: Double? = null
     private var estacionamentoLng: Double? = null
     private var estacionamentoRadius: Double = GEOFENCE_RADIUS_METERS
+    private var estacionamentoPontos: List<GeoPonto> = emptyList()
     
     // Uma gravação por permanência. Evita regravar CHEGUEI/ESTACIONAMENTO a cada posição.
     private var chegueiSolicitadoNestaPermanencia = false
@@ -367,13 +371,19 @@ class GeofencingService(private val context: Context) {
     /**
      * Criar geofence para galpão
      */
-    fun createGalpaoGeofence(latitude: Double, longitude: Double, radius: Double = GEOFENCE_RADIUS_METERS) {
+    fun createGalpaoGeofence(
+        latitude: Double,
+        longitude: Double,
+        radius: Double = GEOFENCE_RADIUS_METERS,
+        pontos: List<GeoPonto> = emptyList()
+    ) {
         if (!hasLocationPermissions()) return
         
         // Armazenar coordenadas do galpão
         this.galpaoLat = latitude
         this.galpaoLng = longitude
         this.galpaoRadius = radius
+        this.galpaoPontos = pontos
         
         val geofence = Geofence.Builder()
             .setRequestId(GEOFENCE_GALPAO_ID)
@@ -425,13 +435,19 @@ class GeofencingService(private val context: Context) {
     /**
      * Criar geofence para estacionamento
      */
-    fun createEstacionamentoGeofence(latitude: Double, longitude: Double, radius: Double = GEOFENCE_RADIUS_METERS) {
+    fun createEstacionamentoGeofence(
+        latitude: Double,
+        longitude: Double,
+        radius: Double = GEOFENCE_RADIUS_METERS,
+        pontos: List<GeoPonto> = emptyList()
+    ) {
         if (!hasLocationPermissions()) return
         
         // Armazenar coordenadas do estacionamento
         this.estacionamentoLat = latitude
         this.estacionamentoLng = longitude
         this.estacionamentoRadius = radius
+        this.estacionamentoPontos = pontos
         
         val geofence = Geofence.Builder()
             .setRequestId(GEOFENCE_ESTACIONAMENTO_ID)
@@ -515,7 +531,14 @@ class GeofencingService(private val context: Context) {
             galpaoLatitude, galpaoLongitude
         )
         
-        val isInside = galpaoDistance <= galpaoRadius
+        val isInside = GeoArea.contem(
+            location.latitude,
+            location.longitude,
+            galpaoPontos,
+            galpaoLatitude,
+            galpaoLongitude,
+            galpaoRadius.toInt()
+        )
         
         // Otimização: Ajustar intervalo de localização dinamicamente baseado na distância
         // Só ajustar se a distância mudou significativamente (evita ajustes desnecessários)
@@ -532,7 +555,14 @@ class GeofencingService(private val context: Context) {
                 location.latitude, location.longitude,
                 estacionamentoLat!!, estacionamentoLng!!
             )
-            isInsideEstacionamento = estacionamentoDistance <= estacionamentoRadius
+            isInsideEstacionamento = GeoArea.contem(
+                location.latitude,
+                location.longitude,
+                estacionamentoPontos,
+                estacionamentoLat!!,
+                estacionamentoLng!!,
+                estacionamentoRadius.toInt()
+            )
         }
 
         Log.d(
