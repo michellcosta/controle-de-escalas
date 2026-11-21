@@ -19,8 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.Feedback
 import com.controleescalas.app.data.models.FeedbackStatus
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.components.FeedbackCard
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.FeedbackViewModel
@@ -92,23 +93,13 @@ fun SuperAdminFeedbackScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Feedbacks", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+            AppTopBar(
+                title = "Feedbacks",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onBack
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -136,7 +127,7 @@ fun SuperAdminFeedbackScreen(
                         ) 
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonGreen,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.Black
                     )
                 )
@@ -151,7 +142,7 @@ fun SuperAdminFeedbackScreen(
                         ) 
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonBlue,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.White
                     )
                 )
@@ -181,7 +172,7 @@ fun SuperAdminFeedbackScreen(
                         ) 
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonGreen,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.Black
                     )
                 )
@@ -193,14 +184,14 @@ fun SuperAdminFeedbackScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = NeonGreen)
+                    CircularProgressIndicator(color = MeliBlue)
                 }
             } else if (feedbacksFiltrados.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    GlassCard {
+                    AppCard {
                         Column(
                             modifier = Modifier.padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -209,7 +200,7 @@ fun SuperAdminFeedbackScreen(
                             Icon(
                                 Icons.Default.Feedback,
                                 contentDescription = null,
-                                tint = TextGray,
+                                tint = TextGrayLightMode,
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
@@ -219,7 +210,7 @@ fun SuperAdminFeedbackScreen(
                                     "Nenhum feedback ${filtroSelecionado?.name?.lowercase()}"
                                 },
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = TextGray,
+                                color = TextGrayLightMode,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -261,7 +252,7 @@ fun SuperAdminFeedbackScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(16.dp),
-                    containerColor = NeonGreen,
+                    containerColor = MeliBlue,
                     contentColor = Color.Black
                 ) {
                     Text(msg)
@@ -284,20 +275,20 @@ fun SuperAdminFeedbackScreen(
             feedbackParaEditar?.let { feedback ->
                 AlertDialog(
                     onDismissRequest = { feedbackParaEditar = null },
-                    title = { Text("Editar Feedback", color = TextWhite) },
+                    title = { Text("Editar Feedback", color = TextBlack) },
                     text = {
                         OutlinedTextField(
                             value = textoEditado,
                             onValueChange = { textoEditado = it },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Mensagem", color = TextGray) },
+                            label = { Text("Mensagem", color = TextGrayLightMode) },
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedBorderColor = NeonGreen,
-                                unfocusedBorderColor = TextGray,
-                                focusedLabelColor = NeonGreen,
-                                unfocusedLabelColor = TextGray
+                                focusedTextColor = TextBlack,
+                                unfocusedTextColor = TextBlack,
+                                focusedBorderColor = MeliBlue,
+                                unfocusedBorderColor = CardBorderLight,
+                                focusedLabelColor = MeliBlue,
+                                unfocusedLabelColor = TextGrayLightMode
                             ),
                             maxLines = 5
                         )
@@ -313,17 +304,17 @@ fun SuperAdminFeedbackScreen(
                                 )
                                 feedbackParaEditar = null
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                            colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                         ) {
                             Text("Salvar", color = Color.Black)
                         }
                     },
                     dismissButton = {
                         TextButton(onClick = { feedbackParaEditar = null }) {
-                            Text("Cancelar", color = TextGray)
+                            Text("Cancelar", color = TextGrayLightMode)
                         }
                     },
-                    containerColor = DarkSurface
+                    containerColor = Color.White
                 )
             }
 
@@ -331,8 +322,8 @@ fun SuperAdminFeedbackScreen(
             feedbackParaExcluir?.let { feedback ->
                 AlertDialog(
                     onDismissRequest = { feedbackParaExcluir = null },
-                    title = { Text("Excluir Feedback", color = TextWhite) },
-                    text = { Text("Tem certeza que deseja excluir este feedback?", color = TextGray) },
+                    title = { Text("Excluir Feedback", color = TextBlack) },
+                    text = { Text("Tem certeza que deseja excluir este feedback?", color = TextGrayLightMode) },
                     confirmButton = {
                         Button(
                             onClick = {
@@ -346,10 +337,10 @@ fun SuperAdminFeedbackScreen(
                     },
                     dismissButton = {
                         TextButton(onClick = { feedbackParaExcluir = null }) {
-                            Text("Cancelar", color = TextGray)
+                            Text("Cancelar", color = TextGrayLightMode)
                         }
                     },
-                    containerColor = DarkSurface
+                    containerColor = Color.White
                 )
             }
         }

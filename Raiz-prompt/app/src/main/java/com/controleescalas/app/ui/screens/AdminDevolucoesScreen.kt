@@ -14,7 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
 import kotlinx.coroutines.delay
@@ -113,23 +114,13 @@ fun AdminDevolucoesScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Devoluções", color = TextWhite) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                }
-            )
+            AppTopBar(
+                title = "Devoluções",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onDismiss
+                )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -143,7 +134,7 @@ fun AdminDevolucoesScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = NeonGreen)
+                        CircularProgressIndicator(color = MeliBlue)
                     }
                 }
                 else -> {
@@ -161,13 +152,13 @@ fun AdminDevolucoesScreen(
                                 OutlinedTextField(
                                     value = nomeFiltro,
                                     onValueChange = { nomeFiltro = it },
-                                    label = { Text("Pesquisar Motorista", color = TextGray) },
-                                    placeholder = { Text("Digite o nome do motorista ou ID do pacote...", color = TextGray.copy(alpha = 0.5f)) },
+                                    label = { Text("Pesquisar Motorista", color = TextGrayLightMode) },
+                                    placeholder = { Text("Digite o nome do motorista ou ID do pacote...", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                                     leadingIcon = {
                                         Icon(
                                             Icons.Default.Search,
                                             contentDescription = "Buscar",
-                                            tint = NeonBlue
+                                            tint = MeliBlue
                                         )
                                     },
                                     trailingIcon = {
@@ -176,19 +167,19 @@ fun AdminDevolucoesScreen(
                                                 Icon(
                                                     Icons.Default.Clear,
                                                     contentDescription = "Limpar busca",
-                                                    tint = TextGray
+                                                    tint = TextGrayLightMode
                                                 )
                                             }
                                         }
                                     },
                                     singleLine = true,
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = TextWhite,
-                                        unfocusedTextColor = TextWhite,
-                                        focusedBorderColor = NeonBlue,
-                                        unfocusedBorderColor = TextGray,
-                                        focusedLabelColor = NeonBlue,
-                                        unfocusedLabelColor = TextGray
+                                        focusedTextColor = TextBlack,
+                                        unfocusedTextColor = TextBlack,
+                                        focusedBorderColor = MeliBlue,
+                                        unfocusedBorderColor = CardBorderLight,
+                                        focusedLabelColor = MeliBlue,
+                                        unfocusedLabelColor = TextGrayLightMode
                                     ),
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -201,7 +192,7 @@ fun AdminDevolucoesScreen(
                                         } else {
                                             "${motoristas.size} motorista(s) encontrado(s)"
                                         },
-                                        color = if (motoristas.isEmpty() && temFiltrosAtivos) TextGray else TextWhite,
+                                        color = if (motoristas.isEmpty() && temFiltrosAtivos) TextGrayLightMode else TextBlack,
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.padding(horizontal = 4.dp)
                                     )
@@ -226,11 +217,11 @@ fun AdminDevolucoesScreen(
                                             Icons.Default.Person,
                                             contentDescription = "Nenhum motorista",
                                             modifier = Modifier.size(64.dp),
-                                            tint = TextGray
+                                            tint = TextGrayLightMode
                                         )
                                         Text(
                                             "Nenhum motorista com devoluções",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                     }
@@ -255,16 +246,16 @@ fun AdminDevolucoesScreen(
                                             Icons.Default.SearchOff,
                                             contentDescription = "Nenhum resultado",
                                             modifier = Modifier.size(64.dp),
-                                            tint = TextGray
+                                            tint = TextGrayLightMode
                                         )
                                         Text(
                                             "Nenhum motorista encontrado",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                         Text(
                                             "Tente ajustar a busca",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                     }
@@ -281,7 +272,7 @@ fun AdminDevolucoesScreen(
                         items(motoristas) { motorista ->
                             android.util.Log.e("DEBUG", "🔵 AdminDevolucoesScreen: Renderizando item - ${motorista.motoristaNome}")
                             println("🔵 AdminDevolucoesScreen: Renderizando item - ${motorista.motoristaNome}")
-                            GlassCard(
+                            AppCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
                                     android.util.Log.e("DEBUG", "🔵 [HYP-A] AdminDevolucoesScreen: CLICK DETECTED - motorista: ${motorista.motoristaNome}, ID: ${motorista.motoristaId}")
@@ -315,13 +306,13 @@ fun AdminDevolucoesScreen(
                                         Icon(
                                             Icons.Default.Person,
                                             contentDescription = null,
-                                            tint = NeonBlue,
+                                            tint = MeliBlue,
                                             modifier = Modifier.size(32.dp)
                                         )
                                         Column {
                                             Text(
                                                 motorista.motoristaNome,
-                                                color = TextWhite,
+                                                color = TextBlack,
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -332,7 +323,7 @@ fun AdminDevolucoesScreen(
                                                 } else {
                                                     String.format("%02d devoluções", motorista.totalDevolucoes)
                                                 },
-                                                color = TextGray,
+                                                color = TextGrayLightMode,
                                                 style = MaterialTheme.typography.bodyMedium
                                             )
                                         }
@@ -341,7 +332,7 @@ fun AdminDevolucoesScreen(
                                     Icon(
                                         Icons.Default.ChevronRight,
                                         contentDescription = "Ver detalhes",
-                                        tint = TextGray
+                                        tint = TextGrayLightMode
                                     )
                                 }
                             }
@@ -359,8 +350,8 @@ fun AdminDevolucoesScreen(
                 val isError = error != null || messageText.contains("erro", ignoreCase = true)
                 Snackbar(
                     snackbarData = snackbarData,
-                    containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                    contentColor = if (isError) TextWhite else Color.Black
+                    containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                    contentColor = TextWhite
                 )
             }
         }

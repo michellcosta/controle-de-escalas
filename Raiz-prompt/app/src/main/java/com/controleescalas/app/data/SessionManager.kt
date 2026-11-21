@@ -28,7 +28,6 @@ class SessionManager(private val context: Context) {
     
     companion object {
         private val SESSIONS_KEY = stringPreferencesKey("user_sessions")
-        private val THEME_KEY = stringPreferencesKey("theme_mode")
         private val json = Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
@@ -40,23 +39,7 @@ class SessionManager(private val context: Context) {
         private val baseStatusCache =
             java.util.concurrent.ConcurrentHashMap<String, Pair<String, Long>>() // baseId -> (statusAprovacao, timestamp)
     }
-    
-    /**
-     * Fluxo da preferência de tema (dark ou light)
-     */
-    val themeModeFlow: Flow<String> = context.dataStore.data.map { preferences ->
-        preferences[THEME_KEY] ?: "dark"
-    }
 
-    /**
-     * Salvar preferência de tema
-     */
-    suspend fun setThemeMode(mode: String) {
-        context.dataStore.edit { preferences ->
-            preferences[THEME_KEY] = mode
-        }
-    }
-    
     /**
      * Fluxo de todas as sessões salvas
      */

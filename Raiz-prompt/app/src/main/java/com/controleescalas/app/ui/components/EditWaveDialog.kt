@@ -78,16 +78,16 @@ fun EditWaveDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        title = { 
+        containerColor = Color.White,
+        title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Editar Onda", color = TextWhite)
+                Text("Editar Onda", color = TextBlack)
                 IconButton(onClick = onDismiss) {
-                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = TextGray)
+                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = TextGrayLightMode)
                 }
             }
         },
@@ -103,12 +103,12 @@ fun EditWaveDialog(
                     label = { Text("Nome da Onda") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen,
-                        unfocusedBorderColor = TextGray,
-                        focusedLabelColor = NeonGreen,
-                        unfocusedLabelColor = TextGray
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue,
+                        unfocusedBorderColor = CardBorderLight,
+                        focusedLabelColor = MeliBlue,
+                        unfocusedLabelColor = TextGrayLightMode
                     )
                 )
                 
@@ -139,7 +139,7 @@ fun EditWaveDialog(
                         trailingIcon = {
                             // ✅ Ícone de relógio que também abre o TimePicker
                             IconButton(
-                                onClick = { 
+                                onClick = {
                                     // ✅ Desmarcar checkbox automaticamente ao clicar no ícone
                                     horarioIndefinido = false
                                     showTimePicker = true
@@ -148,20 +148,20 @@ fun EditWaveDialog(
                                 Icon(
                                     imageVector = Icons.Default.AccessTime,
                                     contentDescription = "Selecionar horário",
-                                    tint = if (horarioIndefinido) TextGray.copy(alpha = 0.5f) else NeonGreen
+                                    tint = if (horarioIndefinido) TextDisabled else MeliBlue
                                 )
                             }
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite,
-                            focusedBorderColor = NeonGreen,
-                            unfocusedBorderColor = TextGray,
-                            focusedLabelColor = NeonGreen,
-                            unfocusedLabelColor = TextGray,
-                            disabledTextColor = TextGray,
-                            disabledBorderColor = TextGray.copy(alpha = 0.5f),
-                            disabledLabelColor = TextGray.copy(alpha = 0.7f)
+                            focusedTextColor = TextBlack,
+                            unfocusedTextColor = TextBlack,
+                            focusedBorderColor = MeliBlue,
+                            unfocusedBorderColor = CardBorderLight,
+                            focusedLabelColor = MeliBlue,
+                            unfocusedLabelColor = TextGrayLightMode,
+                            disabledTextColor = TextGrayLightMode,
+                            disabledBorderColor = CardBorderLight,
+                            disabledLabelColor = TextGrayLightMode.copy(alpha = 0.7f)
                         )
                     )
                 }
@@ -174,21 +174,21 @@ fun EditWaveDialog(
                 ) {
                     Checkbox(
                         checked = horarioIndefinido,
-                        onCheckedChange = { 
+                        onCheckedChange = {
                             horarioIndefinido = it
                             if (it) {
                                 horario = "" // Limpar horário quando marcado
                             }
                         },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = NeonGreen,
-                            uncheckedColor = TextGray
+                            checkedColor = MeliBlue,
+                            uncheckedColor = TextGrayLightMode
                         )
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Horário indefinido",
-                        color = TextWhite,
+                        color = TextBlack,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -196,7 +196,7 @@ fun EditWaveDialog(
         },
         confirmButton = {
             Button(
-                onClick = { 
+                onClick = {
                     // ✅ Mudança: Apenas nome é obrigatório, horário é opcional
                     if (nome.isNotBlank()) {
                         // Se checkbox marcado, garantir que horário está vazio
@@ -205,8 +205,8 @@ fun EditWaveDialog(
                     }
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = NeonGreen,
-                    contentColor = Color.Black
+                    containerColor = MeliBlue,
+                    contentColor = Color.White
                 )
             ) {
                 Text("SALVAR", fontWeight = FontWeight.Bold)
@@ -220,7 +220,7 @@ fun EditWaveDialog(
                 nome = onda.nome
                 onDismiss()
             }) {
-                Text("CANCELAR", color = TextGray)
+                Text("CANCELAR", color = TextGrayLightMode)
             }
         }
     )
@@ -243,9 +243,9 @@ fun TimePickerDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = Color.White,
         title = {
-            Text("Selecionar Horário", color = TextWhite, fontWeight = FontWeight.Bold)
+            Text("Selecionar Horário", color = TextBlack, fontWeight = FontWeight.Bold)
         },
         text = {
             Column(
@@ -257,15 +257,15 @@ fun TimePickerDialog(
                 TimePicker(
                     state = timePickerState,
                     colors = TimePickerDefaults.colors(
-                        clockDialSelectedContentColor = Color.Black,
-                        clockDialColor = NeonGreen,
-                        selectorColor = NeonGreen,
-                        periodSelectorBorderColor = NeonGreen,
-                        periodSelectorSelectedContainerColor = NeonGreen,
-                        timeSelectorSelectedContainerColor = NeonGreen,
-                        timeSelectorUnselectedContainerColor = DarkSurface,
-                        timeSelectorSelectedContentColor = Color.Black,
-                        timeSelectorUnselectedContentColor = TextWhite
+                        clockDialSelectedContentColor = Color.White,
+                        clockDialColor = MeliBlue,
+                        selectorColor = MeliBlue,
+                        periodSelectorBorderColor = MeliBlue,
+                        periodSelectorSelectedContainerColor = MeliBlue,
+                        timeSelectorSelectedContainerColor = MeliBlue,
+                        timeSelectorUnselectedContainerColor = LightSurfaceVariant,
+                        timeSelectorSelectedContentColor = Color.White,
+                        timeSelectorUnselectedContentColor = TextBlack
                     )
                 )
             }
@@ -277,8 +277,8 @@ fun TimePickerDialog(
                     onTimeSelected(timePickerState.hour, timePickerState.minute)
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = NeonGreen,
-                    contentColor = Color.Black
+                    containerColor = MeliBlue,
+                    contentColor = Color.White
                 )
             ) {
                 Text("OK", fontWeight = FontWeight.Bold)
@@ -286,7 +286,7 @@ fun TimePickerDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCELAR", color = TextGray)
+                Text("CANCELAR", color = TextGrayLightMode)
             }
         }
     )

@@ -18,8 +18,9 @@ import com.controleescalas.app.data.repositories.BaseRepository
 import com.controleescalas.app.data.repositories.MotoristaRepository
 import com.controleescalas.app.data.models.Feedback
 import com.controleescalas.app.ui.components.FeedbackCard
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.FeedbackViewModel
 import kotlinx.coroutines.launch
@@ -86,23 +87,13 @@ fun AdminFeedbackScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Enviar Feedback", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
+            AppTopBar(
+                title = "Enviar Feedback",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onBack
+)
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -115,7 +106,7 @@ fun AdminFeedbackScreen(
             // Seção de enviar feedback
             SectionHeader(title = "Enviar Feedback")
 
-            GlassCard {
+            AppCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -123,7 +114,7 @@ fun AdminFeedbackScreen(
                     Text(
                         text = "Compartilhe suas sugestões, ideias ou problemas que você encontrou no app.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextGray
+                        color = TextGrayLightMode
                     )
 
                     OutlinedTextField(
@@ -135,16 +126,16 @@ fun AdminFeedbackScreen(
                         placeholder = {
                             Text(
                                 "Sua mensagem...",
-                                color = TextGray
+                                color = TextGrayLightMode
                             )
                         },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite,
-                            focusedBorderColor = NeonGreen,
-                            unfocusedBorderColor = TextGray,
-                            focusedPlaceholderColor = TextGray,
-                            unfocusedPlaceholderColor = TextGray
+                            focusedTextColor = TextBlack,
+                            unfocusedTextColor = TextBlack,
+                            focusedBorderColor = MeliBlue,
+                            unfocusedBorderColor = CardBorderLight,
+                            focusedPlaceholderColor = TextDisabled,
+                            unfocusedPlaceholderColor = TextDisabled
                         ),
                         maxLines = 5
                     )
@@ -165,7 +156,7 @@ fun AdminFeedbackScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = mensagemTexto.isNotBlank() && !isLoading,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonGreen,
+                            containerColor = MeliBlue,
                             contentColor = Color.Black
                         )
                     ) {
@@ -186,7 +177,7 @@ fun AdminFeedbackScreen(
 
             // Seção de meus feedbacks
             if (feedbacks.isNotEmpty()) {
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.2f))
 
                 SectionHeader(title = "Meus Feedbacks")
 
@@ -205,11 +196,11 @@ fun AdminFeedbackScreen(
                     )
                 }
             } else if (!isLoading) {
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.2f))
 
                 SectionHeader(title = "Meus Feedbacks")
 
-                GlassCard {
+                AppCard {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -220,13 +211,13 @@ fun AdminFeedbackScreen(
                         Icon(
                             Icons.Default.Feedback,
                             contentDescription = null,
-                            tint = TextGray,
+                            tint = TextGrayLightMode,
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
                             text = "Nenhum feedback enviado ainda",
                             style = MaterialTheme.typography.bodyLarge,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                 }
@@ -235,13 +226,13 @@ fun AdminFeedbackScreen(
             // Mensagens
             message?.let { msg ->
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = NeonGreen),
+                    colors = CardDefaults.cardColors(containerColor = MeliBlue),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         msg,
                         modifier = Modifier.padding(16.dp),
-                        color = Color.Black
+                        color = Color.White
                     )
                 }
             }
@@ -264,20 +255,20 @@ fun AdminFeedbackScreen(
         feedbackParaEditar?.let { feedback ->
             AlertDialog(
                 onDismissRequest = { feedbackParaEditar = null },
-                title = { Text("Editar Feedback", color = TextWhite) },
+                title = { Text("Editar Feedback", color = TextBlack) },
                 text = {
                     OutlinedTextField(
                         value = textoEditado,
                         onValueChange = { textoEditado = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Mensagem", color = TextGray) },
+                        label = { Text("Mensagem", color = TextGrayLightMode) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextWhite,
-                            unfocusedTextColor = TextWhite,
-                            focusedBorderColor = NeonGreen,
-                            unfocusedBorderColor = TextGray,
-                            focusedLabelColor = NeonGreen,
-                            unfocusedLabelColor = TextGray
+                            focusedTextColor = TextBlack,
+                            unfocusedTextColor = TextBlack,
+                            focusedBorderColor = MeliBlue,
+                            unfocusedBorderColor = CardBorderLight,
+                            focusedLabelColor = MeliBlue,
+                            unfocusedLabelColor = TextGrayLightMode
                         ),
                         maxLines = 5
                     )
@@ -293,17 +284,17 @@ fun AdminFeedbackScreen(
                             )
                             feedbackParaEditar = null
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                        colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                     ) {
                         Text("Salvar", color = Color.Black)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { feedbackParaEditar = null }) {
-                        Text("Cancelar", color = TextGray)
+                        Text("Cancelar", color = TextGrayLightMode)
                     }
                 },
-                containerColor = DarkSurface
+                containerColor = Color.White
             )
         }
 
@@ -311,8 +302,8 @@ fun AdminFeedbackScreen(
         feedbackParaExcluir?.let { feedback ->
             AlertDialog(
                 onDismissRequest = { feedbackParaExcluir = null },
-                title = { Text("Excluir Feedback", color = TextWhite) },
-                text = { Text("Tem certeza que deseja excluir este feedback?", color = TextGray) },
+                title = { Text("Excluir Feedback", color = TextBlack) },
+                text = { Text("Tem certeza que deseja excluir este feedback?", color = TextGrayLightMode) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -326,10 +317,10 @@ fun AdminFeedbackScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { feedbackParaExcluir = null }) {
-                        Text("Cancelar", color = TextGray)
+                        Text("Cancelar", color = TextGrayLightMode)
                     }
                 },
-                containerColor = DarkSurface
+                containerColor = Color.White
             )
         }
     }

@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.controleescalas.app.ui.theme.DarkBackground
 import com.controleescalas.app.data.repositories.StatsRepository
 import com.controleescalas.app.ui.components.*
 import com.controleescalas.app.ui.theme.*
@@ -117,7 +116,7 @@ fun SuperAdminRelatoriosScreen(
                 modifier = Modifier.fillMaxWidth().height(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = NeonGreen)
+                CircularProgressIndicator(color = MeliBlue)
             }
         } else {
             stats?.let { dashboardStats ->
@@ -130,8 +129,8 @@ fun SuperAdminRelatoriosScreen(
                         "exportar" -> 3
                         else -> 0
                     },
-                    containerColor = DarkSurface,
-                    contentColor = TextWhite,
+                    containerColor = Color.White,
+                    contentColor = TextBlack,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Tab(
@@ -243,8 +242,8 @@ fun SuperAdminRelatoriosScreen(
     message?.let { msg ->
         Snackbar(
             modifier = Modifier.padding(16.dp),
-            containerColor = if (msg.contains("sucesso") || msg.contains("pronto")) NeonGreen else Color(0xFFEF4444),
-            contentColor = if (msg.contains("sucesso") || msg.contains("pronto")) Color.Black else Color.White
+            containerColor = if (msg.contains("sucesso") || msg.contains("pronto")) MeliBlue else Color(0xFFEF4444),
+            contentColor = Color.White
         ) {
             Text(msg)
         }
@@ -259,7 +258,7 @@ fun VisaoGeralTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
         // Status das Transportadoras
         SectionHeader(title = "Status das Transportadoras")
         
-        GlassCard {
+        AppCard {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -312,7 +311,7 @@ fun VisaoGeralTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
         if (dashboardStats.basesPremium > 0 || dashboardStats.basesGratuitas > 0 || dashboardStats.basesEmTrial > 0) {
             SectionHeader(title = "Distribuição de Planos")
             
-            GlassCard {
+            AppCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -327,7 +326,7 @@ fun VisaoGeralTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                             PieChartSegment(
                                 label = "Gratuito",
                                 value = dashboardStats.basesGratuitas.toFloat(),
-                                color = NeonBlue
+                                color = MeliBlue
                             ),
                             PieChartSegment(
                                 label = "Trial",
@@ -350,7 +349,7 @@ fun VisaoGeralTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                         StatusReportItem(
                             title = "Gratuito",
                             count = dashboardStats.basesGratuitas,
-                            color = NeonBlue
+                            color = MeliBlue
                         )
                         StatusReportItem(
                             title = "Trial",
@@ -371,7 +370,7 @@ fun FinanceiroTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
     ) {
         SectionHeader(title = "Relatórios Financeiros")
         
-        GlassCard {
+        AppCard {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -379,16 +378,16 @@ fun FinanceiroTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                 Text(
                     text = "Receita Mensal",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "R$ ${String.format("%.2f", dashboardStats.receitaMensal)}",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = NeonGreen
+                    color = MeliBlue
                 )
                 
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.2f))
                 
                 // Gráfico donut para planos
                 if (dashboardStats.basesPremium > 0 || dashboardStats.basesGratuitas > 0 || dashboardStats.basesEmTrial > 0) {
@@ -402,7 +401,7 @@ fun FinanceiroTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                             PieChartSegment(
                                 label = "Gratuito",
                                 value = dashboardStats.basesGratuitas.toFloat(),
-                                color = NeonBlue
+                                color = MeliBlue
                             ),
                             PieChartSegment(
                                 label = "Trial",
@@ -413,7 +412,7 @@ fun FinanceiroTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                         modifier = Modifier.fillMaxWidth()
                     )
                     
-                    HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                    HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.2f))
                 }
                 
                 // Cards de planos
@@ -425,7 +424,7 @@ fun FinanceiroTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                         Text(
                             text = "Premium",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -440,14 +439,14 @@ fun FinanceiroTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                         Text(
                             text = "Gratuitas",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = dashboardStats.basesGratuitas.toString(),
                             style = MaterialTheme.typography.titleLarge,
-                            color = NeonBlue,
+                            color = MeliBlue,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -455,7 +454,7 @@ fun FinanceiroTab(dashboardStats: com.controleescalas.app.data.models.DashboardS
                         Text(
                             text = "Trial",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -479,7 +478,7 @@ fun OperacionalTab(dashboardStats: com.controleescalas.app.data.models.Dashboard
     ) {
         SectionHeader(title = "Relatórios Operacionais")
         
-        GlassCard {
+        AppCard {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -487,7 +486,7 @@ fun OperacionalTab(dashboardStats: com.controleescalas.app.data.models.Dashboard
                 Text(
                     text = "Uso do Sistema",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
                 
@@ -499,14 +498,14 @@ fun OperacionalTab(dashboardStats: com.controleescalas.app.data.models.Dashboard
                         Text(
                             text = "Transportadoras",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = dashboardStats.totalTransportadoras.toString(),
                             style = MaterialTheme.typography.titleLarge,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -514,20 +513,20 @@ fun OperacionalTab(dashboardStats: com.controleescalas.app.data.models.Dashboard
                         Text(
                             text = "Motoristas",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = dashboardStats.totalMotoristas.toString(),
                             style = MaterialTheme.typography.titleLarge,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
                 
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
+                HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.2f))
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -537,7 +536,7 @@ fun OperacionalTab(dashboardStats: com.controleescalas.app.data.models.Dashboard
                         Text(
                             text = "Escalas Hoje",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -552,7 +551,7 @@ fun OperacionalTab(dashboardStats: com.controleescalas.app.data.models.Dashboard
                         Text(
                             text = "Esta Semana",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -579,7 +578,7 @@ fun ExportarTab(
     ) {
         SectionHeader(title = "Exportar Relatórios")
         
-        GlassCard {
+        AppCard {
             Column(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -587,7 +586,7 @@ fun ExportarTab(
                 Button(
                     onClick = onExportar,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                 ) {
                     Icon(Icons.Default.FileDownload, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -596,7 +595,7 @@ fun ExportarTab(
                 Text(
                     text = "Exportar relatório CSV para compartilhar ou salvar.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -623,7 +622,7 @@ fun StatusReportItem(
         Text(
             text = title,
             style = MaterialTheme.typography.bodySmall,
-            color = TextGray,
+            color = TextGrayLightMode,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

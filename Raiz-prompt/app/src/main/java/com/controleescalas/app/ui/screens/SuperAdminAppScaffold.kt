@@ -11,11 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -30,6 +27,7 @@ import com.controleescalas.app.data.NotificationService
 import com.controleescalas.app.data.models.Base
 import com.controleescalas.app.data.models.Feedback
 import androidx.compose.ui.platform.LocalContext
+import com.controleescalas.app.ui.components.AppTopBar
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.tasks.await
 import androidx.compose.runtime.DisposableEffect
@@ -203,20 +201,13 @@ fun SuperAdminAppScaffold(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Text(
-                        "Super Admin",
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+            AppTopBar(
+                title = "Super Admin",
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(
                             Icons.Default.MoreVert,
-                            contentDescription = "Menu",
-                            tint = MaterialTheme.colorScheme.onBackground
+                            contentDescription = "Menu"
                         )
                     }
                     DropdownMenu(
@@ -239,7 +230,7 @@ fun SuperAdminAppScaffold(
                                         Icon(
                                             Icons.Default.Feedback,
                                             contentDescription = null,
-                                            tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonCyan else Color(0xFF00838F),
+                                            tint = MeliBlue,
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Text("Feedbacks", color = MaterialTheme.colorScheme.onSurface)
@@ -263,9 +254,9 @@ fun SuperAdminAppScaffold(
                                 navController.navigate("superadmin_feedbacks")
                             }
                         )
-                        
-                        HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
-                        
+
+                        HorizontalDivider(color = CardBorderLight)
+
                         // Configurações do Sistema
                         DropdownMenuItem(
                             text = {
@@ -276,7 +267,7 @@ fun SuperAdminAppScaffold(
                                     Icon(
                                         Icons.Default.Settings,
                                         contentDescription = null,
-                                        tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast,
+                                        tint = MeliBlue,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Text("Configurações", color = MaterialTheme.colorScheme.onSurface)
@@ -287,7 +278,7 @@ fun SuperAdminAppScaffold(
                                 navController.navigate("superadmin_configuracoes")
                             }
                         )
-                        
+
                         // Histórico de Ações
                         DropdownMenuItem(
                             text = {
@@ -298,7 +289,7 @@ fun SuperAdminAppScaffold(
                                     Icon(
                                         Icons.Default.History,
                                         contentDescription = null,
-                                        tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonPurple else NeonPurpleContrast,
+                                        tint = NeonPurple,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Text("Histórico", color = MaterialTheme.colorScheme.onSurface)
@@ -309,7 +300,7 @@ fun SuperAdminAppScaffold(
                                 navController.navigate("superadmin_historico")
                             }
                         )
-                        
+
                         // Minha Conta
                         DropdownMenuItem(
                             text = {
@@ -320,7 +311,7 @@ fun SuperAdminAppScaffold(
                                     Icon(
                                         Icons.Default.Person,
                                         contentDescription = null,
-                                        tint = NeonGreen,
+                                        tint = MeliBlue,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Text("Minha Conta", color = MaterialTheme.colorScheme.onSurface)
@@ -331,9 +322,9 @@ fun SuperAdminAppScaffold(
                                 navController.navigate("superadmin_conta")
                             }
                         )
-                        
-                        HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
-                        
+
+                        HorizontalDivider(color = CardBorderLight)
+
                         // Sair da Conta
                         DropdownMenuItem(
                             text = {
@@ -344,10 +335,10 @@ fun SuperAdminAppScaffold(
                                     Icon(
                                         Icons.AutoMirrored.Filled.ExitToApp,
                                         contentDescription = null,
-                                        tint = Color(0xFFEF4444),
+                                        tint = StatusError,
                                         modifier = Modifier.size(20.dp)
                                     )
-                                    Text("Sair da Conta", color = Color(0xFFEF4444))
+                                    Text("Sair da Conta", color = StatusError)
                                 }
                             },
                             onClick = {
@@ -356,16 +347,13 @@ fun SuperAdminAppScaffold(
                             }
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
+                }
             )
         },
         bottomBar = {
             NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                contentColor = MaterialTheme.colorScheme.onSurface
+                containerColor = Color.White,
+                contentColor = TextBlack
             ) {
                 listOf(
                     SuperAdminNavItem.Dashboard,
@@ -392,12 +380,12 @@ fun SuperAdminAppScaffold(
                                 }
                             }
                         },
-                        label = { 
+                        label = {
                             Text(
                                 text = item.shortLabel,
                                 maxLines = 1,
                                 style = MaterialTheme.typography.labelSmall
-                            ) 
+                            )
                         },
                         selected = currentRoute == item.route,
                         onClick = {
@@ -410,11 +398,11 @@ fun SuperAdminAppScaffold(
                             }
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.onSurface,
-                            selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                            selectedIconColor = MeliBlue,
+                            selectedTextColor = MeliBlue,
+                            unselectedIconColor = TextGrayLightMode,
+                            unselectedTextColor = TextGrayLightMode,
+                            indicatorColor = MeliBlue.copy(alpha = 0.08f)
                         )
                     )
                 }

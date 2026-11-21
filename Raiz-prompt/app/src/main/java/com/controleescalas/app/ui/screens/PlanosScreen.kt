@@ -23,8 +23,9 @@ import com.controleescalas.app.data.BillingManager
 import com.controleescalas.app.data.models.Base
 import com.controleescalas.app.data.models.PlanoTipo
 import com.controleescalas.app.data.repositories.BaseRepository
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,16 +72,10 @@ fun PlanosScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Planos", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextWhite)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+            AppTopBar(
+                title = "Planos",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onBack
             )
         }
     ) { paddingValues ->
@@ -88,13 +83,14 @@ fun PlanosScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+.padding(bottom = 120.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Status atual
             if (planoAtual == "trial" && diasRestantes != null) {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -103,22 +99,22 @@ fun PlanosScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = NeonGreen)
+                            Icon(Icons.Default.Star, contentDescription = null, tint = MeliYellow)
                             Text(
                                 "Versão Beta",
-                                color = NeonGreen,
+                                color = MeliYellow,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
                         Text(
                             "Acesso gratuito para testes",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
                             "Aproveite todos os recursos durante o período de testes.",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -137,7 +133,7 @@ fun PlanosScreen(
                     onClick = { isAnual = false },
                     label = { Text("Mensal") },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonGreen,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.Black
                     )
                 )
@@ -147,7 +143,7 @@ fun PlanosScreen(
                     onClick = { isAnual = true },
                     label = { Text("Anual") },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonGreen,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.Black
                     )
                 )
@@ -155,7 +151,7 @@ fun PlanosScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "Economize 15%",
-                        color = NeonGreen,
+                        color = MeliBlue,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -201,7 +197,7 @@ fun PlanosScreen(
             )
             
             // ENTERPRISE
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -214,12 +210,12 @@ fun PlanosScreen(
                     )
                     Text(
                         "Sob consulta",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         "Ilimitado + customizações\nMulti usuários\nPermissões avançadas\nSLA e suporte dedicado",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodySmall
                     )
                     OutlinedButton(
@@ -252,7 +248,7 @@ private fun PlanoCard(
         "R$ ${plano.precoMensalEquivalenteAnual.toInt()}/mês · Economize R$ ${plano.economiaAnual.toInt()}"
     } else null
 
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -264,48 +260,48 @@ private fun PlanoCard(
             ) {
                 Text(
                     plano.nome,
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium
                 )
                 if (isAtual) {
                     Surface(
-                        color = NeonGreen.copy(alpha = 0.2f),
+                        color = MeliBlue.copy(alpha = 0.2f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Check, contentDescription = null, tint = NeonGreen, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Check, contentDescription = null, tint = MeliBlue, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Atual", color = NeonGreen, style = MaterialTheme.typography.labelSmall)
+                            Text("Atual", color = MeliBlue, style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
             }
             Text(
                 precoTexto,
-                color = NeonGreen,
+                color = MeliBlue,
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleLarge
             )
             if (subtituloPreco != null) {
                 Text(
                     subtituloPreco,
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             Text(
                 descricao,
-                color = TextGray,
+                color = TextGrayLightMode,
                 style = MaterialTheme.typography.bodySmall
             )
             if (!isAtual && productDetails != null) {
                 Button(
                     onClick = { productDetails?.let { onAssinarClick(it) } },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen, contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue, contentColor = Color.White),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Assinar")
@@ -313,7 +309,7 @@ private fun PlanoCard(
             } else if (!isAtual && productDetails == null) {
                 Text(
                     "Configurando... (produtos no Play Console)",
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     style = MaterialTheme.typography.bodySmall
                 )
             }

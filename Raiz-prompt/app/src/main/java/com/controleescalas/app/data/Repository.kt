@@ -316,16 +316,20 @@ class Repository {
      * Buscar escala do dia para um motorista
      * Busca em ambos os turnos (AM e PM) até encontrar o motorista
      */
-    suspend fun getEscalaDoDia(baseId: String, motoristaId: String): DriverEscalaInfo? {
+    suspend fun getEscalaDoDia(
+        baseId: String,
+        motoristaId: String,
+        turnos: List<String> = listOf("AM", "PM")
+    ): DriverEscalaInfo? {
         return try {
             ensureAuth()
             val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             println("🔍 Repository.getEscalaDoDia: Buscando escala para motorista $motoristaId")
-            
-            // Buscar em ambos os turnos
-            val turnos = listOf("AM", "PM")
-            
-            for (turno in turnos) {
+
+            // Buscar nos turnos cadastrados da base
+            val turnosBusca = if (turnos.isNotEmpty()) turnos else listOf("AM", "PM")
+
+            for (turno in turnosBusca) {
                 val docId = "${hoje}_${turno}"
                 val doc = firestore
                     .collection("bases")

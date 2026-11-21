@@ -30,8 +30,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.SessionManager
 import com.controleescalas.app.data.models.SavedSession
 import com.controleescalas.app.ui.components.CustomTextField
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.LoginViewModel
@@ -201,6 +201,8 @@ fun AccountSelectionScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
                 .padding(24.dp)
         ) {
             // Header
@@ -227,7 +229,7 @@ fun AccountSelectionScreen(
             
             if (groupedSessions.isEmpty()) {
                 // Nenhuma conta salva
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -284,7 +286,7 @@ fun AccountSelectionScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             // Botão adicionar nova conta - agora abre o diálogo
-            NeonButton(
+            AppButton(
                 text = "ADICIONAR NOVA CONTA",
                 onClick = { showLoginDialog = true },
                 modifier = Modifier.fillMaxWidth(),
@@ -302,11 +304,11 @@ fun AccountSelectionScreen(
                 pin = ""
                 loginViewModel.clearMessages()
             },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = {
                 Text(
                     "Adicionar Nova Conta",
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -345,7 +347,7 @@ fun AccountSelectionScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             CircularProgressIndicator(
-                                color = NeonGreen,
+                                color = MeliBlue,
                                 modifier = Modifier.size(24.dp)
                             )
                         }
@@ -361,8 +363,8 @@ fun AccountSelectionScreen(
                     },
                     enabled = !isLoading && telefone.isNotBlank() && pin.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = Color.Black
+                        containerColor = MeliBlue,
+                        contentColor = Color.White
                     )
                 ) {
                     Text("ENTRAR", fontWeight = FontWeight.Bold)
@@ -377,7 +379,7 @@ fun AccountSelectionScreen(
                         loginViewModel.clearMessages()
                     }
                 ) {
-                    Text("Cancelar", color = TextGray)
+                    Text("Cancelar", color = TextGrayLightMode)
                 }
             }
         )
@@ -394,7 +396,7 @@ fun TransportadoraCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             // Header da transportadora
             Surface(
@@ -416,7 +418,7 @@ fun TransportadoraCard(
                         Icon(
                             Icons.Default.Home,
                             contentDescription = null,
-                            tint = NeonBlue,
+                            tint = MeliBlue,
                             modifier = Modifier.size(32.dp)
                         )
                         Column {
@@ -570,14 +572,14 @@ fun AccountRowCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = {
-                Text("Remover Conta", color = TextWhite, fontWeight = FontWeight.Bold)
+                Text("Remover Conta", color = TextBlack, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
                     "Deseja remover esta conta salva? Você precisará fazer login novamente para acessá-la.",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -596,7 +598,7 @@ fun AccountRowCard(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancelar", color = TextGray)
+                    Text("Cancelar", color = TextGrayLightMode)
                 }
             }
         )

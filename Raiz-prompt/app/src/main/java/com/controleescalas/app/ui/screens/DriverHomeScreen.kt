@@ -24,8 +24,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.components.DisponibilidadeCard
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.components.QuinzenaCard
 import com.controleescalas.app.ui.components.SectionHeader
@@ -73,6 +73,7 @@ fun DriverHomeScreen(
     
     // Disponibilidade
     val minhaDisponibilidade by disponibilidadeViewModel.minhaDisponibilidade.collectAsState()
+    val turnosDaBase by disponibilidadeViewModel.turnosDaBase.collectAsState()
     val disponibilidadeMessage by disponibilidadeViewModel.message.collectAsState()
     
     // Quinzena
@@ -80,6 +81,7 @@ fun DriverHomeScreen(
 
     LaunchedEffect(motoristaId, baseId) {
         viewModel.loadDriverData(motoristaId, baseId)
+        disponibilidadeViewModel.carregarTurnosDaBase(baseId)
         disponibilidadeViewModel.carregarMinhaDisponibilidade(baseId, motoristaId)
         quinzenaViewModel.carregarMinhaQuinzena(baseId, motoristaId)
     }
@@ -118,7 +120,7 @@ fun DriverHomeScreen(
                     if (isLoading) {
                         CircularProgressIndicator(
                             modifier = Modifier.align(Alignment.CenterHorizontally),
-                            color = NeonGreen
+                            color = MeliBlue
                         )
                     } else {
                         Column(
@@ -136,23 +138,16 @@ fun DriverHomeScreen(
                                 visible = visible,
                                 enter = slideInVertically { it / 2 } + fadeIn()
                             ) {
-                                minhaDisponibilidade?.let { disp ->
-                                    DisponibilidadeCard(
-                                        data = disponibilidadeViewModel.disponibilidade.value?.data ?: "",
-                                        jaRespondeu = disp.disponivel != null,
-                                        disponivel = disp.disponivel,
-                                        onMarcarDisponivel = {
-                                            disponibilidadeViewModel.marcarDisponibilidade(
-                                                baseId, motoristaId, true
-                                            )
-                                        },
-                                        onMarcarIndisponivel = {
-                                            disponibilidadeViewModel.marcarDisponibilidade(
-                                                baseId, motoristaId, false
-                                            )
-                                        }
-                                    )
-                                }
+                                DisponibilidadeCard(
+                                    data = disponibilidadeViewModel.disponibilidade.value?.data ?: "",
+                                    turnos = turnosDaBase,
+                                    minhaResposta = minhaDisponibilidade,
+                                    onMarcarTurno = { turno, disponivel ->
+                                        disponibilidadeViewModel.marcarDisponibilidadeTurno(
+                                            baseId, motoristaId, turno, disponivel
+                                        )
+                                    }
+                                )
                             }
                             
                             // QUINZENA
@@ -214,7 +209,7 @@ fun DriverHomeScreen(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
                                 .padding(16.dp),
-                            containerColor = NeonGreen,
+                            containerColor = MeliBlue,
                             contentColor = Color.Black
                         ) {
                             Text(disponibilidadeMessage!!)
@@ -254,7 +249,7 @@ fun StatusCard(
     val vaga = statusInfo?.vagaAtual
     val rota = statusInfo?.rotaAtual
     
-    GlassCard(
+    AppCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -314,7 +309,7 @@ fun StatusCard(
             }
             
             if (isChamado && statusInfo?.confirmadoEm == null && onConfirmarChamada != null) {
-                NeonButton(text = "✓ ENTENDI", onClick = onConfirmarChamada, modifier = Modifier.fillMaxWidth())
+                AppButton(text = "✓ ENTENDI", onClick = onConfirmarChamada, modifier = Modifier.fillMaxWidth())
             }
             
             if (isChamado && statusInfo?.confirmadoEm != null) {
@@ -326,7 +321,7 @@ fun StatusCard(
             }
             
             if (isCarregando && statusInfo?.confirmadoEm != null && onConcluirCarregamento != null) {
-                NeonButton(text = "✓ CONCLUIR", onClick = onConcluirCarregamento, modifier = Modifier.fillMaxWidth())
+                AppButton(text = "✓ CONCLUIR", onClick = onConcluirCarregamento, modifier = Modifier.fillMaxWidth())
             }
         }
     }
@@ -342,19 +337,19 @@ fun EscalaCompactCard(
         else -> null
     }
     
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Text("Escala de Hoje", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                 if (escalaInfo != null) {
-                    Surface(color = NeonBlue.copy(alpha = 0.2f), shape = MaterialTheme.shapes.small) {
-                        Text(escalaInfo.turno, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = NeonBlue, fontWeight = FontWeight.Bold)
+                    Surface(color = MeliBlue.copy(alpha = 0.2f), shape = MaterialTheme.shapes.small) {
+                        Text(escalaInfo.turno, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), color = MeliBlue, fontWeight = FontWeight.Bold)
                     }
                 }
             }
             
             if (escalaInfo == null) {
-                Text("Você não está escalado hoje.", color = TextGray)
+                Text("Você não está escalado hoje.", color = TextGrayLightMode)
             } else {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -363,7 +358,7 @@ fun EscalaCompactCard(
                     }
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Hora", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                            Text("Hora", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
                             Text(escalaInfo.horarioPlanejado.ifBlank { "Indefinida" }, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
                         }
                         InfoItem(label = "Rota", value = escalaInfo.rotaCodigo, corDestaque = corDestaque)
@@ -375,7 +370,7 @@ fun EscalaCompactCard(
                 }
                 
                 if (escalaInfo.hasPdf) {
-                    NeonButton(text = "Ver Rota (PDF)", onClick = { /* TODO */ }, modifier = Modifier.fillMaxWidth())
+                    AppButton(text = "Ver Rota (PDF)", onClick = { /* TODO */ }, modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -390,7 +385,7 @@ fun InfoItem(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = TextGray)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
         Text(value, color = corDestaque ?: MaterialTheme.colorScheme.onSurface, fontWeight = if (corDestaque != null) FontWeight.Bold else FontWeight.Medium)
     }
 }

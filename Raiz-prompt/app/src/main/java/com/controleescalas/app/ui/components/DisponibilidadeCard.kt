@@ -1,36 +1,36 @@
 package com.controleescalas.app.ui.components
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.controleescalas.app.data.models.DisponibilidadeMotorista
 import com.controleescalas.app.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Card de disponibilidade compacto para o motorista
- * Permite alterar a resposta mesmo depois de ter respondido
+ * Card de disponibilidade POR TURNO: o motorista marca, para cada turno
+ * cadastrado da base, se está disponível ou não para o dia seguinte.
+ *
+ * Compatibilidade: docs antigos sem respostas por turno mostram o estado
+ * legado (sim/não único) como resposta para todos os turnos.
  */
 @Composable
 fun DisponibilidadeCard(
     data: String, // YYYY-MM-DD
-    jaRespondeu: Boolean,
-    disponivel: Boolean?,
-    onMarcarDisponivel: () -> Unit,
-    onMarcarIndisponivel: () -> Unit
+    turnos: List<String>,
+    minhaResposta: DisponibilidadeMotorista?,
+    onMarcarTurno: (turno: String, disponivel: Boolean) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val dataFormatada = remember(data) {
         try {
@@ -42,159 +42,98 @@ fun DisponibilidadeCard(
             data
         }
     }
-    
-    GlassCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+
+    AppCard(modifier = modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(4.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Cabeçalho compacto
+            // Cabeçalho
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Text(
+                    text = "📅",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "📅",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "Disponibilidade por turno",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold
                     )
-                    Column {
-                        Text(
-                            text = "Disponibilidade",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = dataFormatada,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
-                        )
-                    }
+                    Text(
+                        text = dataFormatada,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextGrayLightMode
+                    )
                 }
-                
-                // Indicador de status atual (se já respondeu)
-                if (jaRespondeu && disponivel != null) {
-                    Surface(
-                        color = if (disponivel) NeonGreen.copy(alpha = 0.2f) else StatusError.copy(alpha = 0.2f),
-                        shape = MaterialTheme.shapes.small
+            }
+
+            Text(
+                text = "Em quais turnos você pode trabalhar amanhã?",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (turnos.isEmpty()) {
+                Text(
+                    text = "Nenhum turno cadastrado pela transportadora.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextGrayLightMode
+                )
+            } else {
+                // Uma linha por turno: nome + estado + botões
+                turnos.forEach { turno ->
+                    val estado = minhaResposta?.estadoNoTurno(turno)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            modifier = Modifier.weight(1f)
                         ) {
+                            // Indicador de estado
+                            val (icone, cor) = when (estado) {
+                                true -> Icons.Default.CheckCircle to NeonGreen
+                                false -> Icons.Default.Close to StatusError
+                                else -> Icons.Default.HelpOutline to TextDisabled
+                            }
                             Icon(
-                                imageVector = if (disponivel) Icons.Default.CheckCircle else Icons.Default.Close,
+                                imageVector = icone,
                                 contentDescription = null,
-                                tint = if (disponivel) NeonGreen else StatusError,
-                                modifier = Modifier.size(16.dp)
+                                tint = cor,
+                                modifier = Modifier.size(18.dp)
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (disponivel) "Disponível" else "Indisponível",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (disponivel) NeonGreen else StatusError,
+                                text = turno,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                    }
-                }
-            }
-            
-            // Texto informativo (compacto)
-            if (jaRespondeu) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = null,
-                        tint = TextGray,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = "Você pode alterar sua resposta a qualquer momento",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.7f) else TextGrayMediumLightMode,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            } else {
-                Text(
-                    text = "Você está disponível para trabalhar amanhã?",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            
-            val simSelecionado = disponivel == true
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onMarcarDisponivel,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (simSelecionado) NeonGreen else NeonGreen.copy(alpha = 0.15f),
-                        contentColor = if (simSelecionado) Color.White else NeonGreen
-                    ),
-                    border = BorderStroke(1.5.dp, NeonGreen)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            "SIM",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    }
-                }
 
-                Button(
-                    onClick = onMarcarIndisponivel,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (simSelecionado) StatusError.copy(alpha = 0.15f) else StatusError,
-                        contentColor = if (simSelecionado) StatusError else Color.White
-                    ),
-                    border = BorderStroke(1.5.dp, StatusError)
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            "NÃO",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelMedium
-                        )
+                        // Botões SIM / NÃO por turno (desabilita o já escolhido)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            AppTonalButton(
+                                text = "SIM",
+                                onClick = { onMarcarTurno(turno, true) },
+                                enabled = estado != true
+                            )
+                            AppTonalButton(
+                                text = "NÃO",
+                                onClick = { onMarcarTurno(turno, false) },
+                                enabled = estado != false
+                            )
+                        }
                     }
                 }
             }

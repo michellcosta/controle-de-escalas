@@ -146,45 +146,45 @@ fun EditDriverDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = Color.White,
         title = {
-            Text("Editar Motorista", color = TextWhite, fontWeight = FontWeight.Bold)
+            Text("Editar Motorista", color = TextBlack, fontWeight = FontWeight.Bold)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
                     motorista.nome,
-                    color = NeonGreen,
+                    color = MeliBlue,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                
+
                 // Campo Vaga com validação
                 OutlinedTextField(
                     value = vaga,
-                    onValueChange = { 
+                    onValueChange = {
                         vaga = it
                         // Validar vaga em tempo real
                         val (valida, mensagem) = validarVagaNaOnda(ondas, ondaIndex, it, motorista.motoristaId)
                         erroVaga = mensagem
                     },
-                    label = { Text("Vaga", color = TextGray) },
+                    label = { Text("Vaga", color = TextGrayLightMode) },
                     leadingIcon = {
-                        Icon(Icons.Default.LocationOn, null, tint = NeonGreen)
+                        Icon(Icons.Default.LocationOn, null, tint = MeliBlue)
                     },
                     isError = erroVaga != null,
                     supportingText = erroVaga?.let { { Text(it, color = Color(0xFFEF4444)) } },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedContainerColor = DarkSurfaceVariant,
-                        unfocusedContainerColor = DarkSurfaceVariant,
-                        focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else NeonGreen,
-                        unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else TextGray
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else MeliBlue,
+                        unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else CardBorderLight
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
-                
+
                 // Usar OutlinedTextField com InteractionSource para detectar foco
                 OutlinedTextField(
                     value = if (rotaFocused) rota else formatarRota(rota),
@@ -198,23 +198,23 @@ fun EditDriverDialog(
                         }
                     },
                     interactionSource = rotaInteractionSource,
-                    label = { Text("Rota", color = TextGray) },
+                    label = { Text("Rota", color = TextGrayLightMode) },
                     leadingIcon = {
-                        Icon(Icons.Default.Info, null, tint = NeonBlue)
+                        Icon(Icons.Default.Info, null, tint = MeliBlue)
                     },
                     isError = erroRota != null,
                     supportingText = erroRota?.let { { Text(it, color = Color(0xFFEF4444)) } },
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedContainerColor = DarkSurfaceVariant,
-                        unfocusedContainerColor = DarkSurfaceVariant,
-                        focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else NeonBlue,
-                        unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else TextGray
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else MeliBlue,
+                        unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else CardBorderLight
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
-                
+
                 CustomTextField(
                     value = sacas,
                     onValueChange = { sacas = it.filter { c -> c.isDigit() } },
@@ -225,7 +225,7 @@ fun EditDriverDialog(
             }
         },
         confirmButton = {
-            NeonButton(
+            AppButton(
                 text = "Salvar",
                 onClick = {  
                     // Validar antes de salvar
@@ -245,7 +245,7 @@ fun EditDriverDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = TextGray)
+                Text("Cancelar", color = TextGrayLightMode)
             }
         }
     )

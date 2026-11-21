@@ -1,10 +1,18 @@
 package com.controleescalas.app.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
@@ -18,23 +26,17 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.luminance
 import com.controleescalas.app.ui.components.PremiumBackground
-import androidx.compose.foundation.shape.CircleShape
+import com.controleescalas.app.ui.components.AppTopBar
 import androidx.compose.material.icons.filled.Check
 import java.util.Calendar
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,7 +50,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.controleescalas.app.ui.components.DisponibilidadeCard
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
@@ -90,8 +92,15 @@ fun DriverAppScaffold(
     }
     
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
     val viewModel: DriverViewModel = viewModel()
     val motoristaNome by viewModel.motoristaNome.collectAsState()
+    val nestedComTopoProprio = currentRoute == "driver_identificacao"
+        || currentRoute == "driver_devolucao"
+        || currentRoute == "driver_devolucao_historico"
+        || currentRoute?.startsWith("driver_devolucao_detalhes") == true
+    val isSubtela = nestedComTopoProprio || currentRoute == "driver_quinzena"
     
     // Permissões centralizadas na MainActivity - carregar dados diretamente
     LaunchedEffect(motoristaId, baseId) {
@@ -109,41 +118,33 @@ fun DriverAppScaffold(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        val displayText = motoristaNome ?: "Minha Jornada"
-                        android.util.Log.d("DriverAppScaffold", "🎨 Renderizando TopAppBar com texto: $displayText")
-                        Text(
-                            text = displayText,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (motoristaNome != null) {
-                            Text(
-                                text = "Minha Jornada",
-                                color = TextGray,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = Color.Transparent,
-                scrolledContainerColor = Color.Transparent
-            )
-            )
+            if (!nestedComTopoProprio) {
+                when (currentRoute) {
+                    DriverNavItem.Config.route -> AppTopBar(title = "Configurações")
+                    DriverNavItem.Availability.route -> AppTopBar(title = "Disponibilidade")
+                    "driver_quinzena" -> AppTopBar(
+                        title = "Quinzena",
+                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                        onNavigationClick = { navController.popBackStack() }
+                    )
+                    else -> AppTopBar(
+                        title = motoristaNome ?: "Minha Jornada",
+                        subtitle = if (motoristaNome != null) "Minha Jornada" else null
+                    )
+                }
+            }
         },
         bottomBar = {
-            DriverBottomNavigationBar(navController = navController)
+            if (!isSubtela) {
+                DriverBottomNavigationBar(navController = navController)
+            }
         },
         containerColor = Color.Transparent
     ) { paddingValues ->
         NavHost(
             navController = navController,
             startDestination = DriverNavItem.Home.route,
-            modifier = Modifier.padding(paddingValues)
+            modifier = Modifier.padding(top = paddingValues.calculateTopPadding())
         ) {
             composable(DriverNavItem.Home.route) {
                 DriverHomeContent(
@@ -329,16 +330,17 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
         DriverNavItem.Availability,
         DriverNavItem.Config
     )
-    
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 20.dp)
-            .navigationBarsPadding(),
+            .padding(horizontal = 16.dp)
+            .padding(top = 14.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
@@ -346,12 +348,9 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
                 .fillMaxWidth()
                 .height(64.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            border = BorderStroke(
-                width = 0.5.dp,
-                color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.15f)
-            ),
-            shadowElevation = 12.dp
+            color = Color.White,
+            border = BorderStroke(width = 0.5.dp, color = CardBorderLight),
+            shadowElevation = 4.dp
         ) {
             Row(
                 modifier = Modifier
@@ -362,18 +361,16 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
             ) {
                 items.forEach { item ->
                     val isSelected = currentRoute == item.route
-                    
+
                     val animatedWeight by animateFloatAsState(
                         targetValue = if (isSelected) 2.2f else 1f,
                         animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
                         label = "weight"
                     )
-                    
                     val animatedColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        targetValue = if (isSelected) MeliBlue else TextGrayLightMode,
                         label = "color"
                     )
-
                     val animatedScale by animateFloatAsState(
                         targetValue = if (isSelected) 1.1f else 1.0f,
                         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
@@ -387,8 +384,8 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
                             .padding(horizontal = 2.dp)
                             .clip(CircleShape)
                             .background(
-                                color = if (isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-                                        else Color.Transparent
+                                color = if (isSelected) MeliBlue.copy(alpha = 0.08f)
+                                else Color.Transparent
                             )
                             .clickable {
                                 navController.navigate(item.route) {
@@ -414,7 +411,6 @@ fun DriverBottomNavigationBar(navController: NavHostController) {
                                     .size(22.dp)
                                     .scale(animatedScale)
                             )
-                            
                             if (isSelected) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
@@ -468,20 +464,21 @@ fun DriverHomeContent(
             .fillMaxSize()
     ) {
         PremiumBackground(modifier = Modifier.fillMaxSize()) {
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(
-                        color = NeonGreen
-                    )
-                }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // STATUS PRINCIPAL - Destaque
+                if (isLoading) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(
+                            color = MeliBlue
+                        )
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 120.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // STATUS PRINCIPAL - Destaque
                     if (escalaInfo != null) {
                         StatusCard(
                             statusInfo = statusInfo,
@@ -524,10 +521,16 @@ fun DriverAvailabilityScreen(
     val disponibilidade by viewModel.disponibilidade.collectAsState()
     val message by viewModel.message.collectAsState()
     val minhaDisponibilidade by viewModel.minhaDisponibilidade.collectAsState()
+    val turnosDaBase by viewModel.turnosDaBase.collectAsState()
     
     LaunchedEffect(baseId, motoristaId) {
+    
+        viewModel.carregarTurnosDaBase(baseId)
+    
         viewModel.carregarMinhaDisponibilidade(baseId, motoristaId)
+    
         viewModel.observarDisponibilidade(baseId, motoristaId = motoristaId)
+    
     }
 
     DisposableEffect(baseId, motoristaId) {
@@ -545,54 +548,18 @@ fun DriverAvailabilityScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp)
             ) {
-                // Card de disponibilidade atual
-                minhaDisponibilidade?.let { disp ->
-                    DisponibilidadeCard(
-                        data = disponibilidade?.data ?: "",
-                        jaRespondeu = disp.disponivel != null,
-                        disponivel = disp.disponivel,
-                        onMarcarDisponivel = {
-                            viewModel.marcarDisponibilidade(
-                                baseId, motoristaId, true
-                            )
-                        },
-                        onMarcarIndisponivel = {
-                            viewModel.marcarDisponibilidade(
-                                baseId, motoristaId, false
-                            )
-                        }
-                    )
-                } ?: run {
-                    // Não há solicitação pendente
-                    GlassCard {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = TextGray,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Text(
-                                text = "Nenhuma solicitação de disponibilidade",
-                                color = TextGray,
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                text = "Quando o administrador solicitar sua disponibilidade, ela aparecerá aqui.",
-                                color = TextGray.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                // Card de disponibilidade POR TURNO (sempre visível)
+                DisponibilidadeCard(
+                    data = disponibilidade?.data ?: "",
+                    turnos = turnosDaBase,
+                    minhaResposta = minhaDisponibilidade,
+                    onMarcarTurno = { turno, disponivel ->
+                        viewModel.marcarDisponibilidadeTurno(baseId, motoristaId, turno, disponivel)
                     }
-                }
+                )
             }
         }
         
@@ -600,8 +567,8 @@ fun DriverAvailabilityScreen(
         message?.let { msg ->
             Snackbar(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp, start = 16.dp, end = 16.dp),
-                containerColor = NeonGreen,
-                contentColor = Color.Black
+                containerColor = MeliBlue,
+                contentColor = Color.White
             ) {
                 Text(msg)
             }
@@ -668,13 +635,16 @@ fun DriverQuinzenaScreen(
     val escalaRepository = remember { EscalaRepository() }
     var datasEscaladas by remember { mutableStateOf<Set<String>>(emptySet()) }
     
-    // Buscar escalas do mês quando mudar mês/ano
+    // Buscar escalas do mês quando mudar mês/ano (nos turnos cadastrados da base)
+    val configRepository = remember { com.controleescalas.app.data.repositories.ConfigRepository() }
     LaunchedEffect(baseId, motoristaId, mesSelecionado, anoSelecionado) {
+        val turnos = configRepository.getTurnosBase(baseId)
         val escalas = escalaRepository.getEscalasDoMes(
             baseId = baseId,
             motoristaId = motoristaId,
             mes = mesSelecionado + 1, // Converter para 1-12
-            ano = anoSelecionado
+            ano = anoSelecionado,
+            turnos = turnos
         )
         datasEscaladas = escalas
     }
@@ -757,7 +727,7 @@ fun DriverQuinzenaScreen(
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(
-                            color = NeonGreen
+                            color = MeliBlue
                         )
                     }
                 } else {
@@ -767,7 +737,7 @@ fun DriverQuinzenaScreen(
                     ) {
                         // Título do Mês com navegação
                         item {
-                            GlassCard {
+                            AppCard {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -782,10 +752,10 @@ fun DriverQuinzenaScreen(
                                         Icon(
                                             imageVector = Icons.Default.ArrowBack,
                                             contentDescription = "Mês anterior",
-                                            tint = NeonBlue
+                                            tint = MeliBlue
                                         )
                                     }
-                                    
+
                                     // Nome do mês e ano (compacto)
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally
@@ -799,10 +769,10 @@ fun DriverQuinzenaScreen(
                                         Text(
                                             text = anoSelecionado.toString(),
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = TextGray
+                                            color = TextGrayLightMode
                                         )
                                     }
-                                    
+
                                     // Botão de informação e navegação
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -815,10 +785,10 @@ fun DriverQuinzenaScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Info,
                                                 contentDescription = "Informações sobre a quinzena",
-                                                tint = NeonGreen
+                                                tint = MeliBlue
                                             )
                                         }
-                                        
+
                                         // Botão próximo
                                         IconButton(
                                             onClick = { irParaProximoMes() }
@@ -826,7 +796,7 @@ fun DriverQuinzenaScreen(
                                             Icon(
                                                 imageVector = Icons.Default.ArrowForward,
                                                 contentDescription = "Próximo mês",
-                                                tint = NeonBlue
+                                                tint = MeliBlue
                                             )
                                         }
                                     }
@@ -844,12 +814,12 @@ fun DriverQuinzenaScreen(
                                 ano = anoSelecionado,
                                 datasTrabalhadas = datasTrabalhadas,
                                 datasEscaladas = datasEscaladas,
-                                cor = NeonBlue,
+                                cor = MeliBlue,
                                 isEditable = isEditable,
                                 onDayClick = if (isEditable) onDayClick else null
                             )
                         }
-                        
+
                         // Segundo Calendário: Segunda Quinzena (16 até o último dia)
                         item {
                             QuinzenaCalendarSection(
@@ -860,7 +830,7 @@ fun DriverQuinzenaScreen(
                                 ano = anoSelecionado,
                                 datasTrabalhadas = datasTrabalhadas,
                                 datasEscaladas = datasEscaladas,
-                                cor = NeonBlue,
+                                cor = MeliBlue,
                                 isEditable = isEditable,
                                 onDayClick = if (isEditable) onDayClick else null
                             )
@@ -875,28 +845,13 @@ fun DriverQuinzenaScreen(
     if (onBack != null) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = minhaQuinzena?.motoristaNome ?: "Quinzena",
-                            color = TextWhite
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Voltar",
-                                tint = TextWhite
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = DarkBackground
-                    )
+                AppTopBar(
+                    title = minhaQuinzena?.motoristaNome ?: "Quinzena",
+                    navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                    onNavigationClick = onBack
                 )
             },
-            containerColor = DarkBackground
+            containerColor = Color.White
         ) { paddingValues ->
             Box(
                 modifier = Modifier
@@ -918,7 +873,7 @@ fun DriverQuinzenaScreen(
             title = {
                 Text(
                     text = "Como funciona a Quinzena",
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -998,12 +953,12 @@ fun DriverQuinzenaScreen(
                             modifier = Modifier
                                 .size(24.dp)
                                 .background(
-                                    color = NeonBlue.copy(alpha = 0.1f),
+                                    color = MeliBlue.copy(alpha = 0.1f),
                                     shape = MaterialTheme.shapes.small
                                 )
                                 .border(
                                     width = 1.dp,
-                                    color = NeonBlue.copy(alpha = 0.3f),
+                                    color = MeliBlue.copy(alpha = 0.3f),
                                     shape = MaterialTheme.shapes.small
                                 )
                         )
@@ -1019,15 +974,15 @@ fun DriverQuinzenaScreen(
                 TextButton(
                     onClick = { showInfoDialog = false }
                 ) {
-                    Text("Fechar", color = NeonGreen)
+                    Text("Fechar", color = MeliBlue)
                 }
             },
-            containerColor = DarkSurface,
-            titleContentColor = TextWhite,
-            textContentColor = TextWhite,
+            containerColor = Color.White,
+            titleContentColor = TextBlack,
+            textContentColor = TextBlack,
             shape = MaterialTheme.shapes.large
         )
-    }
+}
 }
 
 /**
@@ -1046,7 +1001,7 @@ fun QuinzenaCalendarSection(
     isEditable: Boolean = false, // Se true, permite clicar nos dias para editar
     onDayClick: ((String) -> Unit)? = null // Callback quando clicar em um dia (apenas se isEditable == true)
 ) {
-    GlassCard {
+    AppCard {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1082,7 +1037,7 @@ fun QuinzenaCalendarSection(
                             val corDia = when {
                                 vezesMarcado >= 2 -> StatusError // Vermelho para duplicado (2+ vezes)
                                 concluido -> NeonOrange // Laranja para concluído (1 vez)
-                                escalado -> NeonBlue // Azul para escalado (mas não concluído)
+                                escalado -> MeliBlue // Azul para escalado (mas não concluído)
                                 else -> cor // Cor padrão (cinza/transparente)
                             }
                             
@@ -1146,7 +1101,7 @@ fun QuinzenaCalendarSection(
                 datasTrabalhadas.count { it == dataFormatada }
             }
             
-            HorizontalDivider(color = TextGray.copy(alpha = 0.3f))
+            HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.3f))
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1156,7 +1111,7 @@ fun QuinzenaCalendarSection(
                 Text(
                     text = "Dias trabalhados",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Text(
                     text = "$diasTrabalhadosNestaSecao / ${diasFim - diasInicio + 1}",
@@ -1196,18 +1151,18 @@ fun SobreAppDialog(onDismiss: () -> Unit) {
                 Text(
                     "Versão ${com.controleescalas.app.BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Text(
                     "Desenvolvido por: Michell Oliveira",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Aplicativo para gestão de escalas de motoristas e controle de disponibilidade.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 com.controleescalas.app.ui.components.BotaoBuscarAtualizacao()
@@ -1215,12 +1170,12 @@ fun SobreAppDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fechar", color = NeonGreen)
+                Text("Fechar", color = MeliBlue)
             }
         },
-        containerColor = DarkSurface,
-        titleContentColor = TextWhite,
-        textContentColor = TextGray
+        containerColor = Color.White,
+        titleContentColor = TextBlack,
+        textContentColor = TextGrayLightMode
     )
 }
 
@@ -1247,7 +1202,7 @@ fun NotificacoesDialog(onDismiss: () -> Unit) {
                 Text(
                     "Em Xiaomi, Redmi, Huawei e similares, o celular pode bloquear notificações quando o app está fechado.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Text(
                     "Para receber chamadas com o app fechado:\n\n" +
@@ -1256,7 +1211,7 @@ fun NotificacoesDialog(onDismiss: () -> Unit) {
                     "3. Permissões → Inicialização automática → Ative\n" +
                     "4. Notificações → Libere todas",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             }
         },
@@ -1269,19 +1224,19 @@ fun NotificacoesDialog(onDismiss: () -> Unit) {
                     context.startActivity(intent)
                     onDismiss()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
             ) {
                 Text("Abrir configurações do app")
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fechar", color = TextGray)
+                Text("Fechar", color = TextGrayLightMode)
             }
         },
-        containerColor = DarkSurface,
-        titleContentColor = TextWhite,
-        textContentColor = TextGray
+        containerColor = Color.White,
+        titleContentColor = TextBlack,
+        textContentColor = TextGrayLightMode
     )
 }
 
@@ -1314,24 +1269,24 @@ fun AjudaDialog(onDismiss: () -> Unit) {
                     "• Disponibilidade: Responda se está disponível para trabalhar amanhã\n" +
                     "• Configuração: Acesse sua quinzena e outras opções",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Para suporte, entre em contato com o administrador da sua transportadora.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray.copy(alpha = 0.7f)
+                    color = TextGrayLightMode.copy(alpha = 0.7f)
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fechar", color = NeonGreen)
+                Text("Fechar", color = MeliBlue)
             }
         },
-        containerColor = DarkSurface,
-        titleContentColor = TextWhite,
-        textContentColor = TextGray
+        containerColor = Color.White,
+        titleContentColor = TextBlack,
+        textContentColor = TextGrayLightMode
     )
 }
 
@@ -1357,7 +1312,7 @@ fun TermosDialog(onDismiss: () -> Unit) {
                 Text(
                     "Ao usar este aplicativo, você concorda com os seguintes termos:",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Text(
                     "• O aplicativo é destinado exclusivamente para uso profissional\n" +
@@ -1369,24 +1324,24 @@ fun TermosDialog(onDismiss: () -> Unit) {
                     "• O aplicativo pode apresentar interrupções temporárias para manutenção ou melhorias\n" +
                     "• O desenvolvedor se reserva o direito de modificar os termos a qualquer momento",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray.copy(alpha = 0.8f)
+                    color = TextGrayLightMode.copy(alpha = 0.8f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Para mais informações, entre em contato com o administrador.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray.copy(alpha = 0.7f)
+                    color = TextGrayLightMode.copy(alpha = 0.7f)
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fechar", color = NeonGreen)
+                Text("Fechar", color = MeliBlue)
             }
         },
-        containerColor = DarkSurface,
-        titleContentColor = TextWhite,
-        textContentColor = TextGray
+        containerColor = Color.White,
+        titleContentColor = TextBlack,
+        textContentColor = TextGrayLightMode
     )
 }
 

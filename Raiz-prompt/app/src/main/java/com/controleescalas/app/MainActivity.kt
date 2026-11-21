@@ -29,7 +29,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -169,7 +168,6 @@ class MainActivity : ComponentActivity() {
             }
 
             val sessionManager = remember { SessionManager(this) }
-            val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
             var atualizacao by remember { mutableStateOf<AtualizacaoRemota?>(null) }
             val versaoInstaladaNome = remember { AppUpdateChecker.versaoNomeInstalada(this@MainActivity) }
 
@@ -181,7 +179,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            ControleEscalasTheme(darkTheme = themeMode == "dark") {
+            ControleEscalasTheme {
                 PremiumBackground {
                     AppNavHost()
                 }

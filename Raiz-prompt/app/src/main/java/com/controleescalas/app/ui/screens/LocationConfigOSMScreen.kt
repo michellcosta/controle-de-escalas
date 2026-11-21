@@ -273,7 +273,7 @@ fun LocationConfigOSMScreen(
                         onClick = { selectedMode = "galpao" },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedMode == "galpao") NeonGreen else DarkSurface,
+                            containerColor = if (selectedMode == "galpao") NeonGreen else Color.White,
                             contentColor = if (selectedMode == "galpao") Color.Black else TextWhite
                         )
                     ) {
@@ -286,7 +286,7 @@ fun LocationConfigOSMScreen(
                         onClick = { selectedMode = "estacionamento" },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedMode == "estacionamento") NeonPurple else DarkSurface,
+                            containerColor = if (selectedMode == "estacionamento") NeonPurple else Color.White,
                             contentColor = if (selectedMode == "estacionamento") Color.Black else TextWhite
                         )
                     ) {
@@ -298,7 +298,7 @@ fun LocationConfigOSMScreen(
                 
                 // Info card
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = DarkSurface.copy(alpha = 0.95f))
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
@@ -308,7 +308,7 @@ fun LocationConfigOSMScreen(
                         )
                         Text(
                             "Toque no mapa para marcar a localização",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodySmall
                         )
                         // Adicionar informação sobre o outro marcador
@@ -319,7 +319,7 @@ fun LocationConfigOSMScreen(
                             } else {
                                 if (galpaoState.lat != 0.0) "✓ Galpão já marcado" else "ℹ️ Marque o galpão também"
                             },
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -336,7 +336,7 @@ fun LocationConfigOSMScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 16.dp, bottom = 90.dp),
-                containerColor = DarkSurface,
+                containerColor = Color.White,
                 contentColor = TextWhite
             ) {
                 Icon(Icons.Default.LocationOn, contentDescription = "Minha Localização")
@@ -368,7 +368,7 @@ fun LocationConfigOSMScreen(
                     .padding(16.dp)
                     .fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = NeonGreen,
+                    containerColor = MeliBlue,
                     contentColor = Color.White
                 ),
                 // Desabilitar botão se não houver coordenadas marcadas
@@ -387,7 +387,7 @@ fun LocationConfigOSMScreen(
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    color = NeonGreen
+                    color = MeliBlue
                 )
             }
             
@@ -397,7 +397,7 @@ fun LocationConfigOSMScreen(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 80.dp),
-                    containerColor = NeonGreen,
+                    containerColor = MeliBlue,
                     contentColor = Color.Black
                 ) {
                     Text(msg)

@@ -21,10 +21,10 @@ import android.content.Context
 import com.controleescalas.app.data.models.ModoAtivacao
 import com.controleescalas.app.data.models.SistemaConfig
 import com.controleescalas.app.data.repositories.SistemaRepository
-import androidx.compose.ui.graphics.luminance
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -162,20 +162,10 @@ fun SistemaConfigScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text("Configurações do Sistema", color = MaterialTheme.colorScheme.onBackground) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
+            AppTopBar(
+                title = "Configurações do Sistema",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onBack
             )
         },
         containerColor = Color.Transparent
@@ -188,7 +178,7 @@ fun SistemaConfigScreen(
                         .padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = NeonGreen)
+                    CircularProgressIndicator(color = MeliBlue)
                 }
             } else {
                 val context = LocalContext.current
@@ -201,7 +191,7 @@ fun SistemaConfigScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // UID do Firebase (para configurar SUPERADMIN_UIDS no Render)
-                    GlassCard {
+                    AppCard {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -212,7 +202,7 @@ fun SistemaConfigScreen(
                                     "1) Render: Environment → SUPERADMIN_UIDS = este UID (copie abaixo).\n" +
                                     "2) Ou no Firestore: coleção sistema, documento config, campo superadminUids (tipo array) com um item igual a este UID.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                color = TextGrayLightMode,
                                 maxLines = 6
                             )
                             Text(
@@ -234,7 +224,7 @@ fun SistemaConfigScreen(
                                             snackbarHostState.showSnackbar("UID copiado! Cole no Render em SUPERADMIN_UIDS.")
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen, contentColor = Color.Black)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue, contentColor = Color.White)
                                 ) {
                                     Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(8.dp))
@@ -258,10 +248,10 @@ fun SistemaConfigScreen(
                                         }
                                     },
                                     enabled = !registrandoUid,
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonGreen else NeonGreenContrast)
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                                 ) {
                                     if (registrandoUid) {
-                                        CircularProgressIndicator(Modifier.size(18.dp), color = NeonGreen, strokeWidth = 2.dp)
+                                        CircularProgressIndicator(Modifier.size(18.dp), color = MeliBlue, strokeWidth = 2.dp)
                                         Spacer(Modifier.width(8.dp))
                                     }
                                     Text(if (registrandoUid) "Registrando…" else "Registrar meu UID no sistema")
@@ -270,7 +260,7 @@ fun SistemaConfigScreen(
                         }
                     }
                     // Status atual
-                    GlassCard {
+                    AppCard {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -301,7 +291,7 @@ fun SistemaConfigScreen(
                                                 ModoAtivacao.AUTOMATICA -> "Modo Automático"
                                             },
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                            color = TextGrayLightMode,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -310,7 +300,7 @@ fun SistemaConfigScreen(
                             }
                             
                             if (tempoRestante != null) {
-                                HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f))
+                                HorizontalDivider(color = CardBorderLight)
                                 val dias = tempoRestante / (1000 * 60 * 60 * 24)
                                 val horas = (tempoRestante % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
                                 
@@ -326,7 +316,7 @@ fun SistemaConfigScreen(
                                     Text(
                                         "Data: ${sdf.format(dataAgendada)}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        color = TextGrayLightMode,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -338,7 +328,7 @@ fun SistemaConfigScreen(
                     // Seção Feedbacks
                     SectionHeader(title = "Feedbacks")
 
-                    GlassCard {
+                    AppCard {
                         OutlinedButton(
                             onClick = onNavigateToFeedbacks,
                             modifier = Modifier.fillMaxWidth(),
@@ -353,7 +343,7 @@ fun SistemaConfigScreen(
                     // Seção Sobre o app (versão + buscar atualização)
                     SectionHeader(title = "Sobre o app")
 
-                    GlassCard {
+                    AppCard {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -367,12 +357,12 @@ fun SistemaConfigScreen(
                         }
                     }
 
-                    HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
+                    HorizontalDivider(color = CardBorderLight)
 
                     // Planos e Assinatura (exibir para clientes)
                     SectionHeader(title = "Planos e Assinatura")
 
-                    GlassCard {
+                    AppCard {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -391,7 +381,7 @@ fun SistemaConfigScreen(
                                     Text(
                                         "Mostra o botão \"Planos e Assinatura\" em Configurações e o banner de trial expirado. Ative após configurar produtos no Play Console.",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                                        color = TextGrayLightMode
                                     )
                                 }
                                 Switch(
@@ -410,19 +400,19 @@ fun SistemaConfigScreen(
                                     },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color.Black,
-                                        checkedTrackColor = NeonGreen
+                                        checkedTrackColor = MeliBlue
                                     )
                                 )
                             }
                         }
                     }
 
-                    HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.1f))
+                    HorizontalDivider(color = CardBorderLight)
 
                     // Modo de ativação
                     SectionHeader(title = "Modo de Ativação")
                     
-                    GlassCard {
+                    AppCard {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -455,7 +445,7 @@ fun SistemaConfigScreen(
                                     Text(
                                         "Ativar imediatamente",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        color = TextGrayLightMode,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -463,7 +453,7 @@ fun SistemaConfigScreen(
                                 }
                             }
                             
-                            HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f))
+                            HorizontalDivider(color = CardBorderLight)
                             
                             // Radio Automática
                             Row(
@@ -493,7 +483,7 @@ fun SistemaConfigScreen(
                                     Text(
                                         "Agendar ativação",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        color = TextGrayLightMode,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -503,7 +493,7 @@ fun SistemaConfigScreen(
                             
                             // Seletor de data (se automática selecionada)
                             if (modoSelecionado == ModoAtivacao.AUTOMATICA) {
-                                HorizontalDivider(color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.1f))
+                                HorizontalDivider(color = CardBorderLight)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 
                                 if (dataAgendada != null) {
@@ -537,7 +527,7 @@ fun SistemaConfigScreen(
                     // Toggle para ativação manual imediata
                     if (config?.monetizacaoAtiva != true) {
                         SectionHeader(title = "Ação Rápida")
-                        GlassCard {
+                        AppCard {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -557,7 +547,7 @@ fun SistemaConfigScreen(
                                     Text(
                                         "Sobrescreve agendamento",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        color = TextGrayLightMode,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -574,7 +564,7 @@ fun SistemaConfigScreen(
                         }
                     } else {
                         SectionHeader(title = "Ação Rápida")
-                        GlassCard {
+                        AppCard {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -594,7 +584,7 @@ fun SistemaConfigScreen(
                                     Text(
                                         "Desativa regras de monetização",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                        color = TextGrayLightMode,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -614,7 +604,7 @@ fun SistemaConfigScreen(
                     
                     // Aviso
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange.copy(alpha = 0.2f) else NeonOrangeContrast.copy(alpha = 0.1f)),
+                        colors = CardDefaults.cardColors(containerColor = NeonOrange.copy(alpha = 0.12f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -625,7 +615,7 @@ fun SistemaConfigScreen(
                             Icon(
                                 Icons.Default.Warning,
                                 contentDescription = null,
-                                tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast,
+                                tint = NeonOrange,
                                 modifier = Modifier.size(24.dp)
                             )
                             Text(
@@ -647,7 +637,7 @@ fun SistemaConfigScreen(
                             OutlinedButton(
                                 onClick = { salvarConfiguracao() },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonGreen else NeonGreenContrast)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                             ) {
                                 Text(
                                     "Salvar",
@@ -683,13 +673,13 @@ fun SistemaConfigScreen(
                     // Mensagens
                     message?.let { msg ->
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = NeonGreen),
+                            colors = CardDefaults.cardColors(containerColor = MeliBlue),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 msg,
                                 modifier = Modifier.padding(16.dp),
-                                color = Color.Black
+                                color = Color.White
                             )
                         }
                     }
@@ -718,14 +708,14 @@ fun SistemaConfigScreen(
             title = {
                 Text(
                     "Confirmar Ativação",
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
                     "Ativar monetização agora? Todas as bases seguirão as regras (limite de 5 motoristas no plano gratuito).",
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     maxLines = 3,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
@@ -735,17 +725,17 @@ fun SistemaConfigScreen(
                     onClick = {
                         ativarManual()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                 ) {
                     Text("Confirmar")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { mostrarConfirmacaoAtivacao = false }) {
-                    Text("Cancelar", color = TextGray)
+                    Text("Cancelar", color = TextGrayLightMode)
                 }
             },
-            containerColor = DarkSurface
+            containerColor = Color.White
         )
     }
     
@@ -755,11 +745,11 @@ fun SistemaConfigScreen(
         // Por enquanto, usar um diálogo simples
         AlertDialog(
             onDismissRequest = { mostrarSeletorData = false },
-            title = { Text("Selecionar Data", color = TextWhite) },
+            title = { Text("Selecionar Data", color = TextBlack) },
             text = {
                 Text(
                     "Em produção, aqui haverá um DatePicker completo. Por enquanto, a data será definida programaticamente.",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -782,7 +772,7 @@ fun SistemaConfigScreen(
                     Text("Cancelar")
                 }
             },
-            containerColor = DarkSurface
+            containerColor = Color.White
         )
     }
 }

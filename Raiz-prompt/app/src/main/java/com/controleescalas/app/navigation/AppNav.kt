@@ -66,7 +66,6 @@ fun AppNavHost() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sessionManager = remember { SessionManager(context) }
-    val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
 
     // Estado para manter os dados do usuário logado na memória durante a sessão
     val currentUserId = remember { mutableStateOf<String?>(FirebaseAuth.getInstance().currentUser?.uid) }
@@ -828,9 +827,8 @@ fun AppNavHost() {
 private fun AppNavHostPreview() {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
-    val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
     
-    ControleEscalasTheme(darkTheme = themeMode == "dark") {
+    ControleEscalasTheme {
         AppNavHost()
     }
 }

@@ -36,7 +36,6 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -53,7 +52,8 @@ import com.controleescalas.app.data.CNHQRCodeManager
 import com.controleescalas.app.data.MotoristaQRCodeManager
 import com.controleescalas.app.data.models.MotoristaQRCode
 import com.controleescalas.app.ui.components.BarcodeScannerScreen
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.utils.QRCodeGenerator
@@ -190,22 +190,15 @@ fun DriverIdentificacaoScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Identificação", color = MaterialTheme.colorScheme.onBackground) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.ArrowBack, "Voltar", tint = MaterialTheme.colorScheme.onBackground)
-                    }
-                },
+            AppTopBar(
+                title = "Identificação",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onDismiss,
                 actions = {
                     IconButton(onClick = { showInfoDialog = true }) {
                         Icon(
                             Icons.Default.Info,
-                            contentDescription = "Informações sobre Identificação",
-                            tint = MaterialTheme.colorScheme.onBackground
+                            contentDescription = "Informações sobre Identificação"
                         )
                     }
                 }
@@ -218,8 +211,8 @@ fun DriverIdentificacaoScreen(
                 val isError = messageText.contains("inválido", ignoreCase = true)
                 Snackbar(
                     snackbarData = snackbarData,
-                    containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                    contentColor = if (isError) TextWhite else Color.Black
+                    containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                    contentColor = TextWhite
                 )
             }
         }
@@ -335,7 +328,7 @@ fun DriverIdentificacaoScreen(
                     Text(
                         "Como funciona a Identificação",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextWhite
+                        color = TextBlack
                     )
                 },
                 text = {
@@ -345,34 +338,34 @@ fun DriverIdentificacaoScreen(
                         Text(
                             "A tela de Identificação possui duas abas:",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                         Text(
                             "• CNH/QR code: Adicione a imagem da sua CNH e escaneie o QR Code da habilitação com a câmera",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                         Text(
                             "• QR do Motorista: Escaneie ou importe um QR Code para identificação pessoal",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             "Os dados são salvos localmente no seu dispositivo.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray.copy(alpha = 0.7f)
+                            color = TextGrayLightMode.copy(alpha = 0.7f)
                         )
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = { showInfoDialog = false }) {
-                        Text("Entendi", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonPurple else NeonPurpleContrast)
+                        Text("Entendi", color = NeonPurple)
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
                 titleContentColor = MaterialTheme.colorScheme.onSurface,
-                textContentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                textContentColor = TextGrayLightMode
             )
         }
     }
@@ -438,7 +431,7 @@ fun QRMotoristaTab(
             ) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(48.dp),
-                    color = NeonGreen
+                    color = MeliBlue
                 )
             }
         } else if (qrCodeBitmap != null) {
@@ -469,7 +462,7 @@ fun QRMotoristaTab(
                         )
                         Text(
                             text = "Clique para ampliar",
-                            color = TextGray.copy(alpha = 0.8f),
+                            color = TextGrayLightMode.copy(alpha = 0.8f),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
@@ -495,7 +488,7 @@ fun QRMotoristaTab(
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                GlassCard {
+                AppCard {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -505,16 +498,16 @@ fun QRMotoristaTab(
                             Icons.Default.QrCode,
                             null,
                             modifier = Modifier.size(48.dp),
-                            tint = TextGray
+                            tint = TextGrayLightMode
                         )
                         Text(
                             "Nenhum QR Code cadastrado",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
                             "Escaneie ou importe um QR Code para começar",
-                            color = TextGray.copy(alpha = 0.7f),
+                            color = TextGrayLightMode.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -534,8 +527,8 @@ fun QRMotoristaTab(
                 enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = NeonGreen,
-                    contentColor = Color.Black
+                    containerColor = MeliBlue,
+                    contentColor = Color.White
                 )
             ) {
                 Icon(Icons.Default.CameraAlt, null, modifier = Modifier.size(20.dp))
@@ -547,7 +540,7 @@ fun QRMotoristaTab(
                 onClick = onAbrirImagemClick,
                 enabled = !isLoading,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
             ) {
                 Icon(Icons.Default.Image, null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
@@ -893,14 +886,14 @@ fun CNHTab(
                         imageVector = Icons.Default.ArrowBack,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = TextGray
+                        tint = TextGrayLightMode
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                 }
                 
                 Text(
                     text = "Arraste para o lado",
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     style = MaterialTheme.typography.bodySmall
                 )
                 
@@ -910,7 +903,7 @@ fun CNHTab(
                         imageVector = Icons.Default.ArrowForward,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = TextGray
+                        tint = TextGrayLightMode
                     )
                 }
             }
@@ -918,7 +911,7 @@ fun CNHTab(
                 (pagerState.currentPage == 1 && qrCodeBitmap != null)) {
                 Text(
                     text = "Clique para ampliar",
-                    color = TextGray.copy(alpha = 0.8f),
+                    color = TextGrayLightMode.copy(alpha = 0.8f),
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -1111,14 +1104,14 @@ fun CNHImagePage(
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(48.dp),
-                color = NeonGreen
+                color = MeliBlue
             )
         } else if (cnhImageBitmap != null) {
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
                 // Imagem da CNH ocupando todo o card (clique para ampliar)
-                GlassCard(
+                AppCard(
                     modifier = Modifier.fillMaxSize(),
                     onClick = onImageClick
                 ) {
@@ -1158,16 +1151,16 @@ fun CNHImagePage(
                     Icons.Default.Description,
                     null,
                     modifier = Modifier.size(64.dp),
-                    tint = TextGray
+                    tint = TextGrayLightMode
                 )
                 Text(
                     "Nenhuma imagem da CNH cadastrada",
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
                     "Selecione uma imagem da galeria",
-                    color = TextGray.copy(alpha = 0.7f),
+                    color = TextGrayLightMode.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.bodySmall
                 )
                 
@@ -1175,8 +1168,8 @@ fun CNHImagePage(
                     onClick = onSelectImageClick,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = Color.Black
+                        containerColor = MeliBlue,
+                        contentColor = Color.White
                     )
                 ) {
                     Icon(Icons.Default.Image, null, modifier = Modifier.size(20.dp))
@@ -1209,7 +1202,7 @@ fun CNHQRCodePage(
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(48.dp),
-                color = NeonGreen
+                color = MeliBlue
             )
         } else if (qrCodeBitmap != null) {
             Column(
@@ -1267,8 +1260,8 @@ fun CNHQRCodePage(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = Color.Black
+                        containerColor = MeliBlue,
+                        contentColor = Color.White
                     )
                 ) {
                     Icon(Icons.Default.CameraAlt, null, modifier = Modifier.size(18.dp))
@@ -1285,16 +1278,16 @@ fun CNHQRCodePage(
                     Icons.Default.QrCode,
                     null,
                     modifier = Modifier.size(64.dp),
-                    tint = TextGray
+                    tint = TextGrayLightMode
                 )
                 Text(
                     "Nenhum QR Code cadastrado",
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
                     "Escaneie com a câmera para adicionar",
-                    color = TextGray.copy(alpha = 0.7f),
+                    color = TextGrayLightMode.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.bodySmall
                 )
                 
@@ -1303,8 +1296,8 @@ fun CNHQRCodePage(
                     onClick = onScanWithCameraClick,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = Color.Black
+                        containerColor = MeliBlue,
+                        contentColor = Color.White
                     )
                 ) {
                     Icon(Icons.Default.CameraAlt, null, modifier = Modifier.size(20.dp))

@@ -51,6 +51,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.AssistenteViewModel
 import com.controleescalas.app.ui.viewmodels.ChatMessage
@@ -211,23 +212,11 @@ fun AssistenteScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        Text("Assistente IA", color = TextWhite, style = MaterialTheme.typography.titleMedium)
-                        Text("Online e pronto para ajudar", color = NeonGreen, style = MaterialTheme.typography.labelSmall)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            AppTopBar(
+                title = "Assistente IA",
+                subtitle = "Online e pronto para ajudar",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onBack
             )
         },
         containerColor = Color.Transparent
@@ -235,11 +224,7 @@ fun AssistenteScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(DeepBlue, DarkBackground, DarkBackground)
-                    )
-                )
+                .background(Color.White)
                 .padding(paddingValues)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -256,18 +241,18 @@ fun AssistenteScreen(
                         ) {
                             Text(
                             "Assistente IA",
-                            color = NeonGreen,
+                            color = MeliBlue,
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             "Pronto para organizar sua escala hoje.",
-                            color = TextWhite,
+                            color = TextBlack,
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
                             "Dê comandos de voz, digite ou envie uma foto.",
-                            color = TextGray.copy(alpha = 0.7f),
+                            color = TextGrayLightMode.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.bodySmall
                         )
                         }
@@ -295,7 +280,7 @@ fun AssistenteScreen(
                 // Barra de Entrada Flutuante
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .fillMaxWidth().padding(bottom = 116.dp)
                         .imePadding()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
@@ -312,30 +297,30 @@ fun AssistenteScreen(
                             enabled = !isLoading,
                             modifier = Modifier
                                 .size(40.dp)
-                                .background(DarkSurface.copy(alpha = 0.6f), CircleShape)
+                                .background(LightSurfaceVariant, CircleShape)
                         ) {
-                            Icon(Icons.Default.CameraAlt, "Câmera", tint = if (isLoading) TextGray else TextWhite, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.CameraAlt, "Câmera", tint = if (isLoading) TextDisabled else TextBlack, modifier = Modifier.size(20.dp))
                         }
                         IconButton(
                             onClick = { pickImageLauncher.launch("image/*") },
                             enabled = !isLoading,
                             modifier = Modifier
                                 .size(40.dp)
-                                .background(DarkSurface.copy(alpha = 0.6f), CircleShape)
+                                .background(LightSurfaceVariant, CircleShape)
                         ) {
-                            Icon(Icons.Default.AddPhotoAlternate, "Galeria", tint = if (isLoading) TextGray else TextWhite, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.AddPhotoAlternate, "Galeria", tint = if (isLoading) TextDisabled else TextBlack, modifier = Modifier.size(20.dp))
                         }
                         IconButton(
                             onClick = { startSpeechRecognition() },
                             enabled = !isLoading,
                             modifier = Modifier
                                 .size(40.dp)
-                                .background(DarkSurface.copy(alpha = 0.6f), CircleShape)
+                                .background(LightSurfaceVariant, CircleShape)
                         ) {
                             Icon(
                                 Icons.Default.Mic,
                                 if (isListening) "Ouvindo..." else "Falar",
-                                tint = if (isListening) NeonGreen else if (isLoading) TextGray else TextWhite,
+                                tint = if (isListening) StatusError else if (isLoading) TextDisabled else TextBlack,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -343,7 +328,7 @@ fun AssistenteScreen(
 
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        color = DarkSurface.copy(alpha = 0.8f),
+                        color = LightSurfaceVariant,
                         shape = RoundedCornerShape(32.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)),
                         shadowElevation = 12.dp
@@ -367,15 +352,15 @@ fun AssistenteScreen(
                                         .focusRequester(focusRequester)
                                         .onFocusChanged { onInputFocusChange(it.isFocused) }
                                         .padding(horizontal = 12.dp, vertical = 12.dp),
-                                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextWhite),
-                                    cursorBrush = SolidColor(NeonGreen),
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = TextBlack),
+                                    cursorBrush = SolidColor(MeliBlue),
                                     keyboardOptions = KeyboardOptions(
                                         capitalization = KeyboardCapitalization.Sentences
                                     ),
                                     decorationBox = { inner ->
                                         Box(modifier = Modifier.fillMaxWidth()) {
                                             if (inputText.isEmpty() && selectedImageUri == null) {
-                                                Text("Fale com o assistente...", color = TextGray, style = MaterialTheme.typography.bodyLarge)
+                                                Text("Fale com o assistente...", color = TextGrayLightMode, style = MaterialTheme.typography.bodyLarge)
                                             }
                                             inner()
                                         }
@@ -398,8 +383,8 @@ fun AssistenteScreen(
                                     },
                                     modifier = Modifier.size(44.dp),
                                     shape = CircleShape,
-                                    containerColor = if (canSend) NeonGreen else DarkSurfaceVariant,
-                                    contentColor = if (canSend) DarkBackground else TextGray,
+                                    containerColor = if (canSend) MeliBlue else LightSurfaceVariant,
+                                    contentColor = if (canSend) Color.White else TextDisabled,
                                     elevation = FloatingActionButtonDefaults.elevation(0.dp)
                                 ) {
                                     Icon(Icons.Default.Send, "Enviar", modifier = Modifier.size(20.dp))
@@ -410,17 +395,17 @@ fun AssistenteScreen(
                                 Surface(
                                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                                     shape = RoundedCornerShape(16.dp),
-                                    color = NeonGreen.copy(alpha = 0.15f)
+                                    color = MeliBlue.copy(alpha = 0.15f)
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Icon(Icons.Default.AddPhotoAlternate, null, tint = NeonGreen, modifier = Modifier.size(18.dp))
-                                        Text("Imagem anexada", color = TextWhite, style = MaterialTheme.typography.bodySmall)
+                                        Icon(Icons.Default.AddPhotoAlternate, null, tint = MeliBlue, modifier = Modifier.size(18.dp))
+                                        Text("Imagem anexada", color = TextBlack, style = MaterialTheme.typography.bodySmall)
                                         IconButton(onClick = { selectedImageUri = null }, modifier = Modifier.size(24.dp)) {
-                                            Icon(Icons.Default.Close, "Remover", tint = TextGray, modifier = Modifier.size(14.dp))
+                                            Icon(Icons.Default.Close, "Remover", tint = TextGrayLightMode, modifier = Modifier.size(14.dp))
                                         }
                                     }
                                 }
@@ -449,7 +434,7 @@ fun MessageBubble(msg: ChatMessage) {
             verticalAlignment = Alignment.Bottom
         ) {
             if (!isUser) {
-                AvatarIcon(Icons.Default.AutoAwesome, NeonGreen)
+                AvatarIcon(Icons.Default.AutoAwesome, MeliBlue)
                 Spacer(modifier = Modifier.width(8.dp))
             }
             
@@ -460,16 +445,16 @@ fun MessageBubble(msg: ChatMessage) {
                     bottomStart = if (isUser) 20.dp else 4.dp,
                     bottomEnd = if (isUser) 4.dp else 20.dp
                 ),
-                color = if (isUser) NeonGreen.copy(alpha = 0.2f) else DarkSurface.copy(alpha = 0.7f),
+                color = if (isUser) MeliBlue.copy(alpha = 0.12f) else LightSurfaceVariant,
                 border = androidx.compose.foundation.BorderStroke(
                     1.dp, 
-                    if (isUser) NeonGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
+                    if (isUser) MeliBlue.copy(alpha = 0.3f) else CardBorderLight
                 )
             ) {
                 Text(
                     text = msg.text,
                     modifier = Modifier.padding(14.dp),
-                    color = TextWhite,
+                    color = TextBlack,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         lineHeight = 22.sp,
                         letterSpacing = 0.3.sp
@@ -490,7 +475,7 @@ fun AvatarIcon(icon: ImageVector, color: Color) {
     Surface(
         modifier = Modifier.size(32.dp),
         shape = CircleShape,
-        color = DarkSurfaceVariant,
+        color = LightSurfaceVariant,
         border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.2f))
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -534,6 +519,6 @@ fun Dot(offsetY: Float) {
             .size(6.dp)
             .offset(y = offsetY.dp),
         shape = CircleShape,
-        color = NeonGreen.copy(alpha = 0.6f)
+        color = TextDisabled
     ) {}
 }

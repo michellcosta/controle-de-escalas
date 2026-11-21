@@ -204,64 +204,65 @@ class StatusCheckWorker(
             val raioGalpao = config.galpao.raio.toDouble()
             
             val motoristaRepository = MotoristaRepository()
-            var statusAtualizado = false
-            
-            // Verificar galpão primeiro (tem prioridade)
-            if (config.galpao.lat != 0.0 && config.galpao.lng != 0.0) {
-                val dentroDoGalpao = distanciaGalpao <= raioGalpao
-                Log.d(TAG, "📍 Verificação de localização - Galpão: distância=${distanciaGalpao.toInt()}m, raio=${raioGalpao.toInt()}m, dentro=${dentroDoGalpao}")
-                
-                // Se está dentro do raio do galpão e status é A_CAMINHO, atualizar para CHEGUEI
-                if (dentroDoGalpao && currentStatus == "A_CAMINHO") {
-                    Log.d(TAG, "✅ Motorista está dentro do raio do galpão (${distanciaGalpao.toInt()}m), atualizando status para CHEGUEI")
-                    val success = motoristaRepository.updateStatusMotorista(
-                        motoristaId = motoristaId,
-                        baseId = baseId,
-                        estado = "CHEGUEI",
-                        mensagem = "Chegou ao galpão (automático - background)"
-                    )
-                    
-                    if (success) {
-                        Log.d(TAG, "✅ Status atualizado para CHEGUEI em background")
-                        statusAtualizado = true
-                        NotifyStatusChangeWorker.enqueue(applicationContext, baseId, motoristaId, "CHEGUEI")
-                    } else {
-                        Log.e(TAG, "❌ Erro ao atualizar status para CHEGUEI em background")
-                    }
-                }
-            }
-            
-            // Verificar estacionamento apenas se não estiver dentro do galpão
-            // (o galpão tem prioridade sobre o estacionamento)
-            if (!statusAtualizado && config.estacionamento.lat != 0.0 && config.estacionamento.lng != 0.0) {
+            val dentroDoGalpao = config.galpao.lat != 0.0 && distanciaGalpao <= raioGalpao
+            Log.d(TAG, "📍 Verificação de localização - Galpão: distância=${distanciaGalpao.toInt()}m, raio=${raioGalpao.toInt()}m, dentro=$dentroDoGalpao")
+
+            var dentroDoEstacionamento = false
+            var distanciaEstacionamento = Double.MAX_VALUE
+            if (config.estacionamento.lat != 0.0 && config.estacionamento.lng != 0.0) {
                 val resultsEstacionamento = FloatArray(1)
                 Location.distanceBetween(
                     location.latitude, location.longitude,
                     config.estacionamento.lat, config.estacionamento.lng,
                     resultsEstacionamento
                 )
-                val distanciaEstacionamento = resultsEstacionamento[0].toDouble()
+                distanciaEstacionamento = resultsEstacionamento[0].toDouble()
                 val raioEstacionamento = config.estacionamento.raio.toDouble()
-                
-                val dentroDoEstacionamento = distanciaEstacionamento <= raioEstacionamento
-                Log.d(TAG, "📍 Verificação de localização - Estacionamento: distância=${distanciaEstacionamento.toInt()}m, raio=${raioEstacionamento.toInt()}m, dentro=${dentroDoEstacionamento}")
-                
-                // ESTACIONAMENTO só quando o admin mandou ir para o estacionamento.
-                if (dentroDoEstacionamento && currentStatus == "IR_ESTACIONAMENTO") {
-                    Log.d(TAG, "✅ Motorista está dentro do raio do estacionamento (${distanciaEstacionamento.toInt()}m), atualizando status para ESTACIONAMENTO")
-                    val success = motoristaRepository.updateStatusMotorista(
-                        motoristaId = motoristaId,
-                        baseId = baseId,
-                        estado = "ESTACIONAMENTO",
-                        mensagem = "Chegou ao estacionamento (automático - background)"
-                    )
-                    
-                    if (success) {
-                        Log.d(TAG, "✅ Status atualizado para ESTACIONAMENTO em background")
-                        NotifyStatusChangeWorker.enqueue(applicationContext, baseId, motoristaId, "ESTACIONAMENTO")
-                    } else {
-                        Log.e(TAG, "❌ Erro ao atualizar status para ESTACIONAMENTO em background")
-                    }
+                dentroDoEstacionamento = distanciaEstacionamento <= raioEstacionamento
+                Log.d(TAG, "📍 Verificação de localização - Estacionamento: distância=${distanciaEstacionamento.toInt()}m, raio=${raioEstacionamento.toInt()}m, dentro=$dentroDoEstacionamento")
+            }
+
+            if (dentroDoEstacionamento && GeofencingService.podeDetectarEstacionamento(currentStatus)) {
+                Log.d(TAG, "✅ Motorista está dentro do raio do estacionamento (${distanciaEstacionamento.toInt()}m), atualizando status para ESTACIONAMENTO")
+                val success = motoristaRepository.updateStatusMotorista(
+                    motoristaId = motoristaId,
+                    baseId = baseId,
+                    estado = "ESTACIONAMENTO",
+                    mensagem = "Chegou ao estacionamento (automático - background)"
+                )
+                if (success) {
+                    Log.d(TAG, "✅ Status atualizado para ESTACIONAMENTO em background")
+                    NotifyStatusChangeWorker.enqueue(applicationContext, baseId, motoristaId, "ESTACIONAMENTO")
+                } else {
+                    Log.e(TAG, "❌ Erro ao atualizar status para ESTACIONAMENTO em background")
+                }
+            } else if (dentroDoGalpao && currentStatus == "A_CAMINHO") {
+                Log.d(TAG, "✅ Motorista está dentro do raio do galpão (${distanciaGalpao.toInt()}m), atualizando status para CHEGUEI")
+                val success = motoristaRepository.updateStatusMotorista(
+                    motoristaId = motoristaId,
+                    baseId = baseId,
+                    estado = "CHEGUEI",
+                    mensagem = "Chegou ao galpão (automático - background)"
+                )
+                if (success) {
+                    Log.d(TAG, "✅ Status atualizado para CHEGUEI em background")
+                    NotifyStatusChangeWorker.enqueue(applicationContext, baseId, motoristaId, "CHEGUEI")
+                } else {
+                    Log.e(TAG, "❌ Erro ao atualizar status para CHEGUEI em background")
+                }
+            } else if (!dentroDoGalpao && !dentroDoEstacionamento && GeofencingService.podeVoltarACaminho(currentStatus)) {
+                Log.d(TAG, "✅ Motorista saiu dos raios, atualizando status para A_CAMINHO")
+                val success = motoristaRepository.updateStatusMotorista(
+                    motoristaId = motoristaId,
+                    baseId = baseId,
+                    estado = "A_CAMINHO",
+                    mensagem = "Saiu da área (automático - background)"
+                )
+                if (success) {
+                    Log.d(TAG, "✅ Status atualizado para A_CAMINHO em background")
+                    NotifyStatusChangeWorker.enqueue(applicationContext, baseId, motoristaId, "A_CAMINHO")
+                } else {
+                    Log.e(TAG, "❌ Erro ao atualizar status para A_CAMINHO em background")
                 }
             }
         } catch (e: Exception) {

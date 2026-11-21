@@ -96,7 +96,7 @@ fun EscalaPorFotoScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -107,7 +107,7 @@ fun EscalaPorFotoScreen(
             Text(
                 "Formato: Nome / Vaga / Rota\nEx: Brendon / 02 / F7",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextGray,
+                color = TextGrayLightMode,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
 
@@ -115,7 +115,7 @@ fun EscalaPorFotoScreen(
                 OutlinedButton(
                     onClick = { launchCamera() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                 ) {
                     Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(24.dp))
                     Spacer(Modifier.width(8.dp))
@@ -129,9 +129,9 @@ fun EscalaPorFotoScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = NeonGreen)
+                        CircularProgressIndicator(color = MeliBlue)
                         Spacer(Modifier.height(16.dp))
-                        Text("Processando imagem...", color = TextGray)
+                        Text("Processando imagem...", color = TextGrayLightMode)
                     }
                 }
             }
@@ -149,7 +149,7 @@ fun EscalaPorFotoScreen(
                 Text(
                     "Encontrados: ${parsedEntries.size} motoristas. Confira e aplique.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
 
@@ -207,7 +207,7 @@ fun EscalaPorFotoScreen(
                             onBack()
                         },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                        colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                     ) {
                         val validCount = parsedEntries.count { it.motoristaId != null }
                         Text("Aplicar ($validCount)")
@@ -223,7 +223,7 @@ private fun ParsedEntryCard(entry: ParsedEscalaEntry) {
     val isMatched = entry.motoristaId != null
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (isMatched) DarkSurface else DarkSurface.copy(alpha = 0.7f)
+            containerColor = if (isMatched) Color.White else Color.White.copy(alpha = 0.7f)
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -243,7 +243,7 @@ private fun ParsedEntryCard(entry: ParsedEscalaEntry) {
                 Text(
                     "Vaga ${entry.vaga} | Rota ${entry.rota} | ${entry.ondaIndex + 1}ª onda",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 if (!isMatched) {
                     Text("Não encontrado", style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF6B6B))

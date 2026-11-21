@@ -25,8 +25,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.Onda
 import com.controleescalas.app.data.models.OndaItem
 import com.controleescalas.app.ui.components.CustomTextField
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.data.models.AdminMotoristaCardData
@@ -89,7 +89,7 @@ fun ScaleScreen(
                         }
                     }
                     TextButton(onClick = { showSaveConfirmDialog = true }) {
-                        Text("SALVAR", color = NeonGreen, fontWeight = FontWeight.Bold)
+                        Text("SALVAR", color = MeliBlue, fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -100,7 +100,7 @@ fun ScaleScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.addOnda(selectedTurno) },
-                containerColor = NeonGreen,
+                containerColor = MeliBlue,
                 contentColor = Color.Black
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Adicionar Onda")
@@ -112,7 +112,7 @@ fun ScaleScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(DarkBackground, DeepBlue)
+                        colors = listOf(Color.White, Color.White)
                     )
                 )
                 .padding(paddingValues)
@@ -163,7 +163,7 @@ fun ScaleScreen(
                 // Lista de Ondas
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NeonGreen)
+                        CircularProgressIndicator(color = MeliBlue)
                     }
                 } else {
                     LazyColumn(
@@ -194,7 +194,7 @@ fun ScaleScreen(
             if (showAddDriverDialog) {
                 AlertDialog(
                     onDismissRequest = { showAddDriverDialog = false },
-                    containerColor = DarkSurface,
+                    containerColor = Color.White,
                     title = { 
                         Text(
                             "Adicionar Motorista à Onda ${selectedOndaIndex + 1}", 
@@ -218,17 +218,17 @@ fun ScaleScreen(
                                         Icon(
                                             Icons.Default.Person,
                                             contentDescription = null,
-                                            tint = TextGray,
+                                            tint = TextGrayLightMode,
                                             modifier = Modifier.size(48.dp)
                                         )
                                         Text(
                                             "Nenhum motorista cadastrado",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                         Text(
                                             "Cadastre motoristas primeiro",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.bodySmall
                                         )
                                     }
@@ -236,7 +236,7 @@ fun ScaleScreen(
                             } else {
                                 Text(
                                     "Selecione um motorista:",
-                                    color = TextGray,
+                                    color = TextGrayLightMode,
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 )
@@ -246,7 +246,7 @@ fun ScaleScreen(
                                 ) {
                                     items(motoristasDisponiveis) { motorista ->
                                         Card(
-                                            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE5E5EA)),
                                             onClick = {
                                                 viewModel.addMotoristaToOnda(selectedOndaIndex, motorista)
                                                 showAddDriverDialog = false
@@ -263,7 +263,7 @@ fun ScaleScreen(
                                                 Icon(
                                                     Icons.Default.Person, 
                                                     contentDescription = null, 
-                                                    tint = NeonGreen,
+                                                    tint = MeliBlue,
                                                     modifier = Modifier.size(24.dp)
                                                 )
                                                 Column {
@@ -274,7 +274,7 @@ fun ScaleScreen(
                                                     )
                                                     Text(
                                                         motorista.telefone,
-                                                        color = TextGray,
+                                                        color = TextGrayLightMode,
                                                         style = MaterialTheme.typography.bodySmall
                                                     )
                                                 }
@@ -287,7 +287,7 @@ fun ScaleScreen(
                     },
                     confirmButton = {
                         TextButton(onClick = { showAddDriverDialog = false }) {
-                            Text("FECHAR", color = NeonGreen)
+                            Text("FECHAR", color = MeliBlue)
                         }
                     }
                 )
@@ -297,7 +297,7 @@ fun ScaleScreen(
             message?.let { msg ->
                 Snackbar(
                     modifier = Modifier.align(Alignment.BottomCenter),
-                    containerColor = NeonGreen,
+                    containerColor = MeliBlue,
                     contentColor = Color.Black
                 ) {
                     Text(msg)
@@ -310,7 +310,7 @@ fun ScaleScreen(
     if (showSaveConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showSaveConfirmDialog = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = { 
                 Text("Salvar Escala", color = TextWhite, fontWeight = FontWeight.Bold) 
             },
@@ -324,24 +324,24 @@ fun ScaleScreen(
                     
                     escala?.let { esc ->
                         Surface(
-                            color = DarkSurfaceVariant,
+                            color = Color(0xFFE5E5EA),
                             shape = MaterialTheme.shapes.small
                         ) {
                             Column(
                                 modifier = Modifier.padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("Resumo:", color = NeonGreen, fontWeight = FontWeight.Bold)
-                                Text("• Turno: ${esc.turno}", color = TextGray, style = MaterialTheme.typography.bodySmall)
-                                Text("• Ondas: ${esc.ondas.size}", color = TextGray, style = MaterialTheme.typography.bodySmall)
-                                Text("• Motoristas: ${esc.ondas.sumOf { it.itens.size }}", color = TextGray, style = MaterialTheme.typography.bodySmall)
+                                Text("Resumo:", color = MeliBlue, fontWeight = FontWeight.Bold)
+                                Text("• Turno: ${esc.turno}", color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
+                                Text("• Ondas: ${esc.ondas.size}", color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
+                                Text("• Motoristas: ${esc.ondas.sumOf { it.itens.size }}", color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                NeonButton(
+                AppButton(
                     text = "SALVAR",
                     onClick = {
                         viewModel.saveEscala(baseId)
@@ -352,7 +352,7 @@ fun ScaleScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showSaveConfirmDialog = false }) {
-                    Text("CANCELAR", color = TextGray)
+                    Text("CANCELAR", color = TextGrayLightMode)
                 }
             }
         )
@@ -366,7 +366,7 @@ fun OndaCard(
     onAddDriver: () -> Unit,
     onUpdateItem: (Int, String, String, String) -> Unit
 ) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -376,7 +376,7 @@ fun OndaCard(
                 Text(
                     text = onda.nome,
                     style = MaterialTheme.typography.titleLarge,
-                    color = NeonGreen
+                    color = MeliBlue
                 )
                 IconButton(onClick = onAddDriver) {
                     Icon(Icons.Default.Add, contentDescription = "Adicionar Motorista", tint = TextWhite)
@@ -389,7 +389,7 @@ fun OndaCard(
                 Text(
                     text = "Nenhum motorista nesta onda",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             } else {
@@ -401,7 +401,7 @@ fun OndaCard(
                         }
                     )
                     if (index < onda.itens.size - 1) {
-                        Divider(color = TextGray.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 12.dp))
+                        Divider(color = TextGrayLightMode.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 12.dp))
                     }
                 }
             }

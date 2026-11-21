@@ -31,6 +31,14 @@ class GeofencingService(private val context: Context) {
         // IDs dos geofences
         const val GEOFENCE_GALPAO_ID = "galpao_geofence"
         const val GEOFENCE_ESTACIONAMENTO_ID = "estacionamento_geofence"
+
+        fun podeDetectarEstacionamento(status: String?): Boolean {
+            return status == "IR_ESTACIONAMENTO" || status == "A_CAMINHO" || status == "CHEGUEI"
+        }
+
+        fun podeVoltarACaminho(status: String?): Boolean {
+            return status == "CHEGUEI" || status == "ESTACIONAMENTO"
+        }
         
         // Intent actions
         const val ACTION_GEOFENCE_TRANSITION = "com.controleescalas.app.GEOFENCE_TRANSITION"
@@ -66,6 +74,7 @@ class GeofencingService(private val context: Context) {
     // Uma gravação por permanência. Evita regravar CHEGUEI/ESTACIONAMENTO a cada posição.
     private var chegueiSolicitadoNestaPermanencia = false
     private var estacionamentoSolicitadoNestaPermanencia = false
+    private var aCaminhoSolicitadoForaDosRaios = false
     private var statusNaUltimaChecagem: String? = null
     
     // Propriedades para rastrear estado e reduzir logs
@@ -273,6 +282,7 @@ class GeofencingService(private val context: Context) {
             lastDistance = Double.MAX_VALUE
             chegueiSolicitadoNestaPermanencia = false
             estacionamentoSolicitadoNestaPermanencia = false
+            aCaminhoSolicitadoForaDosRaios = false
             statusNaUltimaChecagem = null
             Log.d("GeofencingService", "✅ Informações do motorista configuradas: $motoristaId, status: $currentStatus (detecção reiniciada)")
         } else {
@@ -284,8 +294,22 @@ class GeofencingService(private val context: Context) {
      * Atualizar status atual (chamado quando status muda externamente)
      */
     fun updateCurrentStatus(newStatus: String) {
+        val statusMudou = this.currentStatus != newStatus
         this.currentStatus = newStatus
         Log.d("GeofencingService", "🔄 Status atual atualizado para: $newStatus")
+        if (statusMudou && newStatus == "A_CAMINHO") {
+            // Admin resetou: o motorista pode já estar no pátio. Sem zerar,
+            // a permanência antiga impede gravar ESTACIONAMENTO de novo.
+            chegueiSolicitadoNestaPermanencia = false
+            estacionamentoSolicitadoNestaPermanencia = false
+            aCaminhoSolicitadoForaDosRaios = false
+            lastIsInside = false
+            lastIsInsideEstacionamento = false
+            statusNaUltimaChecagem = null
+        }
+        if (statusMudou && (newStatus == "IR_ESTACIONAMENTO" || newStatus == "A_CAMINHO")) {
+            checkCurrentLocationImmediately()
+        }
     }
 
     /**
@@ -298,11 +322,12 @@ class GeofencingService(private val context: Context) {
         if (galpaoLat == null || galpaoLng == null) return
         
         fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
+            val idade = if (location != null) System.currentTimeMillis() - location.time else Long.MAX_VALUE
+            if (location != null && idade <= 60_000L) {
                 Log.d("GeofencingService", "📍 Checagem imediata: localização obtida, verificando se dentro do raio")
                 updateGeofenceStatus(location)
             } else {
-                Log.d("GeofencingService", "📍 Checagem imediata: lastLocation null, solicitando atualização temporária")
+                Log.d("GeofencingService", "📍 Checagem imediata: lastLocation ausente ou antiga, pedindo GPS atual")
                 requestOneTimeLocationUpdate()
             }
         }.addOnFailureListener { e ->
@@ -500,8 +525,22 @@ class GeofencingService(private val context: Context) {
             updateLocationInterval(galpaoDistance, galpaoRadius)
         }
         
-        // Log para debug
-        Log.d("GeofencingService", "📊 updateGeofenceStatus: distância=${galpaoDistance.toInt()}m, dentro=${isInside}, raio=${galpaoRadius.toInt()}m, intervalo=${currentLocationInterval/1000}s, motorista=$motoristaId, base=$baseId, status=$currentStatus")
+        var isInsideEstacionamento = false
+        var estacionamentoDistance = Double.MAX_VALUE
+        if (estacionamentoLat != null && estacionamentoLng != null) {
+            estacionamentoDistance = calculateDistance(
+                location.latitude, location.longitude,
+                estacionamentoLat!!, estacionamentoLng!!
+            )
+            isInsideEstacionamento = estacionamentoDistance <= estacionamentoRadius
+        }
+
+        Log.d(
+            "GeofencingService",
+            "📊 updateGeofenceStatus: galpão=${galpaoDistance.toInt()}m dentro=$isInside raio=${galpaoRadius.toInt()}m | " +
+                "pátio=${if (estacionamentoDistance < Double.MAX_VALUE) "${estacionamentoDistance.toInt()}m" else "n/a"} " +
+                "dentro=$isInsideEstacionamento raio=${estacionamentoRadius.toInt()}m | status=$currentStatus"
+        )
         val galpaoStatus = GeofenceStatus(
             id = GEOFENCE_GALPAO_ID,
             isInside = isInside,
@@ -509,54 +548,39 @@ class GeofencingService(private val context: Context) {
         )
         
         currentStatusMap[GEOFENCE_GALPAO_ID] = galpaoStatus
-        
-        // Calcular distância e status do estacionamento
-        estacionamentoLat?.let { estLat ->
-            estacionamentoLng?.let { estLng ->
-                val estacionamentoDistance = calculateDistance(
-                    location.latitude, location.longitude,
-                    estLat, estLng
-                )
-                
-                val isInsideEstacionamento = estacionamentoDistance <= estacionamentoRadius
-                val estacionamentoStatus = GeofenceStatus(
-                    id = GEOFENCE_ESTACIONAMENTO_ID,
-                    isInside = isInsideEstacionamento,
-                    distance = estacionamentoDistance
-                )
-                
-                currentStatusMap[GEOFENCE_ESTACIONAMENTO_ID] = estacionamentoStatus
-                
-                // Logar quando entrar/sair do estacionamento
-                val estacionamentoStatusChanged = isInsideEstacionamento != lastIsInsideEstacionamento
-                if (estacionamentoStatusChanged) {
-                    if (isInsideEstacionamento) {
-                        Log.d("GeofencingService", "✅ Motorista entrou no raio do estacionamento (${estacionamentoDistance.toInt()}m)")
-                    } else {
-                        Log.d("GeofencingService", "📍 Motorista saiu do raio do estacionamento (${estacionamentoDistance.toInt()}m)")
-                    }
-                    lastIsInsideEstacionamento = isInsideEstacionamento
+
+        if (estacionamentoLat != null && estacionamentoLng != null) {
+            currentStatusMap[GEOFENCE_ESTACIONAMENTO_ID] = GeofenceStatus(
+                id = GEOFENCE_ESTACIONAMENTO_ID,
+                isInside = isInsideEstacionamento,
+                distance = estacionamentoDistance
+            )
+
+            val estacionamentoStatusChanged = isInsideEstacionamento != lastIsInsideEstacionamento
+            if (estacionamentoStatusChanged) {
+                if (isInsideEstacionamento) {
+                    Log.d("GeofencingService", "✅ Motorista entrou no raio do estacionamento (${estacionamentoDistance.toInt()}m)")
+                } else {
+                    Log.d("GeofencingService", "📍 Motorista saiu do raio do estacionamento (${estacionamentoDistance.toInt()}m)")
                 }
-                
-                // ESTACIONAMENTO uma vez: só com IR_ESTACIONAMENTO, dentro do estacionamento e fora do galpão.
-                if (!isInsideEstacionamento) {
-                    estacionamentoSolicitadoNestaPermanencia = false
-                }
-                val statusEstacionamento = currentStatus
-                val acabouDeIrAoEstacionamento = statusEstacionamento == "IR_ESTACIONAMENTO" &&
-                    statusNaUltimaChecagem != "IR_ESTACIONAMENTO"
-                if (!isInside &&
-                    isInsideEstacionamento &&
-                    statusEstacionamento == "IR_ESTACIONAMENTO" &&
-                    motoristaId != null &&
-                    baseId != null &&
-                    !estacionamentoSolicitadoNestaPermanencia &&
-                    (estacionamentoStatusChanged || acabouDeIrAoEstacionamento)
-                ) {
-                    Log.d("GeofencingService", "🔄 Gravando ESTACIONAMENTO uma vez (distância: ${estacionamentoDistance.toInt()}m)")
-                    estacionamentoSolicitadoNestaPermanencia = true
-                    updateStatusToEstacionamento(motoristaId!!, baseId!!)
-                }
+                lastIsInsideEstacionamento = isInsideEstacionamento
+            }
+
+            if (!isInsideEstacionamento) {
+                estacionamentoSolicitadoNestaPermanencia = false
+            }
+            val statusEstacionamento = currentStatus
+            // A_CAMINHO/CHEGUEI: motorista já no pátio (ex.: admin resetou).
+            // IR_ESTACIONAMENTO: admin mandou ir ao estacionamento.
+            if (isInsideEstacionamento &&
+                podeDetectarEstacionamento(statusEstacionamento) &&
+                motoristaId != null &&
+                baseId != null &&
+                !estacionamentoSolicitadoNestaPermanencia
+            ) {
+                Log.d("GeofencingService", "🔄 Gravando ESTACIONAMENTO uma vez (distância: ${estacionamentoDistance.toInt()}m, status=$statusEstacionamento)")
+                estacionamentoSolicitadoNestaPermanencia = true
+                updateStatusToEstacionamento(motoristaId!!, baseId!!)
             }
         }
         
@@ -602,6 +626,7 @@ class GeofencingService(private val context: Context) {
             chegueiSolicitadoNestaPermanencia = false
         }
         val deveGravarCheguei = isInside &&
+            !isInsideEstacionamento &&
             motoristaId != null &&
             baseId != null &&
             statusGalpao != null &&
@@ -614,6 +639,18 @@ class GeofencingService(private val context: Context) {
             updateStatusToCheguei(motoristaId!!, baseId!!)
         } else if (isInside && statusGalpao == "IR_ESTACIONAMENTO") {
             Log.d("GeofencingService", "📍 Dentro do galpão com IR_ESTACIONAMENTO, sem gravar CHEGUEI")
+        }
+
+        if (isInside || isInsideEstacionamento) {
+            aCaminhoSolicitadoForaDosRaios = false
+        } else if (podeVoltarACaminho(statusGalpao) &&
+            motoristaId != null &&
+            baseId != null &&
+            !aCaminhoSolicitadoForaDosRaios
+        ) {
+            Log.d("GeofencingService", "🔄 Gravando A_CAMINHO: saiu dos raios (galpão=${galpaoDistance.toInt()}m, pátio=${if (estacionamentoDistance < Double.MAX_VALUE) "${estacionamentoDistance.toInt()}m" else "n/a"})")
+            aCaminhoSolicitadoForaDosRaios = true
+            updateStatusToACaminho(motoristaId!!, baseId!!)
         }
 
         statusNaUltimaChecagem = currentStatus
@@ -645,6 +682,32 @@ class GeofencingService(private val context: Context) {
                 }
             } catch (e: Exception) {
                 Log.e("GeofencingService", "❌ Erro ao atualizar status: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun updateStatusToACaminho(motoristaId: String, baseId: String) {
+        val motoristaRepository = MotoristaRepository()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                Log.d("GeofencingService", "🔄 Tentando atualizar status para A_CAMINHO...")
+                val success = motoristaRepository.updateStatusMotorista(
+                    motoristaId = motoristaId,
+                    baseId = baseId,
+                    estado = "A_CAMINHO",
+                    mensagem = "Saiu da área (automático)"
+                )
+                if (success) {
+                    currentStatus = "A_CAMINHO"
+                    Log.d("GeofencingService", "✅ Status atualizado para A_CAMINHO automaticamente")
+                    NotifyStatusChangeWorker.enqueue(context, baseId, motoristaId, "A_CAMINHO")
+                } else {
+                    Log.e("GeofencingService", "❌ Erro ao atualizar status para A_CAMINHO")
+                    aCaminhoSolicitadoForaDosRaios = false
+                }
+            } catch (e: Exception) {
+                aCaminhoSolicitadoForaDosRaios = false
+                Log.e("GeofencingService", "❌ Erro ao atualizar status para A_CAMINHO: ${e.message}", e)
             }
         }
     }

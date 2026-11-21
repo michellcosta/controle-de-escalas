@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.controleescalas.app.ui.theme.NeonGreen
+import com.controleescalas.app.ui.theme.MeliBlue
 import androidx.core.content.ContextCompat
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
@@ -370,8 +371,8 @@ fun BarcodeScannerScreen(
                             },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = NeonGreen,
-                                contentColor = Color.Black
+                                containerColor = MeliBlue,
+                                contentColor = Color.White
                             )
                         ) {
                             Icon(Icons.Default.Check, null, modifier = Modifier.size(20.dp))

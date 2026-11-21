@@ -48,9 +48,9 @@ fun DialogAtualizacao(
         onDismissRequest = {
             if (!baixandoAtualizacao) onDismiss()
         },
-        containerColor = Color(0xFF1C1C1E),
-        titleContentColor = Color.White,
-        textContentColor = Color(0xFFB8B8B8),
+        containerColor = Color.White,
+        titleContentColor = TextBlack,
+        textContentColor = TextGrayLightMode,
         title = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -60,7 +60,7 @@ fun DialogAtualizacao(
                     modifier = Modifier
                         .size(72.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF3A3423)),
+                        .background(MeliYellow.copy(alpha = 0.35f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("⬇️", fontSize = 30.sp)
@@ -85,7 +85,7 @@ fun DialogAtualizacao(
                     Text(
                         "O que há de novo:",
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFF5C542)
+                        color = MeliBlue
                     )
                     nova.novidades.forEach { item ->
                         Text(
@@ -99,7 +99,7 @@ fun DialogAtualizacao(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         "Baixando... $progressoAtualizacao%",
-                        color = Color(0xFFF5C542),
+                        color = MeliBlue,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.fillMaxWidth(),
                         textAlign = TextAlign.Center
@@ -111,8 +111,8 @@ fun DialogAtualizacao(
                             .fillMaxWidth()
                             .height(6.dp)
                             .clip(RoundedCornerShape(3.dp)),
-                        color = Color(0xFFF5C542),
-                        trackColor = Color(0xFF333333)
+                        color = MeliBlue,
+                        trackColor = LightSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(14.dp))
                     Box(
@@ -121,7 +121,7 @@ fun DialogAtualizacao(
                     ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
-                            color = Color(0xFFF5C542),
+                            color = MeliBlue,
                             strokeWidth = 2.dp
                         )
                     }
@@ -232,10 +232,10 @@ fun BotaoBuscarAtualizacao(
             },
             enabled = !verificando,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = NeonGreen, contentColor = Color.Black)
+            colors = ButtonDefaults.buttonColors(containerColor = MeliBlue, contentColor = Color.White)
         ) {
             if (verificando) {
-                CircularProgressIndicator(Modifier.size(18.dp), color = Color.Black, strokeWidth = 2.dp)
+                CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
                 Spacer(Modifier.width(8.dp))
                 Text("Verificando…")
             } else {
@@ -248,7 +248,7 @@ fun BotaoBuscarAtualizacao(
             Text(
                 msg,
                 style = MaterialTheme.typography.bodySmall,
-                color = if (msg.startsWith("Não")) Color(0xFFE57373) else TextGray,
+                color = if (msg.startsWith("Não")) StatusError else TextGrayLightMode,
                 modifier = Modifier.fillMaxWidth()
             )
         }

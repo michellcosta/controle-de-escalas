@@ -3,6 +3,8 @@ package com.controleescalas.app.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -18,9 +20,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
+import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
 import com.controleescalas.app.data.models.DisponibilidadeMotorista
@@ -35,59 +38,68 @@ fun AvailabilityScreen(
 ) {
     val disponibilidade by viewModel.disponibilidade.collectAsState()
     val message by viewModel.message.collectAsState()
-    var selectedTabIndex by remember { mutableStateOf(0) }
+    val turnosDaBase by viewModel.turnosDaBase.collectAsState()
+    var turnoSelecionado by remember { mutableStateOf<String?>(null) }
     var showInfoDialog by remember { mutableStateOf(false) }
-    
+
     // Garantir que existe disponibilidade ao carregar (cria se não existir)
     // E iniciar observação em tempo real
     LaunchedEffect(baseId) {
+        viewModel.carregarTurnosDaBase(baseId)
         viewModel.garantirDisponibilidadeParaAmanha(baseId)
         viewModel.observarDisponibilidade(baseId) // Observar em tempo real
     }
-    
+
+    // Acompanhar a lista de turnos: seleciona o primeiro enquanto nenhum foi escolhido
+    LaunchedEffect(turnosDaBase) {
+        if (turnoSelecionado !in turnosDaBase) {
+            turnoSelecionado = turnosDaBase.firstOrNull()
+        }
+    }
+
     // Limpar listener quando sair da tela
     DisposableEffect(baseId) {
         onDispose {
             viewModel.pararObservacaoDisponibilidade()
         }
     }
-    
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Gestão de Disponibilidade", color = MaterialTheme.colorScheme.onBackground) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                ),
+            AppTopBar(
+                title = "Gestão de Disponibilidade",
                 actions = {
                     IconButton(onClick = { showInfoDialog = true }) {
                         Icon(
                             Icons.Default.Help,
-                            contentDescription = "Informações sobre disponibilidade",
-                            tint = MaterialTheme.colorScheme.onBackground
+                            contentDescription = "Informações sobre disponibilidade"
                         )
                     }
                 }
             )
         },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = Color.Transparent
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Box(modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
+        PremiumBackground(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(start = 16.dp, top = 16.dp, end = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-            // Estatísticas
-            val totalMotoristas = disponibilidade?.motoristas?.size ?: 0
-            val totalDisponiveis = disponibilidade?.motoristas?.count { it.disponivel == true } ?: 0
-            val totalIndisponiveis = disponibilidade?.motoristas?.count { it.disponivel == false } ?: 0
-            val semResposta = disponibilidade?.motoristas?.count { it.disponivel == null } ?: 0
-            
+            val turnoSelecionadoSeguro = turnoSelecionado ?: turnosDaBase.firstOrNull() ?: ""
+
+            // Estatísticas DO TURNO SELECIONADO
+            val motoristas = disponibilidade?.motoristas.orEmpty()
+            val totalMotoristas = motoristas.size
+            val totalDisponiveis = motoristas.count { it.estadoNoTurno(turnoSelecionadoSeguro) == true }
+            val totalIndisponiveis = motoristas.count { it.estadoNoTurno(turnoSelecionadoSeguro) == false }
+            val semResposta = motoristas.count { it.estadoNoTurno(turnoSelecionadoSeguro) == null }
+
             // Card de estatísticas
             if (totalMotoristas > 0) {
-                GlassCard {
+                AppCard {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -134,19 +146,54 @@ fun AvailabilityScreen(
                     }
                 }
             }
-            
-            // Abas
-            val tabs = listOf("Disponível", "Indisponível", "Sem Resposta")
+
+            // Abas = turnos cadastrados da base
             Column(modifier = Modifier.weight(1f)) {
+                if (turnosDaBase.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        turnosDaBase.forEach { turno ->
+                            val selecionado = turno == turnoSelecionadoSeguro
+                            val countTurno = motoristas.count {
+                                it.estadoNoTurno(turno) != null
+                            }
+                            FilterChip(
+                                selected = selecionado,
+                                onClick = { turnoSelecionado = turno },
+                                label = { Text(turno, fontWeight = FontWeight.Bold) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MeliBlue,
+                                    selectedLabelColor = Color.White,
+                                    labelColor = TextGrayLightMode
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Conteúdo da aba (motoristas por estado NO TURNO selecionado)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val disponiveis = motoristas.filter { it.estadoNoTurno(turnoSelecionadoSeguro) == true }
+                val indisponiveis = motoristas.filter { it.estadoNoTurno(turnoSelecionadoSeguro) == false }
+                val semResposta = motoristas.filter { it.estadoNoTurno(turnoSelecionadoSeguro) == null }
+
+                // Sub-abas de estado dentro do turno
+                val estadoSelecionado = remember(turnoSelecionadoSeguro) { mutableStateOf(0) }
+                val tabsEstado = listOf("Disponível", "Indisponível", "Sem Resposta")
                 TabRow(
-                    selectedTabIndex = selectedTabIndex,
+                    selectedTabIndex = estadoSelecionado.value,
                     containerColor = MaterialTheme.colorScheme.surface,
                     contentColor = MaterialTheme.colorScheme.onSurface
                 ) {
-                    tabs.forEachIndexed { index, title ->
+                    tabsEstado.forEachIndexed { index, title ->
                         Tab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
+                            selected = estadoSelecionado.value == index,
+                            onClick = { estadoSelecionado.value = index },
                             text = {
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -154,20 +201,19 @@ fun AvailabilityScreen(
                                 ) {
                                     Text(
                                         text = title,
-                                        fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Normal
+                                        fontWeight = if (estadoSelecionado.value == index) FontWeight.Bold else FontWeight.Normal
                                     )
-                                    // Badge com contagem
                                     val count = when (index) {
-                                        0 -> totalDisponiveis
-                                        1 -> totalIndisponiveis
-                                        else -> semResposta
+                                        0 -> disponiveis.size
+                                        1 -> indisponiveis.size
+                                        else -> semResposta.size
                                     }
                                     if (count > 0) {
                                         Surface(
                                             color = when (index) {
                                                 0 -> NeonGreen
                                                 1 -> NeonOrange
-                                                else -> TextGray
+                                                else -> TextGrayLightMode
                                             },
                                             shape = MaterialTheme.shapes.small
                                         ) {
@@ -185,16 +231,15 @@ fun AvailabilityScreen(
                         )
                     }
                 }
-                
-                // Conteúdo das abas
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                val motoristasFiltrados = when (selectedTabIndex) {
-                    0 -> disponibilidade?.motoristas?.filter { it.disponivel == true } ?: emptyList()
-                    1 -> disponibilidade?.motoristas?.filter { it.disponivel == false } ?: emptyList()
-                    else -> disponibilidade?.motoristas?.filter { it.disponivel == null } ?: emptyList()
+
+                val motoristasFiltrados = when (estadoSelecionado.value) {
+                    0 -> disponiveis
+                    1 -> indisponiveis
+                    else -> semResposta
                 }
-                
+
                 if (motoristasFiltrados.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -211,20 +256,20 @@ fun AvailabilityScreen(
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
-                                text = when (selectedTabIndex) {
-                                    0 -> "Nenhum motorista disponível ainda"
-                                    1 -> "Nenhum motorista indisponível"
-                                    else -> "Todos os motoristas já responderam"
+                                text = when (estadoSelecionado.value) {
+                                    0 -> "Nenhum motorista disponível no turno $turnoSelecionadoSeguro"
+                                    1 -> "Nenhum motorista indisponível no turno $turnoSelecionadoSeguro"
+                                    else -> "Todos os motoristas já responderam o turno $turnoSelecionadoSeguro"
                                 },
                                 color = MaterialTheme.colorScheme.onSurface,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = when (selectedTabIndex) {
-                                    0 -> "Os motoristas que responderem 'SIM' aparecerão aqui"
-                                    1 -> "Os motoristas que responderem 'NÃO' aparecerão aqui"
-                                    else -> "Os motoristas que ainda não responderem aparecerão aqui"
+                                text = when (estadoSelecionado.value) {
+                                    0 -> "Os motoristas que marcarem 'SIM' no turno aparecerão aqui"
+                                    1 -> "Os motoristas que marcarem 'NÃO' no turno aparecerão aqui"
+                                    else -> "Os motoristas que ainda não responderem este turno aparecerão aqui"
                                 },
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodySmall,
@@ -234,15 +279,20 @@ fun AvailabilityScreen(
                     }
                 } else {
                     LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(bottom = 120.dp)
                     ) {
                         items(motoristasFiltrados, key = { "${it.motoristaId}-${it.telefone}" }) { motorista ->
-                            AvailabilityItemRow(motorista)
+                            AvailabilityItemRow(
+                                motorista = motorista,
+                                estado = motorista.estadoNoTurno(turnoSelecionadoSeguro)
+                            )
                         }
                     }
                 }
             }
             }
+        }
         }
 
         // Diálogo de informações sobre disponibilidade automática
@@ -257,7 +307,7 @@ fun AvailabilityScreen(
                         Icon(
                             Icons.Default.DateRange,
                             contentDescription = null,
-                            tint = NeonGreen,
+                            tint = MeliBlue,
                             modifier = Modifier.size(24.dp)
                         )
                         Text(
@@ -272,16 +322,16 @@ fun AvailabilityScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "A disponibilidade é solicitada automaticamente todos os dias às 00:00 para o dia seguinte. Os motoristas sempre têm a pergunta ativa no app.",
+                            text = "A disponibilidade é solicitada automaticamente todos os dias às 00:00 para o dia seguinte. Os motoristas respondem turno por turno.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        
+
                         disponibilidade?.let { disp ->
                             Text(
                                 text = "Disponibilidade para: ${formatarDataDisponibilidade(disp.data)}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = NeonBlue,
+                                color = MeliBlue,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -289,7 +339,7 @@ fun AvailabilityScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { showInfoDialog = false }) {
-                        Text("Entendi", color = NeonGreen)
+                        Text("Entendi", color = MeliBlue)
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -305,22 +355,22 @@ fun AvailabilityScreen(
                     modifier = Modifier
                         .padding(16.dp)
                         .align(Alignment.BottomCenter),
-                    containerColor = NeonGreen,
+                    containerColor = MeliBlue,
                     contentColor = Color.Black
                 ) {
                     Text(msg)
                 }
-            }
-            LaunchedEffect(msg) {
-                // Limpar mensagem após delay se necessário, ou deixar ViewModel controlar
             }
         }
     }
 }
 
 @Composable
-fun AvailabilityItemRow(motorista: DisponibilidadeMotorista) {
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+fun AvailabilityItemRow(
+    motorista: DisponibilidadeMotorista,
+    estado: Boolean?
+) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -338,7 +388,7 @@ fun AvailabilityItemRow(motorista: DisponibilidadeMotorista) {
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
-                
+
                 // Horário da resposta (compacto)
                 if (motorista.respondidoEm != null) {
                     Spacer(modifier = Modifier.height(2.dp))
@@ -356,11 +406,11 @@ fun AvailabilityItemRow(motorista: DisponibilidadeMotorista) {
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.width(8.dp))
-            
-            // Indicador de status simplificado (apenas ícone)
-            when (motorista.disponivel) {
+
+            // Indicador de status NO TURNO selecionado
+            when (estado) {
                 true -> {
                     Icon(
                         Icons.Default.CheckCircle,

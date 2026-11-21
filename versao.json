@@ -1,13 +1,13 @@
 {
-  "versaoCodigo": 16,
-  "versaoNome": "1.5.0-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.5.0-beta/controle-de-escalas-1.5.0-beta.apk",
-  "sha256": "007009db42e819cb05f7954d683aded218fb56ea11d88bdd6d093bdf4a8f7710",
+  "versaoCodigo": 17,
+  "versaoNome": "1.6.0-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.6.0-beta/controle-de-escalas-1.6.0-beta.apk",
+  "sha256": "d25eaf1f687c727311fe69ad6a34e0d5cafb2985d63bec204041b05563fdd145",
   "novidades": [
-    "SEGURANÇA: notificações e API agora exigem app atualizado e login",
-    "ETA do assistente funcionando de ponta a ponta + rota de estrada real",
-    "APK 6x menor (78MB -> 13MB): atualizações bem mais rápidas no 4G",
-    "Fix: auto-login, escala em tempo real no PM, quinzena sem contagem dupla",
-    "Fix: rede instável não derruba mais o monitoramento do motorista"
+    "Visual novo estilo Mercado Livre: topo amarelo, cards brancos e fundo cinza claro",
+    "Barra de navegação flutuante, com espaço acima do menu do Android",
+    "Admin edita os turnos da base (AM0, AM, PM, SD, SN) e a disponibilidade segue esses turnos",
+    "Status automático no pátio/estacionamento mais confiável",
+    "App trava na vertical para não virar a tela no celular"
   ]
 }

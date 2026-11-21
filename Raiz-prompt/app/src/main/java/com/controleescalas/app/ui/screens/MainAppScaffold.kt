@@ -1,7 +1,14 @@
 package com.controleescalas.app.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
@@ -14,8 +21,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -28,25 +40,7 @@ import com.controleescalas.app.data.repositories.BaseRepository
 import com.controleescalas.app.data.repositories.SistemaRepository
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.components.PremiumBackground
-import com.controleescalas.app.ui.theme.DarkSurface
-import com.controleescalas.app.ui.theme.NeonGreen
 import com.controleescalas.app.ui.theme.NeonOrange
-import com.controleescalas.app.ui.theme.TextGray
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.sp
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
-import com.controleescalas.app.ui.theme.DeepBlue
-import com.controleescalas.app.ui.theme.DarkBackground
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
 import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import com.google.firebase.auth.FirebaseAuth
@@ -98,7 +92,9 @@ fun MainAppScaffold(
             if (trialExpirado && planosHabilitados) {
                 Surface(
                     color = NeonOrange.copy(alpha = 0.2f),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
                 ) {
                     Row(
                         modifier = Modifier
@@ -114,12 +110,12 @@ fun MainAppScaffold(
                             Icon(Icons.Default.Star, contentDescription = null, tint = NeonOrange, modifier = Modifier.size(20.dp))
                             Text(
                                 "Trial expirado. Escolha um plano para continuar.",
-                                color = Color.White,
+                                color = TextBlack,
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
                         TextButton(onClick = { navController.navigate(Routes.Planos.route) }) {
-                            Text("Ver planos", color = NeonGreen)
+                            Text("Ver planos", color = MeliBlue)
                         }
                     }
                 }
@@ -128,7 +124,7 @@ fun MainAppScaffold(
                 NavHost(
                     navController = navController,
                     startDestination = BottomNavItem.Operation.route,
-                    modifier = Modifier.padding(paddingValues)
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     // Log quando o NavHost é criado
                     println("🔵 MainAppScaffold: NavHost criado, startDestination: ${BottomNavItem.Operation.route}")
@@ -270,16 +266,17 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
         BottomNavItem.Availability,
         BottomNavItem.Configuration
     )
-    
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 20.dp)
-            .navigationBarsPadding(),
+            .padding(horizontal = 16.dp)
+            .padding(top = 14.dp)
+            .navigationBarsPadding()
+            .padding(bottom = 16.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         Surface(
@@ -287,12 +284,9 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
                 .fillMaxWidth()
                 .height(64.dp),
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-            border = BorderStroke(
-                width = 0.5.dp,
-                color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.15f)
-            ),
-            shadowElevation = 12.dp
+            color = Color.White,
+            border = BorderStroke(width = 0.5.dp, color = CardBorderLight),
+            shadowElevation = 4.dp
         ) {
             Row(
                 modifier = Modifier
@@ -303,18 +297,16 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
             ) {
                 items.forEach { item ->
                     val isSelected = currentRoute == item.route
-                    
+
                     val animatedWeight by animateFloatAsState(
                         targetValue = if (isSelected) 2.2f else 1f,
                         animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
                         label = "weight"
                     )
-                    
                     val animatedColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        targetValue = if (isSelected) MeliBlue else TextGrayLightMode,
                         label = "color"
                     )
-
                     val animatedScale by animateFloatAsState(
                         targetValue = if (isSelected) 1.1f else 1.0f,
                         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
@@ -328,8 +320,8 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
                             .padding(horizontal = 2.dp)
                             .clip(CircleShape)
                             .background(
-                                color = if (isSelected) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-                                        else Color.Transparent
+                                color = if (isSelected) MeliBlue.copy(alpha = 0.08f)
+                                else Color.Transparent
                             )
                             .clickable {
                                 if (currentRoute == BottomNavItem.Assistente.route) {
@@ -362,7 +354,6 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
                                     .size(22.dp)
                                     .scale(animatedScale)
                             )
-                            
                             if (isSelected) {
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
@@ -385,50 +376,3 @@ fun PremiumBottomNavigationBar(navController: NavHostController) {
     }
 }
 
-@Composable
-fun BottomNavigationBar(navController: NavHostController) {
-    val items = listOf(
-        BottomNavItem.Operation,
-        BottomNavItem.Availability,
-        BottomNavItem.Configuration
-    )
-    
-    NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface
-    ) {
-        val navBackStackEntry by navController.currentBackStackEntryAsState()
-        val currentRoute = navBackStackEntry?.destination?.route
-        
-        items.forEach { item ->
-            NavigationBarItem(
-                icon = { Icon(item.icon, contentDescription = item.label) },
-                label = { Text(item.label) },
-                selected = currentRoute == item.route,
-                onClick = {
-                    if (currentRoute == BottomNavItem.Assistente.route) {
-                        navController.popBackStack(BottomNavItem.Operation.route, false)
-                        if (item != BottomNavItem.Operation) {
-                            navController.navigate(item.route)
-                        }
-                    } else {
-                        navController.navigate(item.route) {
-                            popUpTo(navController.graph.startDestinationId) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = MaterialTheme.colorScheme.onSurface,
-                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                    indicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            )
-        }
-    }
-}

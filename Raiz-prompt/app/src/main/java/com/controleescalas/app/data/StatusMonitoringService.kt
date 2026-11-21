@@ -81,6 +81,7 @@ class StatusMonitoringService : Service() {
     }
     private var chegueiSolicitadoEm = 0L
     private var estacionamentoSolicitadoEm = 0L
+    private var aCaminhoSolicitadoEm = 0L
     
     override fun onCreate() {
         super.onCreate()
@@ -359,6 +360,11 @@ class StatusMonitoringService : Service() {
                                 lastStatus = novoStatus
                                 Log.d(TAG, "📝 Último status atualizado para: '$lastStatus'")
                                 println("📝 StatusMonitoringService: Último status atualizado para: '$lastStatus'")
+                                if (novoStatus == "IR_ESTACIONAMENTO" || novoStatus == "A_CAMINHO") {
+                                    serviceScope.launch {
+                                        medirRaioUmaVez(mId, bId)
+                                    }
+                                }
                             } else {
                                 Log.d(TAG, "ℹ️ Sem mudança de status - Último: '$lastStatus', Novo: '$novoStatus', Vazio: ${novoStatus.isEmpty()}")
                                 println("ℹ️ StatusMonitoringService: Sem mudança - Último='$lastStatus', Novo='$novoStatus'")
@@ -565,6 +571,40 @@ class StatusMonitoringService : Service() {
 
         val dentroDoGalpao = galpaoDist <= raioGalpao
         val agora = System.currentTimeMillis()
+        val estDist = if (estacionamentoLat != 0.0 && estacionamentoLng != 0.0) {
+            distanceBetween(
+                location.latitude, location.longitude,
+                estacionamentoLat, estacionamentoLng
+            )
+        } else {
+            Double.MAX_VALUE
+        }
+        val dentroDoEstacionamento = estDist <= estacionamentoRaio && estacionamentoLat != 0.0
+        Log.d(
+            TAG,
+            "📍 Raio: galpão=${galpaoDist.toInt()}m dentro=$dentroDoGalpao | " +
+                "pátio=${if (estDist < Double.MAX_VALUE) "${estDist.toInt()}m" else "n/a"} " +
+                "dentro=$dentroDoEstacionamento | status=$statusAtual"
+        )
+
+        if (!dentroDoEstacionamento || !GeofencingService.podeDetectarEstacionamento(statusAtual)) {
+            estacionamentoSolicitadoEm = 0L
+        }
+        if (dentroDoEstacionamento &&
+            GeofencingService.podeDetectarEstacionamento(statusAtual) &&
+            agora - estacionamentoSolicitadoEm >= RETRY_WRITE_INTERVAL_MS
+        ) {
+            estacionamentoSolicitadoEm = agora
+            val ok = MotoristaRepository().updateStatusMotorista(
+                motoristaId, baseId, "ESTACIONAMENTO", "Chegou ao estacionamento (automático)"
+            )
+            if (ok) {
+                NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "ESTACIONAMENTO")
+                Log.d(TAG, "✅ [BACKGROUND] Status gravado uma vez para ESTACIONAMENTO (dist: ${estDist.toInt()}m)")
+            }
+            return false
+        }
+
         if (!dentroDoGalpao || statusAtual != "A_CAMINHO") {
             chegueiSolicitadoEm = 0L
         }
@@ -579,24 +619,19 @@ class StatusMonitoringService : Service() {
                 NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "CHEGUEI")
                 Log.d(TAG, "✅ [BACKGROUND] Status gravado uma vez para CHEGUEI (dist: ${galpaoDist.toInt()}m)")
             }
-        } else if (!dentroDoGalpao && estacionamentoLat != 0.0 && estacionamentoLng != 0.0) {
-            val estDist = distanceBetween(
-                location.latitude, location.longitude,
-                estacionamentoLat, estacionamentoLng
+            return false
+        }
+
+        if (dentroDoGalpao || dentroDoEstacionamento || !GeofencingService.podeVoltarACaminho(statusAtual)) {
+            aCaminhoSolicitadoEm = 0L
+        } else if (agora - aCaminhoSolicitadoEm >= RETRY_WRITE_INTERVAL_MS) {
+            aCaminhoSolicitadoEm = agora
+            val ok = MotoristaRepository().updateStatusMotorista(
+                motoristaId, baseId, "A_CAMINHO", "Saiu da área (automático)"
             )
-            val dentroDoEstacionamento = estDist <= estacionamentoRaio
-            if (!dentroDoEstacionamento || statusAtual != "IR_ESTACIONAMENTO") {
-                estacionamentoSolicitadoEm = 0L
-            }
-            if (dentroDoEstacionamento && statusAtual == "IR_ESTACIONAMENTO" && agora - estacionamentoSolicitadoEm >= RETRY_WRITE_INTERVAL_MS) {
-                estacionamentoSolicitadoEm = agora
-                val ok = MotoristaRepository().updateStatusMotorista(
-                    motoristaId, baseId, "ESTACIONAMENTO", "Chegou ao estacionamento (automático)"
-                )
-                if (ok) {
-                    NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "ESTACIONAMENTO")
-                    Log.d(TAG, "✅ [BACKGROUND] Status gravado uma vez para ESTACIONAMENTO (dist: ${estDist.toInt()}m)")
-                }
+            if (ok) {
+                NotifyStatusChangeWorker.enqueue(this@StatusMonitoringService, baseId, motoristaId, "A_CAMINHO")
+                Log.d(TAG, "✅ [BACKGROUND] Status gravado para A_CAMINHO (fora dos raios)")
             }
         }
         return false
@@ -657,6 +692,7 @@ class StatusMonitoringService : Service() {
         configPronta = false
         chegueiSolicitadoEm = 0L
         estacionamentoSolicitadoEm = 0L
+        aCaminhoSolicitadoEm = 0L
         galpaoLat = 0.0
         galpaoLng = 0.0
         galpaoRaio = 0.0

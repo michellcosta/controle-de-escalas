@@ -20,7 +20,8 @@ import com.controleescalas.app.data.models.Base
 import com.controleescalas.app.data.models.AcaoHistorico
 import com.controleescalas.app.data.repositories.BaseRepository
 import com.controleescalas.app.data.repositories.HistoricoRepository
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppTopBar
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -130,23 +131,13 @@ fun SuperAdminBaseDetalhesScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Detalhes da Transportadora", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+            AppTopBar(
+                title = "Detalhes da Transportadora",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onBack
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         if (isLoading) {
             Box(
@@ -155,7 +146,7 @@ fun SuperAdminBaseDetalhesScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = NeonGreen)
+                CircularProgressIndicator(color = MeliBlue)
             }
         } else if (base == null) {
             Box(
@@ -164,7 +155,7 @@ fun SuperAdminBaseDetalhesScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Transportadora não encontrada", color = TextGray)
+                Text("Transportadora não encontrada", color = TextGrayLightMode)
             }
         } else {
             Column(
@@ -177,7 +168,7 @@ fun SuperAdminBaseDetalhesScreen(
             ) {
                 // Informações básicas
                 SectionHeader(title = "Informações Básicas")
-                GlassCard {
+                AppCard {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -198,7 +189,7 @@ fun SuperAdminBaseDetalhesScreen(
                 
                 // Estatísticas
                 SectionHeader(title = "Estatísticas")
-                GlassCard {
+                AppCard {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -207,8 +198,8 @@ fun SuperAdminBaseDetalhesScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            StatItem("Motoristas", totalMotoristas.toString(), NeonGreen)
-                            StatItem("Admins", totalAdmins.toString(), NeonBlue)
+                            StatItem("Motoristas", totalMotoristas.toString(), MeliBlue)
+                            StatItem("Admins", totalAdmins.toString(), MeliBlue)
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -223,7 +214,7 @@ fun SuperAdminBaseDetalhesScreen(
                 // Aprovar/Rejeitar (apenas para bases pendentes)
                 if (base!!.statusAprovacao == "pendente") {
                     SectionHeader(title = "Aprovação")
-                    GlassCard {
+                    AppCard {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -257,7 +248,7 @@ fun SuperAdminBaseDetalhesScreen(
                                     }
                                 },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                                colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                             ) {
                                 Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -292,7 +283,7 @@ fun SuperAdminBaseDetalhesScreen(
                 
                 // Ações
                 SectionHeader(title = "Ações")
-                GlassCard {
+                AppCard {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -300,7 +291,7 @@ fun SuperAdminBaseDetalhesScreen(
                         Button(
                             onClick = { showEditDialog = true },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonBlue)
+                            colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                         ) {
                             Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -321,7 +312,7 @@ fun SuperAdminBaseDetalhesScreen(
                             OutlinedButton(
                                 onClick = { onNavigateToBase(baseId) },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonGreen)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.Login, null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -426,7 +417,7 @@ fun SuperAdminBaseDetalhesScreen(
     message?.let { msg ->
         Snackbar(
             modifier = Modifier.padding(16.dp),
-            containerColor = NeonGreen,
+            containerColor = MeliBlue,
             contentColor = Color.Black
         ) {
             Text(msg)
@@ -452,14 +443,14 @@ fun InfoRow(label: String, value: String) {
     ) {
         Text(
             label, 
-            color = TextGray, 
+            color = TextGrayLightMode, 
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
         )
         Text(
             value, 
-            color = TextWhite, 
+            color = TextBlack, 
             style = MaterialTheme.typography.bodyMedium, 
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -480,7 +471,7 @@ fun StatItem(label: String, value: String, color: Color) {
         Text(
             label, 
             style = MaterialTheme.typography.bodySmall, 
-            color = TextGray,
+            color = TextGrayLightMode,
             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
         )
@@ -499,40 +490,40 @@ fun EditBaseDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Editar Transportadora", color = TextWhite) },
+        title = { Text("Editar Transportadora", color = TextBlack) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = nome,
                     onValueChange = { nome = it },
-                    label = { Text("Nome", color = TextGray) },
+                    label = { Text("Nome", color = TextGrayLightMode) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue
                     )
                 )
                 OutlinedTextField(
                     value = transportadora,
                     onValueChange = { transportadora = it },
-                    label = { Text("Transportadora", color = TextGray) },
+                    label = { Text("Transportadora", color = TextGrayLightMode) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue
                     )
                 )
                 OutlinedTextField(
                     value = corTema,
                     onValueChange = { corTema = it },
-                    label = { Text("Cor do Tema (hex)", color = TextGray) },
+                    label = { Text("Cor do Tema (hex)", color = TextGrayLightMode) },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue
                     )
                 )
             }
@@ -540,17 +531,17 @@ fun EditBaseDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(nome, transportadora, corTema) },
-                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
             ) {
                 Text("Salvar", color = Color.Black)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = TextGray)
+                Text("Cancelar", color = TextGrayLightMode)
             }
         },
-        containerColor = DarkSurface
+        containerColor = Color.White
     )
 }
 
@@ -564,7 +555,7 @@ fun GerenciarPlanoDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Gerenciar Plano", color = TextWhite) },
+        title = { Text("Gerenciar Plano", color = TextBlack) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf("gratuito", "premium", "trial").forEach { plano ->
@@ -578,7 +569,7 @@ fun GerenciarPlanoDialog(
                         )
                         Text(
                             plano.uppercase(),
-                            color = TextWhite,
+                            color = TextBlack,
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
@@ -588,17 +579,17 @@ fun GerenciarPlanoDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(planoSelecionado) },
-                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
             ) {
                 Text("Salvar", color = Color.Black)
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = TextGray)
+                Text("Cancelar", color = TextGrayLightMode)
             }
         },
-        containerColor = DarkSurface
+        containerColor = Color.White
     )
 }
 

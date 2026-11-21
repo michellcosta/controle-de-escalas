@@ -30,8 +30,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.SessionManager
 import com.controleescalas.app.data.models.SavedSession
 import com.controleescalas.app.ui.components.CustomTextField
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.LoginViewModel
@@ -98,7 +98,7 @@ fun LoginExistingScreen(
 
     PremiumBackground(modifier = Modifier.fillMaxSize()) {
         Box(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(
@@ -109,23 +109,23 @@ fun LoginExistingScreen(
                 Text(
                     text = "CONTROLE DE\nESCALAS",
                     style = MaterialTheme.typography.displayLarge,
-                    color = NeonGreen,
+                    color = TextBlack,
                     fontWeight = FontWeight.ExtraBold,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.scale(logoScale)
                 )
                 
                 if (showAccountsList) {
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    AppCard(modifier = Modifier.fillMaxWidth()) {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("Contas Disponíveis", style = MaterialTheme.typography.titleLarge, color = TextWhite, fontWeight = FontWeight.Bold)
+                            Text("Contas Disponíveis", style = MaterialTheme.typography.titleLarge, color = TextBlack, fontWeight = FontWeight.Bold)
                         
                             if (isLoading) {
-                                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = NeonGreen)
+                                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = MeliBlue)
                             } else if (availableAccounts.isEmpty()) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                                    Icon(Icons.Default.Person, contentDescription = null, tint = TextGray, modifier = Modifier.size(48.dp))
-                                    Text("Nenhuma conta encontrada", color = TextGray)
+                                    Icon(Icons.Default.Person, contentDescription = null, tint = TextGrayLightMode, modifier = Modifier.size(48.dp))
+                                    Text("Nenhuma conta encontrada", color = TextGrayLightMode)
                                 }
                             } else {
                                 LazyColumn(modifier = Modifier.heightIn(max = 400.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -143,14 +143,14 @@ fun LoginExistingScreen(
                                 }
                             }
                             
-                            Divider(color = TextGray.copy(alpha = 0.2f))
+                            Divider(color = TextGrayLightMode.copy(alpha = 0.2f))
                             TextButton(onClick = { showAccountsList = false }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Fazer login manual", color = NeonBlue)
+                                Text("Fazer login manual", color = MeliBlue)
                             }
                         }
                     }
                 } else {
-                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    AppCard(modifier = Modifier.fillMaxWidth()) {
                         Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                             CustomTextField(
                                 value = telefone,
@@ -172,9 +172,9 @@ fun LoginExistingScreen(
                             )
 
                             if (isLoading) {
-                                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = NeonGreen)
+                                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally), color = MeliBlue)
                             } else {
-                                NeonButton(
+                                AppButton(
                                     text = "ENTRAR",
                                     onClick = { if (telefone.isNotBlank() && pin.length == 6) viewModel.login(telefone, pin) },
                                     modifier = Modifier.fillMaxWidth(),
@@ -183,7 +183,7 @@ fun LoginExistingScreen(
                             }
                             
                             TextButton(onClick = { showAccountsList = true }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Ver contas disponíveis", color = TextGray)
+                                Text("Ver contas disponíveis", color = TextGrayLightMode)
                             }
                         }
                     }
@@ -212,7 +212,7 @@ fun AccountCard(
 ) {
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = LightSurfaceVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -232,8 +232,8 @@ fun AccountCard(
             )
             
             Column(modifier = Modifier.weight(1f)) {
-                Text(nome, color = TextWhite, fontWeight = FontWeight.Bold)
-                Text(telefone, color = TextGray, style = MaterialTheme.typography.bodySmall)
+                Text(nome, color = TextBlack, fontWeight = FontWeight.Bold)
+                Text(telefone, color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
             }
             
             Surface(

@@ -37,16 +37,20 @@ class EscalaRepository {
      * Busca APENAS na escala de HOJE em ambos os turnos (AM e PM)
      * Não busca em outros dias - se não estiver escalado hoje, retorna null
      */
-    suspend fun getEscalaDoDia(baseId: String, motoristaId: String): DriverEscalaInfo? {
+    suspend fun getEscalaDoDia(
+        baseId: String,
+        motoristaId: String,
+        turnos: List<String> = listOf("AM", "PM")
+    ): DriverEscalaInfo? {
         return try {
             ensureAuth()
             val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             println("🔍 EscalaRepository.getEscalaDoDia: Buscando escala para motorista $motoristaId na base $baseId para data $hoje (APENAS HOJE)")
+
+            // Buscar nos turnos cadastrados da base APENAS de hoje
+            val turnosBusca = if (turnos.isNotEmpty()) turnos else listOf("AM", "PM")
             
-            // Buscar em ambos os turnos APENAS de hoje
-            val turnos = listOf("AM", "PM")
-            
-            for (turno in turnos) {
+            for (turno in turnosBusca) {
                 val docId = "${hoje}_${turno}"
                 println("📂 EscalaRepository.getEscalaDoDia: Verificando documento $docId")
                 
@@ -186,26 +190,33 @@ class EscalaRepository {
      * Buscar todas as escalas de um motorista em um mês específico
      * Retorna um Set com as datas (formato: "dd/MM/yyyy") em que o motorista está escalado
      */
-    suspend fun getEscalasDoMes(baseId: String, motoristaId: String, mes: Int, ano: Int): Set<String> {
+    suspend fun getEscalasDoMes(
+        baseId: String,
+        motoristaId: String,
+        mes: Int,
+        ano: Int,
+        turnos: List<String> = listOf("AM", "PM")
+    ): Set<String> {
         return try {
             ensureAuth()
             val datasEscaladas = mutableSetOf<String>()
-            
+
             // Calcular primeiro e último dia do mês
             val calendar = Calendar.getInstance()
             calendar.set(ano, mes - 1, 1) // mes - 1 porque Calendar usa 0-11
             val ultimoDia = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-            
+
             // Montar os IDs de todos os documentos do mês (dia x turno)
             val formatoConsulta = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val formatoExibicao = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
             val idParaDataExibicao = mutableMapOf<String, String>()
             val idsDocumentos = mutableListOf<String>()
+            val turnosBusca = if (turnos.isNotEmpty()) turnos else listOf("AM", "PM")
             for (dia in 1..ultimoDia) {
                 calendar.set(ano, mes - 1, dia)
                 val dataFormatada = formatoConsulta.format(calendar.time)
                 val dataExibicao = formatoExibicao.format(calendar.time)
-                for (turno in listOf("AM", "PM")) {
+                for (turno in turnosBusca) {
                     val docId = "${dataFormatada}_${turno}"
                     idsDocumentos.add(docId)
                     idParaDataExibicao[docId] = dataExibicao
@@ -251,10 +262,11 @@ class EscalaRepository {
         baseId: String,
         motoristaId: String,
         onUpdate: (DriverEscalaInfo?) -> Unit,
-        onError: (Exception) -> Unit
+        onError: (Exception) -> Unit,
+        turnos: List<String> = listOf("AM", "PM")
     ): List<com.google.firebase.firestore.ListenerRegistration> {
         val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        val turnos = listOf("AM", "PM")
+        val turnosBusca = if (turnos.isNotEmpty()) turnos else listOf("AM", "PM")
         val listeners = mutableListOf<com.google.firebase.firestore.ListenerRegistration>()
         
         // Estado compartilhado para rastrear resultados de ambos os turnos
@@ -276,7 +288,7 @@ class EscalaRepository {
             }
             
             // Se ambos os turnos foram verificados e não encontrou em nenhum, chamar onUpdate(null) apenas uma vez
-            if (resultadosTurnos.size >= turnos.size) {
+            if (resultadosTurnos.size >= turnosBusca.size) {
                 val encontradoEmAlgumTurno = resultadosTurnos.values.any { it != null }
                 if (!encontradoEmAlgumTurno && !jaChamouNull) {
                     println("⚠️ EscalaRepository.observeEscalaDoMotorista: Motorista não encontrado em nenhum turno, chamando onUpdate(null)")
@@ -286,8 +298,8 @@ class EscalaRepository {
             }
         }
         
-        // Criar listeners APENAS para hoje (2 turnos: AM e PM)
-        for (turno in turnos) {
+        // Criar listeners APENAS para hoje (turnos cadastrados da base)
+        for (turno in turnosBusca) {
             val docId = "${hoje}_${turno}"
             println("🎧 EscalaRepository.observeEscalaDoMotorista: Configurando listener para documento $docId (HOJE - Turno $turno)")
             

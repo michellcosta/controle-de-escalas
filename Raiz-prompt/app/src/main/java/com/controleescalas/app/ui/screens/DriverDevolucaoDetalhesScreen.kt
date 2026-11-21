@@ -14,7 +14,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.Devolucao
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
 import kotlinx.coroutines.launch
@@ -85,24 +86,13 @@ fun DriverDevolucaoDetalhesScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Detalhes", color = TextWhite) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
-                // Removido botão excluir do TopAppBar - agora cada ID tem seu próprio botão
+            AppTopBar(
+                title = "Detalhes",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onDismiss
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -115,7 +105,7 @@ fun DriverDevolucaoDetalhesScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = NeonGreen)
+                        CircularProgressIndicator(color = MeliBlue)
                     }
                 }
                 devolucao == null -> {
@@ -131,11 +121,11 @@ fun DriverDevolucaoDetalhesScreen(
                                 Icons.Default.ErrorOutline,
                                 contentDescription = "Erro",
                                 modifier = Modifier.size(64.dp),
-                                tint = TextGray
+                                tint = TextGrayLightMode
                             )
                             Text(
                                 "Devolução não encontrada",
-                                color = TextGray,
+                                color = TextGrayLightMode,
                                 style = MaterialTheme.typography.titleMedium
                             )
                         }
@@ -155,11 +145,11 @@ fun DriverDevolucaoDetalhesScreen(
                                     Icons.Default.Warning,
                                     contentDescription = "Aviso",
                                     modifier = Modifier.size(64.dp),
-                                    tint = TextGray
+                                    tint = TextGrayLightMode
                                 )
                                 Text(
                                     "Nenhum ID encontrado nesta devolução",
-                                    color = TextGray,
+                                    color = TextGrayLightMode,
                                     style = MaterialTheme.typography.titleMedium
                                 )
                             }
@@ -173,7 +163,7 @@ fun DriverDevolucaoDetalhesScreen(
                         ) {
                             // Lista de IDs
                             items(devolucao.idsPacotes) { idPacote ->
-                                GlassCard {
+                                AppCard {
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -186,14 +176,14 @@ fun DriverDevolucaoDetalhesScreen(
                                         ) {
                                             Text(
                                                 "ID: $idPacote",
-                                                color = TextWhite,
+                                                color = TextBlack,
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Text(
                                                 "${devolucao.data} - ${devolucao.hora}",
-                                                color = TextGray,
+                                                color = TextGrayLightMode,
                                                 style = MaterialTheme.typography.bodyMedium
                                             )
                                         }
@@ -224,8 +214,8 @@ fun DriverDevolucaoDetalhesScreen(
                 val isError = error != null || messageText.contains("erro", ignoreCase = true)
                 Snackbar(
                     snackbarData = snackbarData,
-                    containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                    contentColor = if (isError) TextWhite else Color.Black
+                    containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                    contentColor = TextWhite
                 )
             }
         }
@@ -234,28 +224,28 @@ fun DriverDevolucaoDetalhesScreen(
         if (showConfirmDelete && devolucao != null) {
             AlertDialog(
                 onDismissRequest = { showConfirmDelete = false },
-                containerColor = DarkSurface,
+                containerColor = Color.White,
                 title = {
-                    Text("Excluir Devolução", color = TextWhite, fontWeight = FontWeight.Bold)
+                    Text("Excluir Devolução", color = TextBlack, fontWeight = FontWeight.Bold)
                 },
                 text = {
                     Column {
                         Text(
                             "Deseja realmente excluir esta devolução?",
-                            color = TextWhite
+                            color = TextBlack
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             "${devolucao.quantidade} ${if (devolucao.quantidade == 1) "pacote" else "pacotes"}",
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                         Text(
                             "IDs: ${devolucao.idsPacotes.joinToString(", ")}",
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                         Text(
                             "Data/Hora: ${devolucao.data} - ${devolucao.hora}",
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                 },
@@ -277,7 +267,7 @@ fun DriverDevolucaoDetalhesScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showConfirmDelete = false }) {
-                        Text("Cancelar", color = TextGray)
+                        Text("Cancelar", color = TextGrayLightMode)
                     }
                 }
             )

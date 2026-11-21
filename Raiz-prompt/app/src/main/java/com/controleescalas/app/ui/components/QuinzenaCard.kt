@@ -41,7 +41,7 @@ fun QuinzenaCard(
         label = "segunda"
     )
     
-    GlassCard(
+    AppCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
@@ -63,34 +63,34 @@ fun QuinzenaCard(
                     Icon(
                         imageVector = Icons.Default.DateRange,
                         contentDescription = "Quinzena",
-                        tint = NeonBlue,
+                        tint = MeliBlue,
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
                         text = "DIAS TRABALHADOS",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextWhite
+                        color = TextBlack
                     )
                 }
-                
+
                 // Total em destaque
                 Text(
                     text = "$totalDias dias",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = NeonGreen
+                    color = MeliBlue
                 )
             }
-            
-            HorizontalDivider(color = CardBorder)
-            
+
+            HorizontalDivider(color = CardBorderLight)
+
             // Primeira Quinzena (01-15)
             QuinzenaSection(
                 titulo = "1ª Quinzena (01-15)",
                 dias = animatedPrimeira.toInt(),
                 maxDias = 15,
-                cor = NeonBlue
+                cor = MeliBlue
             )
             
             // Segunda Quinzena (16-fim)
@@ -127,7 +127,7 @@ private fun QuinzenaSection(
                 text = titulo,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = TextGray
+                color = TextGrayLightMode
             )
             Text(
                 text = "$dias/$maxDias",
@@ -144,7 +144,7 @@ private fun QuinzenaSection(
                 .fillMaxWidth()
                 .height(8.dp),
             color = cor,
-            trackColor = CardBorder,
+            trackColor = CardBorderLight,
             strokeCap = StrokeCap.Round
         )
     }

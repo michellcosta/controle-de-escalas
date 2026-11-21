@@ -14,8 +14,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.controleescalas.app.ui.theme.TextGray
-import com.controleescalas.app.ui.theme.TextWhite
+import com.controleescalas.app.ui.theme.TextGrayLightMode
+import com.controleescalas.app.ui.theme.TextBlack
+
 
 /**
  * Dados para um segmento do gráfico de pizza
@@ -42,7 +43,7 @@ fun PieChart(
         ) {
             Text(
                 text = "Sem dados",
-                color = TextGray
+                color = TextGrayLightMode
             )
         }
         return
@@ -56,7 +57,7 @@ fun PieChart(
         ) {
             Text(
                 text = "Sem dados",
-                color = TextGray
+                color = TextGrayLightMode
             )
         }
         return
@@ -157,13 +158,13 @@ fun LegendItem(
             )
             Text(
                 text = label,
-                color = TextWhite,
+                color = TextBlack,
                 style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
             )
         }
         Text(
             text = "$value (${String.format("%.1f", percentage)}%)",
-            color = TextGray,
+            color = TextGrayLightMode,
             style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold
         )

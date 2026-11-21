@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.components.CustomTextField
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.LocationConfigViewModel
@@ -142,12 +142,12 @@ fun LocationConfigScreen(
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 // GALPÃO
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         SectionHeader(title = "Galpão / Doca")
                         Text(
                             "Motorista marcado como CHEGUEI quando entra neste raio.",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
@@ -187,7 +187,7 @@ fun LocationConfigScreen(
                                 Text("Usar GPS Atual")
                             }
                             
-                            NeonButton(
+                            AppButton(
                                 text = "Salvar",
                                 onClick = {
                                     viewModel.saveGalpao(
@@ -204,12 +204,12 @@ fun LocationConfigScreen(
                 }
                 
                 // ESTACIONAMENTO
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         SectionHeader(title = "Estacionamento")
                         Text(
                             "Motorista marcado como ESTACIONAMENTO quando entra neste raio.",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
@@ -249,7 +249,7 @@ fun LocationConfigScreen(
                                 Text("Usar GPS Atual")
                             }
                             
-                            NeonButton(
+                            AppButton(
                                 text = "Salvar",
                                 onClick = {
                                     viewModel.saveEstacionamento(
@@ -269,14 +269,14 @@ fun LocationConfigScreen(
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    color = NeonGreen
+                    color = MeliBlue
                 )
             }
             
             message?.let { msg ->
                 Snackbar(
                     modifier = Modifier.align(Alignment.BottomCenter),
-                    containerColor = NeonGreen,
+                    containerColor = MeliBlue,
                     contentColor = Color.Black
                 ) {
                     Text(msg)

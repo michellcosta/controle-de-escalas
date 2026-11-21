@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -47,6 +46,7 @@ import com.controleescalas.app.ui.components.*
 import com.controleescalas.app.ui.components.ConnectionStatusIndicator
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.data.models.AdminMotoristaCardData
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
@@ -118,6 +118,7 @@ fun OperationalDashboardScreen(
     viewModel: OperationalViewModel = viewModel()
 ) {
     val turnoAtual by viewModel.turnoAtual.collectAsState()
+    val turnosDaBase by viewModel.turnosDaBase.collectAsState()
     val ondas by viewModel.ondas.collectAsState()
     val motoristasStatus by viewModel.motoristasStatus.collectAsState()
     val motoristasDisponiveis by viewModel.motoristasDisponiveis.collectAsState()
@@ -243,25 +244,16 @@ fun OperationalDashboardScreen(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        Text("Operações do Dia", color = MaterialTheme.colorScheme.onBackground)
-                        Text(
-                            java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
-                                .format(java.util.Date()),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
-                        )
-                    }
-                },
+            AppTopBar(
+                title = "Operações do Dia",
+                subtitle = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
+                    .format(java.util.Date()),
                 actions = {
                     onOpenAssistente?.let { onAssistente ->
                         IconButton(onClick = onAssistente) {
                             Icon(
                                 Icons.Default.Chat,
-                                contentDescription = "Assistente",
-                                tint = MaterialTheme.colorScheme.onBackground
+                                contentDescription = "Assistente"
                             )
                         }
                     }
@@ -271,22 +263,19 @@ fun OperationalDashboardScreen(
                             Icon(
                                 Icons.Default.Share,
                                 contentDescription = "Compartilhar escala no WhatsApp",
-                                tint = NeonGreen
+                                tint = Color(0xFF25D366)
                             )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent
-                )
+                }
             )
         },
         floatingActionButton = {
             FloatingActionButton(
+                modifier = Modifier.padding(bottom = 104.dp),
                 onClick = { viewModel.addOnda() },
-                containerColor = NeonGreen,
-                contentColor = Color.Black
+                containerColor = MeliBlue,
+                contentColor = Color.White
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Adicionar Onda")
             }
@@ -295,16 +284,17 @@ fun OperationalDashboardScreen(
         PremiumBackground(modifier = Modifier.fillMaxSize()) {
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = NeonGreen)
+                    CircularProgressIndicator(color = MeliBlue)
                 }
             } else {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(paddingValues)
+                        .padding(top = paddingValues.calculateTopPadding())
                 ) {
                     WavesContent(
                         ondas = ondas,
+                        turnos = turnosDaBase,
                         turnoAtual = turnoAtual,
                         motoristasStatus = motoristasStatus,
                         motoristasDisponiveis = motoristasDisponiveis,
@@ -407,8 +397,8 @@ fun OperationalDashboardScreen(
                     val isError = messageText.contains("erro", ignoreCase = true)
                     Snackbar(
                         snackbarData = snackbarData,
-                        containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                        contentColor = if (isError) TextWhite else Color.Black
+                        containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                        contentColor = TextWhite
                     )
                 }
             }
@@ -419,6 +409,7 @@ fun OperationalDashboardScreen(
 @Composable
 fun WavesContent(
     ondas: List<Onda>,
+    turnos: List<String>,
     turnoAtual: String,
     motoristasStatus: Map<String, StatusMotorista>,
     motoristasDisponiveis: List<AdminMotoristaCardData>,
@@ -442,15 +433,14 @@ fun WavesContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp)
+        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 120.dp)
     ) {
         item {
             // Seletor de Turno movido para dentro do LazyColumn
             TurnoSelector(
+                turnos = turnos,
                 turnoAtual = turnoAtual,
-                onTurnoChange = onTurnoChange,
-                ondasCountAM = 0,
-                ondasCountPM = 0
+                onTurnoChange = onTurnoChange
             )
         }
 
@@ -528,8 +518,8 @@ fun WavesContent(
                         .fillMaxWidth()
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
-                        contentColor = Color.Black
+                        containerColor = MeliBlue,
+                        contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -548,7 +538,7 @@ fun WavesContent(
                         Text(
                             "$totalMotoristas motoristas escalados",
                             fontSize = 12.sp,
-                            color = Color.Black.copy(alpha = 0.7f)
+                            color = Color.White.copy(alpha = 0.85f)
                         )
                     }
                 }
@@ -568,7 +558,7 @@ fun ParkingContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(16.dp)
+        contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 120.dp)
     ) {
         // Painel de Proximidade
         item {
@@ -624,7 +614,7 @@ fun FillDriverDetailsDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = Color.White,
         title = {
             Column {
                 Text(
@@ -688,11 +678,11 @@ fun FillDriverDetailsDialog(
                         }
                     },
                     interactionSource = vagaInteractionSource,
-                    label = { Text("Vaga *", color = TextGray) },
+                    label = { Text("Vaga *", color = TextGrayLightMode) },
                     leadingIcon = {
-                        Icon(Icons.Default.LocationOn, null, tint = NeonGreen)
+                        Icon(Icons.Default.LocationOn, null, tint = MeliBlue)
                     },
-                    placeholder = { Text("Ex: 01", color = TextGray.copy(alpha = 0.5f)) },
+                    placeholder = { Text("Ex: 01", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = erroVaga != null,
                     supportingText = erroVaga?.let { { Text(it, color = Color(0xFFEF4444)) } },
@@ -701,8 +691,8 @@ fun FillDriverDetailsDialog(
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else NeonGreen,
-                        unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else TextGray
+                        focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else MeliBlue,
+                        unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else CardBorderLight
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -734,11 +724,11 @@ fun FillDriverDetailsDialog(
                         }
                     },
                     interactionSource = rotaInteractionSource,
-                    label = { Text("Rota *", color = TextGray) },
+                    label = { Text("Rota *", color = TextGrayLightMode) },
                     leadingIcon = {
-                        Icon(Icons.Default.Place, null, tint = NeonBlue)
+                        Icon(Icons.Default.Place, null, tint = MeliBlue)
                     },
-                    placeholder = { Text("Ex: T-15", color = TextGray.copy(alpha = 0.5f)) },
+                    placeholder = { Text("Ex: T-15", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                     isError = erroRota != null,
                     supportingText = erroRota?.let { { Text(it, color = Color(0xFFEF4444)) } },
                     colors = OutlinedTextFieldDefaults.colors(
@@ -746,8 +736,8 @@ fun FillDriverDetailsDialog(
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else NeonBlue,
-                        unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else TextGray
+                        focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else MeliBlue,
+                        unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else CardBorderLight
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -756,11 +746,11 @@ fun FillDriverDetailsDialog(
                 OutlinedTextField(
                     value = sacas,
                     onValueChange = { if (it.isEmpty() || it.all { char -> char.isDigit() }) sacas = it },
-                    label = { Text("Sacas (opcional)", color = TextGray) },
+                    label = { Text("Sacas (opcional)", color = TextGrayLightMode) },
                     leadingIcon = {
                         Icon(Icons.Default.ShoppingCart, null, tint = NeonOrange)
                     },
-                    placeholder = { Text("Ex: 12", color = TextGray.copy(alpha = 0.5f)) },
+                    placeholder = { Text("Ex: 12", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -768,7 +758,7 @@ fun FillDriverDetailsDialog(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                         focusedBorderColor = NeonOrange,
-                        unfocusedBorderColor = TextGray
+                        unfocusedBorderColor = CardBorderLight
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -776,7 +766,7 @@ fun FillDriverDetailsDialog(
                 Text(
                     "* Campos obrigatórios",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     fontSize = 11.sp
                 )
             }
@@ -800,9 +790,9 @@ fun FillDriverDetailsDialog(
                 },
                 enabled = vaga.isNotBlank() && rota.isNotBlank() && erroVaga == null && erroRota == null,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = NeonGreen,
-                    contentColor = Color.Black,
-                    disabledContainerColor = TextGray.copy(alpha = 0.3f)
+                    containerColor = MeliBlue,
+                    contentColor = Color.White,
+                    disabledContainerColor = TextDisabled.copy(alpha = 0.3f)
                 )
             ) {
                 Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
@@ -812,7 +802,7 @@ fun FillDriverDetailsDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("CANCELAR", color = TextGray)
+                Text("CANCELAR", color = TextGrayLightMode)
             }
         }
     )
@@ -872,7 +862,7 @@ fun AddDriverDialog(
                     Icon(
                         Icons.Default.Info,
                         contentDescription = "Informações",
-                        tint = NeonBlue,
+                        tint = MeliBlue,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -891,17 +881,17 @@ fun AddDriverDialog(
                         Icon(
                             Icons.Default.Search,
                             contentDescription = "Pesquisar",
-                            tint = NeonGreen
+                            tint = MeliBlue
                         )
                     },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = MaterialTheme.colorScheme.onSurface,
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        focusedBorderColor = NeonGreen,
-                        unfocusedBorderColor = TextGray,
-                        focusedLabelColor = NeonGreen,
-                        unfocusedLabelColor = TextGray
+                        focusedBorderColor = MeliBlue,
+                        unfocusedBorderColor = CardBorderLight,
+                        focusedLabelColor = MeliBlue,
+                        unfocusedLabelColor = TextGrayLightMode
                     ),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -920,8 +910,8 @@ fun AddDriverDialog(
                         onClick = { selectedModalidade = null },
                         label = { Text("TODOS") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = NeonGreen,
-                            selectedLabelColor = Color.Black
+                            selectedContainerColor = MeliBlue,
+                            selectedLabelColor = Color.White
                         )
                     )
                     
@@ -948,7 +938,7 @@ fun AddDriverDialog(
                 
                 if (filteredMotoristas.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
-                        Text("Nenhum motorista disponível", color = TextGray)
+                        Text("Nenhum motorista disponível", color = TextGrayLightMode)
                     }
                 } else {
                     LazyColumn(
@@ -957,7 +947,7 @@ fun AddDriverDialog(
                     ) {
                         items(filteredMotoristas) { motorista ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                                colors = CardDefaults.cardColors(containerColor = LightSurfaceVariant),
                                 onClick = { onSelect(motorista) },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -965,11 +955,11 @@ fun AddDriverDialog(
                                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Person, null, tint = NeonGreen)
+                                    Icon(Icons.Default.Person, null, tint = MeliBlue)
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
                                         Text(motorista.nome, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                                        Text(motorista.telefone, color = TextGray, style = MaterialTheme.typography.bodySmall)
+                                        Text(motorista.telefone, color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
                                         // Badge Modalidade
                                         Surface(
                                             color = when(motorista.modalidade) {
@@ -997,7 +987,7 @@ fun AddDriverDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("FECHAR", color = NeonGreen) }
+            TextButton(onClick = onDismiss) { Text("FECHAR", color = MeliBlue) }
         }
     )
     
@@ -1005,7 +995,7 @@ fun AddDriverDialog(
     if (showInfoDialog) {
         AlertDialog(
             onDismissRequest = { showInfoDialog = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = { 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1014,10 +1004,10 @@ fun AddDriverDialog(
                     Icon(
                         Icons.Default.Info,
                         contentDescription = null,
-                        tint = NeonBlue,
+                        tint = MeliBlue,
                         modifier = Modifier.size(24.dp)
                     )
-                    Text("Como usar", color = TextWhite)
+                    Text("Como usar", color = TextBlack)
                 }
             },
             text = {
@@ -1027,27 +1017,27 @@ fun AddDriverDialog(
                 ) {
                     Text(
                         "• Use o campo de pesquisa para buscar por nome ou telefone",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         "• Selecione uma modalidade para filtrar (FROTA, PASSEIO, DEDICADO, UTILITÁRIO)",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         "• Use 'TODOS' para ver todos os motoristas",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         "• Clique em um motorista para adicioná-lo à onda",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         "• Apenas motoristas e auxiliares são exibidos (admins não aparecem)",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -1055,9 +1045,9 @@ fun AddDriverDialog(
             confirmButton = {
                 Button(
                     onClick = { showInfoDialog = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                 ) {
-                    Text("ENTENDI", color = Color.Black)
+                    Text("ENTENDI", color = Color.White)
                 }
             }
         )
@@ -1075,8 +1065,8 @@ fun FeedbackSnackbar(
         message?.let { msg ->
             Snackbar(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
-                containerColor = NeonGreen,
-                contentColor = Color.Black
+                containerColor = MeliBlue,
+                contentColor = Color.White
             ) { Text(msg) }
             LaunchedEffect(msg) {
                 kotlinx.coroutines.delay(2000)
@@ -1105,7 +1095,7 @@ fun EmptyStateMessage(text: String) {
     ) {
         Text(
             text,
-            color = TextGray,
+            color = TextGrayLightMode,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center
         )
@@ -1114,42 +1104,32 @@ fun EmptyStateMessage(text: String) {
 
 @Composable
 fun TurnoSelector(
+    turnos: List<String>,
     turnoAtual: String,
-    onTurnoChange: (String) -> Unit,
-    ondasCountAM: Int,
-    ondasCountPM: Int
+    onTurnoChange: (String) -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val selecionadoFundo = MaterialTheme.colorScheme.onSurface
-        val selecionadoTexto = MaterialTheme.colorScheme.surface
+        val selecionadoFundo = MeliBlue
+        val selecionadoTexto = Color.White
         val livreFundo = MaterialTheme.colorScheme.surfaceVariant
         val livreTexto = MaterialTheme.colorScheme.onSurfaceVariant
 
-        Button(
-            onClick = { onTurnoChange("AM") },
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (turnoAtual == "AM") selecionadoFundo else livreFundo,
-                contentColor = if (turnoAtual == "AM") selecionadoTexto else livreTexto
-            )
-        ) {
-            Text("TURNO AM", fontWeight = FontWeight.Bold)
-        }
-        
-        Button(
-            onClick = { onTurnoChange("PM") },
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (turnoAtual == "PM") selecionadoFundo else livreFundo,
-                contentColor = if (turnoAtual == "PM") selecionadoTexto else livreTexto
-            )
-        ) {
-            Text("TURNO PM", fontWeight = FontWeight.Bold)
+        turnos.forEach { turno ->
+            Button(
+                onClick = { onTurnoChange(turno) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (turnoAtual == turno) selecionadoFundo else livreFundo,
+                    contentColor = if (turnoAtual == turno) selecionadoTexto else livreTexto
+                )
+            ) {
+                Text(turno, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -1276,7 +1256,7 @@ fun WaveOperationCard(
         Log.d("WaveCard", "📝 Estado isExpanded mudou para: $isExpanded (Onda: ${onda.nome}, Turno: $turnoAtual)")
     }
     
-    GlassCard(modifier = Modifier.fillMaxWidth()) {
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             // Header da Onda (clicável para expandir/colapsar)
             Row(
@@ -1307,7 +1287,7 @@ fun WaveOperationCard(
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (isExpanded) "Colapsar" else "Expandir",
-                        tint = TextGray,
+                        tint = TextGrayLightMode,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1320,7 +1300,7 @@ fun WaveOperationCard(
                             Text(
                                 text = onda.nome,
                                 style = MaterialTheme.typography.titleLarge,
-                                color = NeonGreen,
+                                color = MeliBlue,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1330,7 +1310,7 @@ fun WaveOperationCard(
                             Text(
                                 text = onda.horario,
                                 style = MaterialTheme.typography.bodyLarge,
-                                color = TextGray,
+                                color = TextGrayLightMode,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1343,7 +1323,7 @@ fun WaveOperationCard(
                                         "DEDICADO" -> NeonPurple.copy(alpha = 0.2f)
                                         "FROTA" -> NeonBlue.copy(alpha = 0.2f)
                                         "PASSEIO" -> NeonOrange.copy(alpha = 0.2f)
-                                        else -> TextGray.copy(alpha = 0.2f)
+                                        else -> LightSurfaceVariant
                                     },
                                     shape = MaterialTheme.shapes.small
                                 ) {
@@ -1355,7 +1335,7 @@ fun WaveOperationCard(
                                             "DEDICADO" -> NeonPurple
                                             "FROTA" -> NeonBlue
                                             "PASSEIO" -> NeonOrange
-                                            else -> TextGray
+                                            else -> TextGrayLightMode
                                         },
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
@@ -1395,7 +1375,7 @@ fun WaveOperationCard(
                                         "$concluidos/$totalMotoristas concluídos"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (todosConcluidos) Color(0xFF10B981) else TextGray
+                                    color = if (todosConcluidos) Color(0xFF10B981) else TextGrayLightMode
                                 )
                             }
                         }
@@ -1411,7 +1391,7 @@ fun WaveOperationCard(
                         Icon(
                             Icons.Default.Edit,
                             contentDescription = "Editar Onda",
-                            tint = TextGray,
+                            tint = TextGrayLightMode,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1435,7 +1415,7 @@ fun WaveOperationCard(
                         Icon(
                             Icons.Default.Add,
                             contentDescription = "Adicionar Motorista",
-                            tint = TextWhite,
+                            tint = TextBlack,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1452,14 +1432,14 @@ fun WaveOperationCard(
                     HorizontalDivider(
                         modifier = Modifier.padding(vertical = 8.dp),
                         thickness = 1.dp,
-                        color = CardBorder
+                        color = CardBorderLight
                     )
                     
                     if (onda.itens.isEmpty()) {
                         Text(
                             text = "Nenhum motorista nesta onda",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     } else {
@@ -1576,14 +1556,14 @@ fun WaveOperationCard(
     if (showConfirmDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDeleteDialog = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = {
-                Text("Remover Motorista", color = TextWhite, fontWeight = FontWeight.Bold)
+                Text("Remover Motorista", color = TextBlack, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
                     "Tem certeza que deseja remover este motorista da onda?",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -1606,7 +1586,7 @@ fun WaveOperationCard(
                     showConfirmDeleteDialog = false
                     motoristaPendingRemoval = null
                 }) {
-                    Text("Cancelar", color = TextGray)
+                    Text("Cancelar", color = TextGrayLightMode)
                 }
             }
         )
@@ -1616,14 +1596,14 @@ fun WaveOperationCard(
     if (showConfirmDeleteWaveDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDeleteWaveDialog = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = {
-                Text("Excluir Onda", color = TextWhite, fontWeight = FontWeight.Bold)
+                Text("Excluir Onda", color = TextBlack, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
                     "Tem certeza que deseja excluir a onda \"${onda.nome}\"?\n\nEsta ação não pode ser desfeita.",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -1642,7 +1622,7 @@ fun WaveOperationCard(
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmDeleteWaveDialog = false }) {
-                    Text("CANCELAR", color = TextGray)
+                    Text("CANCELAR", color = TextGrayLightMode)
                 }
             }
         )
@@ -1668,7 +1648,7 @@ fun DriverOperationRow(
     }
     
     Surface(
-        color = DarkSurfaceVariant,
+        color = LightSurfaceVariant,
         shape = MaterialTheme.shapes.small,
         modifier = Modifier
             .fillMaxWidth()
@@ -1692,7 +1672,7 @@ fun DriverOperationRow(
                 // Nome com strikethrough quando concluído
                 Text(
                     text = motorista.nome,
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.bodyMedium,
                     fontSize = 14.sp,
@@ -1758,7 +1738,7 @@ fun DriverOperationRow(
                     // Vaga
                     Text(
                         text = "Vaga ${motorista.vaga}",
-                        color = NeonGreen,
+                        color = MeliBlue,
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -1767,7 +1747,7 @@ fun DriverOperationRow(
                     // Rota
                     Text(
                         text = if (motorista.rota.isBlank()) "--" else motorista.rota,
-                        color = if (motorista.rota.isBlank()) TextGray else NeonBlue,
+                        color = if (motorista.rota.isBlank()) TextGrayLightMode else MeliBlue,
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -1973,14 +1953,14 @@ fun DriverActionsDialog(
     if (showConfirmDelete) {
         AlertDialog(
             onDismissRequest = { showConfirmDelete = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = {
-                Text("Confirmar Exclusão", color = TextWhite, fontWeight = FontWeight.Bold)
+                Text("Confirmar Exclusão", color = TextBlack, fontWeight = FontWeight.Bold)
             },
             text = {
                 Text(
                     "Deseja realmente excluir ${motorista.nome} desta onda?",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -1996,7 +1976,7 @@ fun DriverActionsDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmDelete = false }) {
-                    Text("CANCELAR", color = TextGray)
+                    Text("CANCELAR", color = TextGrayLightMode)
                 }
             }
         )
@@ -2006,7 +1986,7 @@ fun DriverActionsDialog(
     if (showHelpDialog) {
         AlertDialog(
             onDismissRequest = { showHelpDialog = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -2015,10 +1995,10 @@ fun DriverActionsDialog(
                     Icon(
                         Icons.Default.Info,
                         contentDescription = null,
-                        tint = NeonBlue,
+                        tint = MeliBlue,
                         modifier = Modifier.size(24.dp)
                     )
-                    Text("Ações do Motorista", color = TextWhite, fontWeight = FontWeight.Bold)
+                    Text("Ações do Motorista", color = TextBlack, fontWeight = FontWeight.Bold)
                 }
             },
             text = {
@@ -2028,7 +2008,7 @@ fun DriverActionsDialog(
                     Text(
                         "Como funciona este painel:",
                         style = MaterialTheme.typography.bodyLarge,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold
                     )
 
@@ -2036,45 +2016,45 @@ fun DriverActionsDialog(
                         Text(
                             "📝 Edição de Campos:",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text("• Vaga: Edite a vaga de carregamento do motorista", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• Rota: Edite a rota do motorista", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• Sacas: Informe a quantidade de sacas (opcional)", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• Clique em SALVAR para confirmar as alterações", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• Vaga: Edite a vaga de carregamento do motorista", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• Rota: Edite a rota do motorista", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• Sacas: Informe a quantidade de sacas (opcional)", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• Clique em SALVAR para confirmar as alterações", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "🎯 Ações do Motorista:",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.SemiBold
                         )
-                        Text("• Vaga: Chama o motorista para a vaga de carregamento", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• Estacionamento: Chama o motorista para aguardar no estacionamento", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• WhatsApp: Abre conversa no WhatsApp do motorista (se disponível)", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• CONCLUIR: Marca o carregamento como concluído", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• RESETAR STATUS: Volta o status do motorista para 'A CAMINHO'", style = MaterialTheme.typography.bodySmall, color = TextGray)
-                        Text("• Excluir (🗑️): Remove o motorista da onda", style = MaterialTheme.typography.bodySmall, color = TextGray)
+                        Text("• Vaga: Chama o motorista para a vaga de carregamento", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• Estacionamento: Chama o motorista para aguardar no estacionamento", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• WhatsApp: Abre conversa no WhatsApp do motorista (se disponível)", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• CONCLUIR: Marca o carregamento como concluído", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• RESETAR STATUS: Volta o status do motorista para 'A CAMINHO'", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
+                        Text("• Excluir (🗑️): Remove o motorista da onda", style = MaterialTheme.typography.bodySmall, color = TextGrayLightMode)
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showHelpDialog = false }) {
-                    Text("Entendi", color = NeonBlue)
+                    Text("Entendi", color = MeliBlue)
                 }
             },
-            titleContentColor = TextWhite,
-            textContentColor = TextGray
+            titleContentColor = TextBlack,
+            textContentColor = TextGrayLightMode
         )
     }
 
     // ===== Painel principal (bottom sheet rolável — nada é cortado) =====
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = Color.White,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
         Column(
@@ -2093,26 +2073,26 @@ fun DriverActionsDialog(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         motorista.nome,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
                         "Vaga ${motorista.vaga.ifBlank { "-" }} • Rota ${formatarRota(motorista.rota).ifBlank { "-" }} • ${motorista.sacas ?: "-"} sacas",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
                 IconButton(onClick = { showHelpDialog = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Help, contentDescription = "Ajuda", tint = NeonBlue, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Help, contentDescription = "Ajuda", tint = MeliBlue, modifier = Modifier.size(20.dp))
                 }
                 IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = TextGray, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = TextGrayLightMode, modifier = Modifier.size(20.dp))
                 }
             }
 
             // CARD 1: campos editáveis em linha + SALVAR
-            GlassCard {
+            AppCard {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(12.dp)
@@ -2139,17 +2119,17 @@ fun DriverActionsDialog(
                                 }
                             },
                             interactionSource = vagaInteractionSource,
-                            label = { Text("Vaga", color = TextGray, style = MaterialTheme.typography.labelSmall) },
+                            label = { Text("Vaga", color = TextGrayLightMode, style = MaterialTheme.typography.labelSmall) },
                             singleLine = true,
                             isError = erroVaga != null,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedContainerColor = DarkSurfaceVariant,
-                                unfocusedContainerColor = DarkSurfaceVariant,
-                                focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else NeonBlue,
-                                unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else TextGray
+                                focusedTextColor = TextBlack,
+                                unfocusedTextColor = TextBlack,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else MeliBlue,
+                                unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else CardBorderLight
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -2173,17 +2153,17 @@ fun DriverActionsDialog(
                                 }
                             },
                             interactionSource = rotaInteractionSource,
-                            label = { Text("Rota", color = TextGray, style = MaterialTheme.typography.labelSmall) },
-                            placeholder = { Text("F-9", color = TextGray.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall) },
+                            label = { Text("Rota", color = TextGrayLightMode, style = MaterialTheme.typography.labelSmall) },
+                            placeholder = { Text("F-9", color = TextGrayLightMode.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall) },
                             singleLine = true,
                             isError = erroRota != null,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedContainerColor = DarkSurfaceVariant,
-                                unfocusedContainerColor = DarkSurfaceVariant,
-                                focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else NeonBlue,
-                                unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else TextGray
+                                focusedTextColor = TextBlack,
+                                unfocusedTextColor = TextBlack,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else MeliBlue,
+                                unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else CardBorderLight
                             ),
                             modifier = Modifier.weight(1.4f)
                         )
@@ -2195,17 +2175,17 @@ fun DriverActionsDialog(
                                 if (it.isEmpty() || it.all { char -> char.isDigit() })
                                     sacasEditavel = it
                             },
-                            label = { Text("Sacas", color = TextGray, style = MaterialTheme.typography.labelSmall) },
-                            placeholder = { Text("12", color = TextGray.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall) },
+                            label = { Text("Sacas", color = TextGrayLightMode, style = MaterialTheme.typography.labelSmall) },
+                            placeholder = { Text("12", color = TextGrayLightMode.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedContainerColor = DarkSurfaceVariant,
-                                unfocusedContainerColor = DarkSurfaceVariant,
+                                focusedTextColor = TextBlack,
+                                unfocusedTextColor = TextBlack,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
                                 focusedBorderColor = NeonOrange,
-                                unfocusedBorderColor = TextGray
+                                unfocusedBorderColor = CardBorderLight
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -2233,7 +2213,7 @@ fun DriverActionsDialog(
                             }
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonBlue,
+                            containerColor = MeliBlue,
                             contentColor = Color.White
                         ),
                         modifier = Modifier.fillMaxWidth()
@@ -2246,7 +2226,7 @@ fun DriverActionsDialog(
             }
 
             // CARD 2: ações — grade de 2 colunas (compacta, nada corta)
-            GlassCard {
+            AppCard {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(12.dp)
@@ -2262,8 +2242,8 @@ fun DriverActionsDialog(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = NeonGreen,
-                                contentColor = Color.Black
+                                containerColor = MeliBlue,
+                                contentColor = Color.White
                             ),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                             modifier = Modifier.weight(1f)
@@ -2339,7 +2319,7 @@ fun DriverActionsDialog(
                             Text(
                                 "RESETAR STATUS",
                                 style = MaterialTheme.typography.labelLarge,
-                                color = NeonBlue,
+                                color = MeliBlue,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1
                             )

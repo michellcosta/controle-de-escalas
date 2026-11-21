@@ -31,8 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.DevolucaoImageManager
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.theme.*
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -425,34 +426,23 @@ fun DriverDevolucaoHistoricoScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Histórico de Devoluções", color = TextWhite) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
+            AppTopBar(
+                title = "Histórico de Devoluções",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onDismiss,
                 actions = {
                     // Menu de 3 pontos com filtros
                     Box {
                         IconButton(onClick = { showFilterMenu = true }) {
                             Icon(
                                 Icons.Default.MoreVert,
-                                contentDescription = "Filtros",
-                                tint = TextWhite
+                                contentDescription = "Filtros"
                             )
                         }
                         DropdownMenu(
                             expanded = showFilterMenu,
                             onDismissRequest = { showFilterMenu = false },
-                            modifier = Modifier.background(DarkSurface)
+                            modifier = Modifier.background(Color.White)
                         ) {
                             DropdownMenuItem(
                                 text = {
@@ -460,12 +450,12 @@ fun DriverDevolucaoHistoricoScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Hoje", color = if (filtroData == "hoje") NeonGreen else TextWhite)
+                                        Text("Hoje", color = if (filtroData == "hoje") MeliBlue else TextBlack)
                                         if (filtroData == "hoje") {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -482,12 +472,12 @@ fun DriverDevolucaoHistoricoScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Esta Semana", color = if (filtroData == "semana") NeonGreen else TextWhite)
+                                        Text("Esta Semana", color = if (filtroData == "semana") MeliBlue else TextBlack)
                                         if (filtroData == "semana") {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -504,12 +494,12 @@ fun DriverDevolucaoHistoricoScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Este Mês", color = if (filtroData == "mes") NeonGreen else TextWhite)
+                                        Text("Este Mês", color = if (filtroData == "mes") MeliBlue else TextBlack)
                                         if (filtroData == "mes") {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -526,12 +516,12 @@ fun DriverDevolucaoHistoricoScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Todos", color = if (filtroData == null) NeonGreen else TextWhite)
+                                        Text("Todos", color = if (filtroData == null) MeliBlue else TextBlack)
                                         if (filtroData == null) {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -543,10 +533,10 @@ fun DriverDevolucaoHistoricoScreen(
                                 }
                             )
                             if (temFiltrosAtivos) {
-                                HorizontalDivider(color = TextGray.copy(alpha = 0.3f))
+                                HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.3f))
                                 DropdownMenuItem(
                                     text = {
-                                        Text("Limpar Filtros", color = TextGray)
+                                        Text("Limpar Filtros", color = TextGrayLightMode)
                                     },
                                     onClick = {
                                         filtroData = null
@@ -560,7 +550,7 @@ fun DriverDevolucaoHistoricoScreen(
                 }
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -579,7 +569,7 @@ fun DriverDevolucaoHistoricoScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(color = NeonGreen)
+                                CircularProgressIndicator(color = MeliBlue)
                             }
                         }
                         devolucoes.isEmpty() && !temFiltrosAtivos -> {
@@ -594,13 +584,13 @@ fun DriverDevolucaoHistoricoScreen(
                                     OutlinedTextField(
                                         value = idPacoteFiltro,
                                         onValueChange = { idPacoteFiltro = it },
-                                        label = { Text("Buscar por ID do Pacote", color = TextGray) },
-                                        placeholder = { Text("Digite o ID...", color = TextGray.copy(alpha = 0.5f)) },
+                                        label = { Text("Buscar por ID do Pacote", color = TextGrayLightMode) },
+                                        placeholder = { Text("Digite o ID...", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                                         leadingIcon = {
                                             Icon(
                                                 Icons.Default.Search,
                                                 contentDescription = "Buscar",
-                                                tint = NeonBlue
+                                                tint = MeliBlue
                                             )
                                         },
                                         trailingIcon = {
@@ -609,19 +599,19 @@ fun DriverDevolucaoHistoricoScreen(
                                                     Icon(
                                                         Icons.Default.Clear,
                                                         contentDescription = "Limpar busca",
-                                                        tint = TextGray
+                                                        tint = TextGrayLightMode
                                                     )
                                                 }
                                             }
                                         },
                                         singleLine = true,
                                         colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = TextWhite,
-                                            unfocusedTextColor = TextWhite,
-                                            focusedBorderColor = NeonBlue,
-                                            unfocusedBorderColor = TextGray,
-                                            focusedLabelColor = NeonBlue,
-                                            unfocusedLabelColor = TextGray
+                                            focusedTextColor = TextBlack,
+                                            unfocusedTextColor = TextBlack,
+                                            focusedBorderColor = MeliBlue,
+                                            unfocusedBorderColor = CardBorderLight,
+                                            focusedLabelColor = MeliBlue,
+                                            unfocusedLabelColor = TextGrayLightMode
                                         ),
                                         modifier = Modifier.fillMaxWidth()
                                     )
@@ -643,11 +633,11 @@ fun DriverDevolucaoHistoricoScreen(
                                                 Icons.Default.Inventory2,
                                                 contentDescription = "Nenhuma devolução",
                                                 modifier = Modifier.size(64.dp),
-                                                tint = TextGray
+                                                tint = TextGrayLightMode
                                             )
                                             Text(
                                                 "Nenhuma devolução registrada",
-                                                color = TextGray,
+                                                color = TextGrayLightMode,
                                                 style = MaterialTheme.typography.titleMedium
                                             )
                                         }
@@ -670,13 +660,13 @@ fun DriverDevolucaoHistoricoScreen(
                                         OutlinedTextField(
                                             value = idPacoteFiltro,
                                             onValueChange = { idPacoteFiltro = it },
-                                            label = { Text("Buscar por ID do Pacote", color = TextGray) },
-                                            placeholder = { Text("Digite o ID...", color = TextGray.copy(alpha = 0.5f)) },
+                                            label = { Text("Buscar por ID do Pacote", color = TextGrayLightMode) },
+                                            placeholder = { Text("Digite o ID...", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                                             leadingIcon = {
                                                 Icon(
                                                     Icons.Default.Search,
                                                     contentDescription = "Buscar",
-                                                    tint = NeonBlue
+                                                    tint = MeliBlue
                                                 )
                                             },
                                             trailingIcon = {
@@ -685,19 +675,19 @@ fun DriverDevolucaoHistoricoScreen(
                                                         Icon(
                                                             Icons.Default.Clear,
                                                             contentDescription = "Limpar busca",
-                                                            tint = TextGray
+                                                            tint = TextGrayLightMode
                                                         )
                                                     }
                                                 }
                                             },
                                             singleLine = true,
                                             colors = OutlinedTextFieldDefaults.colors(
-                                                focusedTextColor = TextWhite,
-                                                unfocusedTextColor = TextWhite,
-                                                focusedBorderColor = NeonBlue,
-                                                unfocusedBorderColor = TextGray,
-                                                focusedLabelColor = NeonBlue,
-                                                unfocusedLabelColor = TextGray
+                                                focusedTextColor = TextBlack,
+                                                unfocusedTextColor = TextBlack,
+                                                focusedBorderColor = MeliBlue,
+                                                unfocusedBorderColor = CardBorderLight,
+                                                focusedLabelColor = MeliBlue,
+                                                unfocusedLabelColor = TextGrayLightMode
                                             ),
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -705,7 +695,7 @@ fun DriverDevolucaoHistoricoScreen(
                                         // Contador de resultados
                                         Text(
                                             "Nenhuma devolução encontrada com os filtros aplicados",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.bodyMedium,
                                             modifier = Modifier.padding(horizontal = 4.dp)
                                         )
@@ -728,16 +718,16 @@ fun DriverDevolucaoHistoricoScreen(
                                                 Icons.Default.SearchOff,
                                                 contentDescription = "Nenhum resultado",
                                                 modifier = Modifier.size(64.dp),
-                                                tint = TextGray
+                                                tint = TextGrayLightMode
                                             )
                                             Text(
                                                 "Nenhuma devolução encontrada",
-                                                color = TextGray,
+                                                color = TextGrayLightMode,
                                                 style = MaterialTheme.typography.titleMedium
                                             )
                                             Text(
                                                 "Tente ajustar os filtros",
-                                                color = TextGray,
+                                                color = TextGrayLightMode,
                                                 style = MaterialTheme.typography.bodyMedium
                                             )
                                         }
@@ -760,13 +750,13 @@ fun DriverDevolucaoHistoricoScreen(
                                         OutlinedTextField(
                                             value = idPacoteFiltro,
                                             onValueChange = { idPacoteFiltro = it },
-                                            label = { Text("Buscar por ID do Pacote", color = TextGray) },
-                                            placeholder = { Text("Digite o ID...", color = TextGray.copy(alpha = 0.5f)) },
+                                            label = { Text("Buscar por ID do Pacote", color = TextGrayLightMode) },
+                                            placeholder = { Text("Digite o ID...", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                                             leadingIcon = {
                                                 Icon(
                                                     Icons.Default.Search,
                                                     contentDescription = "Buscar",
-                                                    tint = NeonBlue
+                                                    tint = MeliBlue
                                                 )
                                             },
                                             trailingIcon = {
@@ -775,19 +765,19 @@ fun DriverDevolucaoHistoricoScreen(
                                                         Icon(
                                                             Icons.Default.Clear,
                                                             contentDescription = "Limpar busca",
-                                                            tint = TextGray
+                                                            tint = TextGrayLightMode
                                                         )
                                                     }
                                                 }
                                             },
                                             singleLine = true,
                                             colors = OutlinedTextFieldDefaults.colors(
-                                                focusedTextColor = TextWhite,
-                                                unfocusedTextColor = TextWhite,
-                                                focusedBorderColor = NeonBlue,
-                                                unfocusedBorderColor = TextGray,
-                                                focusedLabelColor = NeonBlue,
-                                                unfocusedLabelColor = TextGray
+                                                focusedTextColor = TextBlack,
+                                                unfocusedTextColor = TextBlack,
+                                                focusedBorderColor = MeliBlue,
+                                                unfocusedBorderColor = CardBorderLight,
+                                                focusedLabelColor = MeliBlue,
+                                                unfocusedLabelColor = TextGrayLightMode
                                             ),
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -800,7 +790,7 @@ fun DriverDevolucaoHistoricoScreen(
                                                 } else {
                                                     "${devolucoes.size} devolução(ões) encontrada(s)"
                                                 },
-                                                color = if (devolucoes.isEmpty() && temFiltrosAtivos) TextGray else TextWhite,
+                                                color = if (devolucoes.isEmpty() && temFiltrosAtivos) TextGrayLightMode else TextBlack,
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 modifier = Modifier.padding(horizontal = 4.dp)
                                             )
@@ -820,7 +810,7 @@ fun DriverDevolucaoHistoricoScreen(
                                         }
                                     }
                                     
-                                    GlassCard {
+                                    AppCard {
                                         Column(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -846,20 +836,20 @@ fun DriverDevolucaoHistoricoScreen(
                                                     Icon(
                                                         Icons.Default.Inventory2,
                                                         contentDescription = null,
-                                                        tint = NeonGreen,
+                                                        tint = MeliBlue,
                                                         modifier = Modifier.size(32.dp)
                                                     )
                                                     Column {
                                                         Text(
                                                             "${devolucao.quantidade} ${if (devolucao.quantidade == 1) "pacote" else "pacotes"}",
-                                                            color = TextWhite,
+                                                            color = TextBlack,
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontWeight = FontWeight.Bold
                                                         )
                                                         Spacer(modifier = Modifier.height(4.dp))
                                                         Text(
                                                             "${devolucao.data} - ${devolucao.hora}",
-                                                            color = TextGray,
+                                                            color = TextGrayLightMode,
                                                             style = MaterialTheme.typography.bodyMedium
                                                         )
                                                     }
@@ -888,7 +878,7 @@ fun DriverDevolucaoHistoricoScreen(
                                                     },
                                                     modifier = Modifier.weight(1f),
                                                     colors = ButtonDefaults.buttonColors(
-                                                        containerColor = NeonBlue,
+                                                        containerColor = MeliBlue,
                                                         contentColor = Color.Black
                                                     )
                                                 ) {
@@ -896,7 +886,7 @@ fun DriverDevolucaoHistoricoScreen(
                                                         Icons.Default.CameraAlt,
                                                         contentDescription = "Adicionar fotos",
                                                         modifier = Modifier.size(24.dp),
-                                                        tint = Color.Black
+                                                        tint = Color.White
                                                     )
                                                 }
                                                 
@@ -967,7 +957,7 @@ fun DriverDevolucaoHistoricoScreen(
                                                                 .width(120.dp)
                                                                 .height(120.dp)
                                                                 .background(
-                                                                    DarkSurface,
+                                                                    LightSurfaceVariant,
                                                                     shape = RoundedCornerShape(8.dp)
                                                                 )
                                                         ) {
@@ -1017,8 +1007,8 @@ fun DriverDevolucaoHistoricoScreen(
                 val isError = error != null || messageText.contains("erro", ignoreCase = true)
                 Snackbar(
                     snackbarData = snackbarData,
-                    containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                    contentColor = if (isError) TextWhite else Color.Black
+                    containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                    contentColor = TextWhite
                 )
             }
         }
@@ -1027,9 +1017,9 @@ fun DriverDevolucaoHistoricoScreen(
         if (devolucaoSelecionadaParaFoto != null) {
             AlertDialog(
                 onDismissRequest = { devolucaoSelecionadaParaFoto = null },
-                containerColor = DarkSurface,
+                containerColor = Color.White,
                 title = {
-                    Text("Escolher Foto", color = TextWhite, fontWeight = FontWeight.Bold)
+                    Text("Escolher Foto", color = TextBlack, fontWeight = FontWeight.Bold)
                 },
                 text = {
                     Column(
@@ -1037,7 +1027,7 @@ fun DriverDevolucaoHistoricoScreen(
                     ) {
                         Text(
                             "Como deseja adicionar a foto?",
-                            color = TextWhite
+                            color = TextBlack
                         )
                     }
                 },
@@ -1068,7 +1058,7 @@ fun DriverDevolucaoHistoricoScreen(
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = NeonBlue,
+                                containerColor = MeliBlue,
                                 contentColor = TextWhite
                             )
                         ) {
@@ -1081,8 +1071,8 @@ fun DriverDevolucaoHistoricoScreen(
                                 galleryLauncher.launch("image/*")
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = NeonGreen,
-                                contentColor = Color.Black
+                                containerColor = MeliBlue,
+                                contentColor = Color.White
                             )
                         ) {
                             Icon(Icons.Default.PhotoLibrary, null, modifier = Modifier.size(18.dp))
@@ -1093,7 +1083,7 @@ fun DriverDevolucaoHistoricoScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { devolucaoSelecionadaParaFoto = null }) {
-                        Text("Cancelar", color = TextGray)
+                        Text("Cancelar", color = TextGrayLightMode)
                     }
                 }
             )
@@ -1104,21 +1094,21 @@ fun DriverDevolucaoHistoricoScreen(
             val devolucao = devolucoes.find { it.id == devolucaoId }
             AlertDialog(
                 onDismissRequest = { showConfirmDelete = null },
-                containerColor = DarkSurface,
+                containerColor = Color.White,
                 title = {
-                    Text("Excluir Devolução", color = TextWhite, fontWeight = FontWeight.Bold)
+                    Text("Excluir Devolução", color = TextBlack, fontWeight = FontWeight.Bold)
                 },
                 text = {
                     Column {
                         Text(
                             "Deseja realmente excluir esta devolução?",
-                            color = TextWhite
+                            color = TextBlack
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         devolucao?.let {
-                            Text("${it.quantidade} ${if (it.quantidade == 1) "pacote" else "pacotes"}", color = TextGray)
-                            Text("IDs: ${it.idsPacotes.joinToString(", ")}", color = TextGray)
-                            Text("Data/Hora: ${it.data} - ${it.hora}", color = TextGray)
+                            Text("${it.quantidade} ${if (it.quantidade == 1) "pacote" else "pacotes"}", color = TextGrayLightMode)
+                            Text("IDs: ${it.idsPacotes.joinToString(", ")}", color = TextGrayLightMode)
+                            Text("Data/Hora: ${it.data} - ${it.hora}", color = TextGrayLightMode)
                         }
                     }
                 },
@@ -1138,7 +1128,7 @@ fun DriverDevolucaoHistoricoScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showConfirmDelete = null }) {
-                        Text("Cancelar", color = TextGray)
+                        Text("Cancelar", color = TextGrayLightMode)
                     }
                 }
             )

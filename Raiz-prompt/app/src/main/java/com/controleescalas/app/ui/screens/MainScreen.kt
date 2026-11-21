@@ -10,11 +10,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.theme.*
 
 @Composable
@@ -27,9 +28,11 @@ fun MainScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(DarkBackground, DeepBlue, DarkBackground)
+                    colors = listOf(MeliYellow, Color.White, Color.White)
                 )
             )
+            .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -46,16 +49,16 @@ fun MainScreen(
                 Text(
                     text = "CONTROLE DE\nESCALAS",
                     style = MaterialTheme.typography.displaySmall,
-                    color = NeonGreen,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     lineHeight = MaterialTheme.typography.displaySmall.lineHeight
                 )
-                
+
                 Text(
                     "Gestão inteligente de carregamento",
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     textAlign = TextAlign.Center
                 )
             }
@@ -63,34 +66,34 @@ fun MainScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Card de Ações
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
+            AppCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(
                         "Bem-vindo",
                         style = MaterialTheme.typography.headlineSmall,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold
                     )
-                    
+
                     Text(
                         "Escolha uma opção para começar:",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextGray
+                        color = TextGrayLightMode
                     )
-                    
+
                     Spacer(modifier = Modifier.height(8.dp))
-                    
-                    NeonButton(
+
+                    AppButton(
                         text = "CRIAR TRANSPORTADORA",
                         onClick = onCreateBaseClick,
                         modifier = Modifier.fillMaxWidth(),
                         icon = Icons.Default.Add
                     )
-                    
+
                     OutlinedButton(
                         onClick = onExistingAccountClick,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                     ) {
                         Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))

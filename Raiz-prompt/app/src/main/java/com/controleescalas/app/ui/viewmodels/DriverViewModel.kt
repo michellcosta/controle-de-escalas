@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit
 class DriverViewModel(application: Application) : AndroidViewModel(application) {
     private val motoristaRepository = MotoristaRepository()
     private val escalaRepository = EscalaRepository()
+    private val configRepository = com.controleescalas.app.data.repositories.ConfigRepository()
     private val geofencingService = GeofencingService(application.applicationContext)
     private val notificationService = NotificationService(application.applicationContext)
     private val notificationManager = NotificationManager.getInstance(application.applicationContext)
@@ -109,8 +110,9 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 startConfigListener(motoristaId, baseId, _statusInfo.value?.estado ?: "A_CAMINHO")
                 
                 // Nome do motorista é carregado via listener em observeMotoristaNome()
-                // Carregar escala do dia PRIMEIRO
-                val escala = escalaRepository.getEscalaDoDia(baseId, motoristaId)
+                // Carregar escala do dia PRIMEIRO (nos turnos cadastrados da base)
+                val turnosDaBase = configRepository.getTurnosBase(baseId)
+                val escala = escalaRepository.getEscalaDoDia(baseId, motoristaId, turnosDaBase)
                 _escalaInfo.value = escala
                 
                 // ✅ Verificar se motorista está escalado antes de iniciar serviços
@@ -438,11 +440,14 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
         
         // Resetar flag de inicialização quando começar nova observação
         escalaObservacaoInicializada = false
-        
-        escalaListeners = escalaRepository.observeEscalaDoMotorista(
-            baseId = baseId,
-            motoristaId = motoristaId,
-            onUpdate = { escalaInfo ->
+
+        viewModelScope.launch {
+            val turnos = configRepository.getTurnosBase(baseId)
+            escalaListeners = escalaRepository.observeEscalaDoMotorista(
+                baseId = baseId,
+                motoristaId = motoristaId,
+                turnos = turnos,
+                onUpdate = { escalaInfo ->
                 val escalaAnterior = _escalaInfo.value
                 _escalaInfo.value = escalaInfo
                 
@@ -574,6 +579,7 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 _error.value = "Erro ao observar escala: ${error.message}"
             }
         )
+        }
     }
     
     /**
@@ -639,6 +645,14 @@ class DriverViewModel(application: Application) : AndroidViewModel(application) 
                 // Se status mudou de null para válido (não CONCLUIDO): iniciar monitoramento
                 if (statusAnterior == null && statusInfo.estado != "CONCLUIDO" && _escalaInfo.value != null) {
                     println("✅ DriverViewModel: Status criado (${statusInfo.estado}), iniciando monitoramento de localização")
+                    loadDriverData(motoristaId, baseId)
+                }
+                // Admin resetou depois de CONCLUIDO: o GPS tinha sido desligado.
+                if (statusAnterior?.estado == "CONCLUIDO" &&
+                    statusInfo.estado != "CONCLUIDO" &&
+                    _escalaInfo.value != null
+                ) {
+                    println("✅ DriverViewModel: Status saiu de CONCLUIDO (${statusInfo.estado}), religando monitoramento")
                     loadDriverData(motoristaId, baseId)
                 }
                 

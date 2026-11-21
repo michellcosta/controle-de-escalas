@@ -17,8 +17,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.data.models.AcaoHistorico
 import com.controleescalas.app.data.repositories.HistoricoRepository
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -79,17 +80,10 @@ fun SuperAdminHistoricoScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Histórico de Ações", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
+            AppTopBar(
+                title = "Histórico de Ações",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onBack,
                 actions = {
                     IconButton(
                         onClick = { refreshHistorico() },
@@ -98,24 +92,20 @@ fun SuperAdminHistoricoScreen(
                         if (isRefreshing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = NeonGreen,
+                                color = MeliBlue,
                                 strokeWidth = 2.dp
                             )
                         } else {
                             Icon(
                                 Icons.Default.Refresh,
-                                contentDescription = "Atualizar",
-                                tint = TextWhite
+                                contentDescription = "Atualizar"
                             )
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+                }
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -140,7 +130,7 @@ fun SuperAdminHistoricoScreen(
                         ) 
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonGreen,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.Black
                     )
                 )
@@ -155,7 +145,7 @@ fun SuperAdminHistoricoScreen(
                         ) 
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonGreen,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.Black
                     )
                 )
@@ -185,7 +175,7 @@ fun SuperAdminHistoricoScreen(
                         ) 
                     },
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = NeonBlue,
+                        selectedContainerColor = MeliBlue,
                         selectedLabelColor = Color.White
                     )
                 )
@@ -213,7 +203,7 @@ fun SuperAdminHistoricoScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = NeonGreen)
+                    CircularProgressIndicator(color = MeliBlue)
                 }
             } else if (acoesFiltradas.isEmpty()) {
                 Box(
@@ -227,12 +217,12 @@ fun SuperAdminHistoricoScreen(
                         Icon(
                             Icons.Default.History,
                             contentDescription = null,
-                            tint = TextGray,
+                            tint = TextGrayLightMode,
                             modifier = Modifier.size(64.dp)
                         )
                         Text(
                             text = "Nenhuma ação registrada",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
@@ -265,7 +255,7 @@ fun AcaoHistoricoCard(acao: AcaoHistorico) {
         "rejeicao" -> Color(0xFFEF4444)
         "edicao" -> NeonBlue
         "configuracao" -> NeonPurple
-        else -> TextGray
+        else -> TextGrayLightMode
     }
     
     val tipoText = when (acao.tipo) {
@@ -281,7 +271,7 @@ fun AcaoHistoricoCard(acao: AcaoHistorico) {
         sdf.format(Date(acao.data))
     }
     
-    GlassCard {
+    AppCard {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -314,7 +304,7 @@ fun AcaoHistoricoCard(acao: AcaoHistorico) {
                         Text(
                             text = "• ${acao.baseNome}",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -324,7 +314,7 @@ fun AcaoHistoricoCard(acao: AcaoHistorico) {
                 Text(
                     text = acao.descricao,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextWhite,
+                    color = TextBlack,
                     maxLines = 2,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
@@ -332,7 +322,7 @@ fun AcaoHistoricoCard(acao: AcaoHistorico) {
                 Text(
                     text = dataFormatada,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             }
         }

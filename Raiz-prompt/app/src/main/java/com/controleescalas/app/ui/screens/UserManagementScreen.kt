@@ -24,9 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.controleescalas.app.ui.components.CustomTextField
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.data.models.AdminMotoristaCardData
 import com.controleescalas.app.ui.viewmodels.AdminViewModel
@@ -57,22 +58,16 @@ fun UserManagementScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("Gestão de Equipe", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextWhite)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
+            AppTopBar(
+                title = "Gestão de Equipe",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = { navController.popBackStack() }
+)
         },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddUserDialog = true },
-                containerColor = NeonGreen,
+                containerColor = MeliBlue,
                 contentColor = Color.Black
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Adicionar Usuário")
@@ -96,24 +91,24 @@ fun UserManagementScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp),
-                    placeholder = { Text("Pesquisar...", color = TextGray) },
+                    placeholder = { Text("Pesquisar...", color = TextGrayLightMode) },
                     leadingIcon = {
                         Icon(
                             Icons.Default.Search,
                             contentDescription = "Pesquisar",
-                            tint = NeonGreen
+                            tint = MeliBlue
                         )
                     },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen,
-                        unfocusedBorderColor = TextGray,
-                        focusedLabelColor = NeonGreen,
-                        unfocusedLabelColor = TextGray,
-                        focusedPlaceholderColor = TextGray,
-                        unfocusedPlaceholderColor = TextGray
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue,
+                        unfocusedBorderColor = CardBorderLight,
+                        focusedLabelColor = MeliBlue,
+                        unfocusedLabelColor = TextGrayLightMode,
+                        focusedPlaceholderColor = TextDisabled,
+                        unfocusedPlaceholderColor = TextDisabled
                     ),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -135,7 +130,7 @@ fun UserManagementScreen(
                 
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NeonGreen)
+                        CircularProgressIndicator(color = MeliBlue)
                     }
                 } else {
                     LazyColumn(
@@ -206,12 +201,12 @@ fun UserManagementScreen(
                         showDeleteConfirmDialog = false
                         selectedMotorista = null
                     },
-                    containerColor = DarkSurface,
-                    title = { Text("Confirmar Exclusão", color = TextWhite) },
+                    containerColor = Color.White,
+                    title = { Text("Confirmar Exclusão", color = TextBlack) },
                     text = {
                         Text(
                             "Tem certeza que deseja remover ${selectedMotorista!!.nome}?",
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     },
                     confirmButton = {
@@ -235,7 +230,7 @@ fun UserManagementScreen(
                                 selectedMotorista = null
                             }
                         ) {
-                            Text("Cancelar", color = TextGray)
+                            Text("Cancelar", color = TextGrayLightMode)
                         }
                     }
                 )
@@ -250,7 +245,7 @@ fun UserCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    GlassCard(
+    AppCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -273,7 +268,7 @@ fun UserCard(
                 Text(
                     text = motorista.nome.firstOrNull()?.toString() ?: "?",
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (motorista.papel == "motorista") Color.Black else TextWhite
+                    color = Color.White
                 )
             }
             
@@ -283,12 +278,12 @@ fun UserCard(
                 Text(
                     text = motorista.nome,
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextWhite
+                    color = TextBlack
                 )
                 Text(
                     text = motorista.telefone,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 // Mostrar Modalidade se for motorista
                 if (motorista.papel == "motorista") {
@@ -320,7 +315,7 @@ fun UserCard(
                     Icon(
                         Icons.Default.Edit,
                         contentDescription = "Editar",
-                        tint = NeonBlue
+                        tint = MeliBlue
                     )
                 }
                 IconButton(onClick = onDelete) {
@@ -362,8 +357,8 @@ fun AddUserDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        title = { Text("Novo Usuário", color = TextWhite) },
+        containerColor = Color.White,
+        title = { Text("Novo Usuário", color = TextBlack) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CustomTextField(
@@ -389,7 +384,7 @@ fun AddUserDialog(
                 )
                 
                 // Seletor de Papel
-                Text("Função:", color = TextGray, style = MaterialTheme.typography.bodySmall)
+                Text("Função:", color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -403,7 +398,7 @@ fun AddUserDialog(
                             label = { Text("Motorista") },
                             modifier = Modifier.weight(1f),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = NeonGreen,
+                                selectedContainerColor = MeliBlue,
                                 selectedLabelColor = Color.Black
                             )
                         )
@@ -413,8 +408,8 @@ fun AddUserDialog(
                             label = { Text("Auxiliar") },
                             modifier = Modifier.weight(1f),
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = NeonBlue,
-                                selectedLabelColor = TextWhite
+                                selectedContainerColor = MeliBlue,
+                                selectedLabelColor = MeliBlue
                             )
                         )
                     }
@@ -429,7 +424,7 @@ fun AddUserDialog(
                             modifier = Modifier.fillMaxWidth(),
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = NeonPurple,
-                                selectedLabelColor = TextWhite
+                                selectedLabelColor = MeliBlue
                             )
                         )
                     }
@@ -437,7 +432,7 @@ fun AddUserDialog(
                 
                 // Seletor de Modalidade (apenas se for motorista ou auxiliar)
                 if (papel == "motorista" || papel == "auxiliar") {
-                    Text("Modalidade:", color = TextGray, style = MaterialTheme.typography.bodySmall)
+                    Text("Modalidade:", color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
                     Column {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
@@ -472,7 +467,7 @@ fun AddUserDialog(
             }
         },
         confirmButton = {
-            NeonButton(
+            AppButton(
                 text = "Criar",
                 onClick = { onConfirm(nome, telefone, pin, papel, modalidade) },
                 modifier = Modifier.fillMaxWidth()
@@ -480,7 +475,7 @@ fun AddUserDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = TextGray)
+                Text("Cancelar", color = TextGrayLightMode)
             }
         }
     )
@@ -500,8 +495,8 @@ fun EditUserDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        title = { Text("Editar Motorista", color = TextWhite) },
+        containerColor = Color.White,
+        title = { Text("Editar Motorista", color = TextBlack) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CustomTextField(
@@ -537,7 +532,7 @@ fun EditUserDialog(
                     ) {
                         Text(
                             "Modalidade:", 
-                            color = TextWhite, 
+                            color = TextBlack, 
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
@@ -552,9 +547,9 @@ fun EditUserDialog(
                                 label = { Text("Frota", style = MaterialTheme.typography.labelMedium) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = DarkSurfaceVariant,
-                                    selectedContainerColor = NeonBlue,
-                                    labelColor = TextGray,
+                                    containerColor = LightSurfaceVariant,
+                                    selectedContainerColor = MeliBlue,
+                                    labelColor = TextGrayLightMode,
                                     selectedLabelColor = Color.Black
                                 )
                             )
@@ -564,9 +559,9 @@ fun EditUserDialog(
                                 label = { Text("Passeio", style = MaterialTheme.typography.labelMedium) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = DarkSurfaceVariant,
-                                    selectedContainerColor = NeonBlue,
-                                    labelColor = TextGray,
+                                    containerColor = LightSurfaceVariant,
+                                    selectedContainerColor = MeliBlue,
+                                    labelColor = TextGrayLightMode,
                                     selectedLabelColor = Color.Black
                                 )
                             )
@@ -582,9 +577,9 @@ fun EditUserDialog(
                                 label = { Text("Dedicado", style = MaterialTheme.typography.labelMedium) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = DarkSurfaceVariant,
-                                    selectedContainerColor = NeonBlue,
-                                    labelColor = TextGray,
+                                    containerColor = LightSurfaceVariant,
+                                    selectedContainerColor = MeliBlue,
+                                    labelColor = TextGrayLightMode,
                                     selectedLabelColor = Color.Black
                                 )
                             )
@@ -594,9 +589,9 @@ fun EditUserDialog(
                                 label = { Text("Utilitário", style = MaterialTheme.typography.labelMedium) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = DarkSurfaceVariant,
-                                    selectedContainerColor = NeonBlue,
-                                    labelColor = TextGray,
+                                    containerColor = LightSurfaceVariant,
+                                    selectedContainerColor = MeliBlue,
+                                    labelColor = TextGrayLightMode,
                                     selectedLabelColor = Color.Black
                                 )
                             )
@@ -612,7 +607,7 @@ fun EditUserDialog(
                     ) {
                         Text(
                             "Função:",
-                            color = TextWhite,
+                            color = TextBlack,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
@@ -627,9 +622,9 @@ fun EditUserDialog(
                                 label = { Text("Motorista", style = MaterialTheme.typography.labelMedium) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = DarkSurfaceVariant,
-                                    selectedContainerColor = NeonBlue,
-                                    labelColor = TextGray,
+                                    containerColor = LightSurfaceVariant,
+                                    selectedContainerColor = MeliBlue,
+                                    labelColor = TextGrayLightMode,
                                     selectedLabelColor = Color.Black
                                 )
                             )
@@ -639,9 +634,9 @@ fun EditUserDialog(
                                 label = { Text("Auxiliar", style = MaterialTheme.typography.labelMedium) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = DarkSurfaceVariant,
-                                    selectedContainerColor = NeonBlue,
-                                    labelColor = TextGray,
+                                    containerColor = LightSurfaceVariant,
+                                    selectedContainerColor = MeliBlue,
+                                    labelColor = TextGrayLightMode,
                                     selectedLabelColor = Color.Black
                                 )
                             )
@@ -657,9 +652,9 @@ fun EditUserDialog(
                                 label = { Text("Admin", style = MaterialTheme.typography.labelMedium) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = DarkSurfaceVariant,
-                                    selectedContainerColor = NeonBlue,
-                                    labelColor = TextGray,
+                                    containerColor = LightSurfaceVariant,
+                                    selectedContainerColor = MeliBlue,
+                                    labelColor = TextGrayLightMode,
                                     selectedLabelColor = Color.Black
                                 )
                             )
@@ -669,7 +664,7 @@ fun EditUserDialog(
             }
         },
         confirmButton = {
-            NeonButton(
+            AppButton(
                 text = "Salvar",
                 onClick = { 
                     // ✅ Passar PIN apenas se foi preenchido (não vazio)
@@ -681,7 +676,7 @@ fun EditUserDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = TextGray)
+                Text("Cancelar", color = TextGrayLightMode)
             }
         }
     )

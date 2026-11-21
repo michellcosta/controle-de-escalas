@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -80,7 +81,7 @@ fun SplashScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(DarkBackground, DeepBlue, DarkBackground)
+                    colors = listOf(MeliYellow, Color.White, Color.White)
                 )
             ),
         contentAlignment = Alignment.Center
@@ -96,7 +97,7 @@ fun SplashScreen(
                     fontSize = 36.sp,
                     lineHeight = 42.sp
                 ),
-                color = NeonGreen,
+                color = TextBlack,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.graphicsLayer {
@@ -104,20 +105,20 @@ fun SplashScreen(
                     scaleY = scale
                 }
             )
-            
+
             // Indicador de loading
             CircularProgressIndicator(
-                color = NeonGreen,
+                color = MeliBlue,
                 strokeWidth = 3.dp,
                 modifier = Modifier.size(40.dp)
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
                 text = "Carregando...",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextGray
+                color = TextGrayLightMode
             )
         }
     }

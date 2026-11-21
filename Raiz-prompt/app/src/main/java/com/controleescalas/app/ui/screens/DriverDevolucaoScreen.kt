@@ -15,15 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.ui.components.BarcodeScannerScreen
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
@@ -79,19 +79,13 @@ fun DriverDevolucaoScreen(
     Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Devolução", color = MaterialTheme.colorScheme.onBackground) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.ArrowBack, "Voltar", tint = MaterialTheme.colorScheme.onBackground)
-                    }
-                },
+            AppTopBar(
+                title = "Devolução",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onDismiss,
                 actions = {
                     IconButton(onClick = { showInfoDialog = true }) {
-                        Icon(Icons.Default.Info, "Informações", tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast)
+                        Icon(Icons.Default.Info, "Informações", tint = Color.Black)
                     }
                 }
             )
@@ -112,7 +106,7 @@ fun DriverDevolucaoScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Card de formulário
-                    GlassCard {
+                    AppCard {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -126,10 +120,10 @@ fun DriverDevolucaoScreen(
                                         idPacote = it
                                     }
                                 },
-                                label = { Text("ID do Pacote *", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode) },
-                                placeholder = { Text("12345678912", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.5f) else TextGrayLightMode.copy(alpha = 0.5f)) },
+                                label = { Text("ID do Pacote *", color = TextGrayLightMode) },
+                                placeholder = { Text("12345678912", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                                 leadingIcon = {
-                                    Icon(Icons.Default.QrCode, null, tint = NeonGreen)
+                                    Icon(Icons.Default.QrCode, null, tint = MeliBlue)
                                 },
                                 trailingIcon = {
                                     IconButton(
@@ -148,14 +142,14 @@ fun DriverDevolucaoScreen(
                                             }
                                         }
                                     ) {
-                                        Icon(Icons.Default.CameraAlt, "Escanear", tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast)
+                                        Icon(Icons.Default.CameraAlt, "Escanear", tint = MeliBlue)
                                     }
                                 },
                                 isError = error != null && idPacote.isNotBlank(),
                                 supportingText = if (error != null && idPacote.isNotBlank()) {
                                     { Text(error ?: "", color = Color(0xFFEF4444)) }
                                 } else {
-                                    { Text("Digite 11 dígitos ou escaneie o código", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode) }
+                                    { Text("Digite 11 dígitos ou escaneie o código", color = TextGrayLightMode) }
                                 },
                                 singleLine = true,
                                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
@@ -164,10 +158,10 @@ fun DriverDevolucaoScreen(
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                     unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    focusedBorderColor = NeonGreen,
-                                    unfocusedBorderColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
-                                    focusedLabelColor = NeonGreen,
-                                    unfocusedLabelColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                                    focusedBorderColor = MeliBlue,
+                                    unfocusedBorderColor = TextGrayLightMode,
+                                    focusedLabelColor = MeliBlue,
+                                    unfocusedLabelColor = TextGrayLightMode
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -176,15 +170,15 @@ fun DriverDevolucaoScreen(
                             OutlinedTextField(
                                 value = "$dataAtual - $horaAtual",
                                 onValueChange = {},
-                                label = { Text("Data/Hora Atual", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode) },
+                                label = { Text("Data/Hora Atual", color = TextGrayLightMode) },
                                 leadingIcon = {
-                                    Icon(Icons.Default.AccessTime, null, tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast)
+                                    Icon(Icons.Default.AccessTime, null, tint = NeonOrange)
                                 },
                                 enabled = false,
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    disabledTextColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
-                                    disabledBorderColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.5f) else TextGrayLightMode.copy(alpha = 0.5f),
-                                    disabledLabelColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray.copy(alpha = 0.7f) else TextGrayLightMode.copy(alpha = 0.7f)
+                                    disabledTextColor = TextGrayLightMode,
+                                    disabledBorderColor = TextGrayLightMode.copy(alpha = 0.5f),
+                                    disabledLabelColor = TextGrayLightMode.copy(alpha = 0.7f)
                                 ),
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -207,7 +201,7 @@ fun DriverDevolucaoScreen(
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast)
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                             ) {
                                 Icon(Icons.Default.QrCodeScanner, null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -223,8 +217,8 @@ fun DriverDevolucaoScreen(
                                     onClick = { showConfirmDialog = true },
                                     enabled = !isLoading && idPacote.isNotBlank(),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = NeonGreen,
-                                        contentColor = Color.Black
+                                        containerColor = MeliBlue,
+                                        contentColor = Color.White
                                     ),
                                     modifier = Modifier
                                         .weight(1f)
@@ -284,7 +278,7 @@ fun DriverDevolucaoScreen(
                                         .weight(1f)
                                         .defaultMinSize(minWidth = 0.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                                        contentColor = TextGrayLightMode
                                     )
                                 ) {
                                     Text(
@@ -298,7 +292,7 @@ fun DriverDevolucaoScreen(
                     }
                     
                     // Botão Ver Histórico
-                    NeonButton(
+                    AppButton(
                         text = "Ver Histórico",
                         onClick = onNavigateToHistorico,
                         modifier = Modifier.fillMaxWidth()
@@ -344,8 +338,8 @@ fun DriverDevolucaoScreen(
                     val isError = error != null || messageText.contains("inválido", ignoreCase = true)
                     Snackbar(
                         snackbarData = snackbarData,
-                        containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                        contentColor = if (isError) TextWhite else Color.Black
+                        containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                        contentColor = TextWhite
                     )
                 }
             }
@@ -365,7 +359,7 @@ fun DriverDevolucaoScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Data/Hora: $dataAtual - $horaAtual", color = MaterialTheme.colorScheme.onSurface)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Deseja registrar esta devolução?", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode)
+                        Text("Deseja registrar esta devolução?", color = TextGrayLightMode)
                     }
                 },
                 confirmButton = {
@@ -380,8 +374,8 @@ fun DriverDevolucaoScreen(
                             )
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonGreen,
-                            contentColor = Color.Black
+                            containerColor = MeliBlue,
+                            contentColor = Color.White
                         )
                     ) {
                         Text("Confirmar", fontWeight = FontWeight.Bold)
@@ -389,7 +383,7 @@ fun DriverDevolucaoScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showConfirmDialog = false }) {
-                        Text("Cancelar", color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode)
+                        Text("Cancelar", color = TextGrayLightMode)
                     }
                 }
             )
@@ -410,7 +404,7 @@ fun DriverDevolucaoScreen(
                     ) {
                         Text(
                             "O que é uma devolução?",
-                            color = NeonGreen,
+                            color = MeliBlue,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -423,7 +417,7 @@ fun DriverDevolucaoScreen(
                         
                         Text(
                             "Como usar o scanner?",
-                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast,
+                            color = MeliBlue,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -437,7 +431,7 @@ fun DriverDevolucaoScreen(
                         
                         Text(
                             "Como funciona o registro?",
-                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonOrange else NeonOrangeContrast,
+                            color = NeonOrange,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
@@ -453,8 +447,8 @@ fun DriverDevolucaoScreen(
                     Button(
                         onClick = { showInfoDialog = false },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonGreen,
-                            contentColor = Color.Black
+                            containerColor = MeliBlue,
+                            contentColor = Color.White
                         )
                     ) {
                         Text("Entendi", fontWeight = FontWeight.Bold)

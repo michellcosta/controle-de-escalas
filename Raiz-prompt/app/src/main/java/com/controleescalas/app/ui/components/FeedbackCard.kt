@@ -54,7 +54,7 @@ fun FeedbackCard(
         sdf.format(Date(feedback.data))
     }
 
-    GlassCard(modifier = modifier.fillMaxWidth()) {
+    AppCard(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -79,13 +79,13 @@ fun FeedbackCard(
                             Text(
                                 text = feedback.adminNome,
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextWhite,
+                                color = TextBlack,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
                                 text = feedback.baseNome,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = TextGray
+                                color = TextGrayLightMode
                             )
                         }
                     } else {
@@ -97,7 +97,7 @@ fun FeedbackCard(
                             Text(
                                 text = "Feedback",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextWhite,
+                                color = TextBlack,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -134,7 +134,7 @@ fun FeedbackCard(
             Text(
                 text = feedback.mensagem,
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextWhite,
+                color = TextBlack,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -147,7 +147,7 @@ fun FeedbackCard(
                 Text(
                     text = dataFormatada,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
 
                 Row(
@@ -164,7 +164,7 @@ fun FeedbackCard(
                                 Icon(
                                     Icons.Default.Edit,
                                     contentDescription = "Editar",
-                                    tint = NeonBlue,
+                                    tint = MeliBlue,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }

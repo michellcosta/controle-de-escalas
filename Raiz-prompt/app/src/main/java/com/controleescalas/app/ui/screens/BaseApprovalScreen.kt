@@ -15,13 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.Base
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.PremiumBackground
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.BaseApprovalViewModel
 import kotlinx.coroutines.delay
@@ -80,8 +80,8 @@ fun BaseApprovalScreen(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Gestão de Transportadoras", color = MaterialTheme.colorScheme.onBackground) },
+            AppTopBar(
+                title = "Gestão de Transportadoras",
                 actions = {
                     // Menu de 3 pontos
                     IconButton(onClick = { showMenu = true }) {
@@ -107,7 +107,7 @@ fun BaseApprovalScreen(
                                     Icon(
                                         Icons.Default.Settings,
                                         contentDescription = null,
-                                        tint = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) NeonBlue else NeonBlueContrast,
+                                        tint = MeliBlue,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Text(
@@ -146,9 +146,6 @@ fun BaseApprovalScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
             )
         }
     ) { paddingValues ->
@@ -180,12 +177,12 @@ fun BaseApprovalScreen(
                     
                     message?.let {
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = NeonGreen),
+                            colors = CardDefaults.cardColors(containerColor = MeliBlue),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 text = it,
-                                color = Color.Black,
+                                color = Color.White,
                                 modifier = Modifier.padding(16.dp)
                             )
                         }
@@ -236,7 +233,7 @@ fun BaseApprovalScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(color = NeonGreen)
+                            CircularProgressIndicator(color = MeliBlue)
                         }
                     } else {
                         when (selectedTab) {
@@ -249,7 +246,7 @@ fun BaseApprovalScreen(
                                     ) {
                                         Text(
                                             text = "Nenhuma transportadora encontrada",
-                                            color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode
+                                            color = TextGrayLightMode
                                         )
                                     }
                                 } else {
@@ -284,12 +281,12 @@ fun BaseApprovalScreen(
                                             Icon(
                                                 Icons.Default.CheckCircle,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(64.dp)
                                             )
                                             Text(
                                                 text = "Nenhuma aprovação pendente",
-                                                color = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) TextGray else TextGrayLightMode,
+                                                color = TextGrayLightMode,
                                                 style = MaterialTheme.typography.bodyLarge
                                             )
                                         }
@@ -336,7 +333,7 @@ fun BaseListCard(
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = DarkSurfaceVariant
+            containerColor = Color.White
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -351,13 +348,13 @@ fun BaseListCard(
                 Text(
                     text = base.transportadora,
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = base.nome,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 if (base.criadoEm > 0) {
                     val dataFormatada = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
@@ -365,7 +362,7 @@ fun BaseListCard(
                     Text(
                         text = "Criada em: $dataFormatada",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGray.copy(alpha = 0.7f)
+                        color = TextGrayLightMode.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -415,7 +412,7 @@ fun BaseListCard(
             Icon(
                 Icons.Default.ArrowForward,
                 contentDescription = "Entrar",
-                tint = NeonBlue,
+                tint = MeliBlue,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -425,11 +422,11 @@ fun BaseListCard(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            containerColor = DarkSurface,
+            containerColor = Color.White,
             title = {
                 Text(
                     "Excluir Transportadora",
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -439,11 +436,11 @@ fun BaseListCard(
                 ) {
                     Text(
                         text = "Tem certeza que deseja excluir a transportadora:",
-                        color = TextGray
+                        color = TextGrayLightMode
                     )
                     Text(
                         text = base.transportadora,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -471,7 +468,7 @@ fun BaseListCard(
                 TextButton(
                     onClick = { showDeleteDialog = false }
                 ) {
-                    Text("Cancelar", color = TextGray)
+                    Text("Cancelar", color = TextGrayLightMode)
                 }
             }
         )
@@ -486,7 +483,7 @@ fun BaseApprovalCard(
     onEntrar: () -> Unit,
     showAprovarRejeitar: Boolean = true
 ) {
-    GlassCard {
+    AppCard {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -503,13 +500,13 @@ fun BaseApprovalCard(
                     Text(
                         text = base.transportadora,
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = base.nome,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextGray
+                        color = TextGrayLightMode
                     )
                 }
                 
@@ -543,7 +540,7 @@ fun BaseApprovalCard(
                 Text(
                     text = "Criada em: $dataFormatada",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray.copy(alpha = 0.7f)
+                    color = TextGrayLightMode.copy(alpha = 0.7f)
                 )
             }
             
@@ -556,7 +553,7 @@ fun BaseApprovalCard(
                 OutlinedButton(
                     onClick = onEntrar,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                 ) {
                     Icon(Icons.Default.Login, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -574,7 +571,7 @@ fun BaseApprovalCard(
                             onClick = onAprovar,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = NeonGreen,
+                                containerColor = MeliBlue,
                                 contentColor = Color.Black
                             )
                         ) {

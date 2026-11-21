@@ -19,7 +19,7 @@ import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.models.Motorista
 import com.controleescalas.app.data.repositories.BaseRepository
 import com.controleescalas.app.data.repositories.MotoristaRepository
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -203,20 +203,20 @@ fun SuperAdminUsuariosScreen(
             placeholder = { 
                 Text(
                     "Pesquisar...",
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 ) 
             },
             leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = "Pesquisar", tint = NeonGreen)
+                Icon(Icons.Default.Search, contentDescription = "Pesquisar", tint = MeliBlue)
             },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = TextWhite,
-                unfocusedTextColor = TextWhite,
-                focusedBorderColor = NeonGreen,
-                unfocusedBorderColor = TextGray
+                focusedTextColor = TextBlack,
+                unfocusedTextColor = TextBlack,
+                focusedBorderColor = MeliBlue,
+                unfocusedBorderColor = CardBorderLight
             ),
             shape = RoundedCornerShape(12.dp)
         )
@@ -247,7 +247,7 @@ fun SuperAdminUsuariosScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = NeonGreen)
+                CircularProgressIndicator(color = MeliBlue)
             }
         } else if (adminsFiltrados.isEmpty()) {
             Box(
@@ -261,12 +261,12 @@ fun SuperAdminUsuariosScreen(
                     Icon(
                         Icons.Default.Person,
                         contentDescription = null,
-                        tint = TextGray,
+                        tint = TextGrayLightMode,
                         modifier = Modifier.size(64.dp)
                     )
                     Text(
                         text = "Nenhum administrador encontrado",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -293,7 +293,7 @@ fun SuperAdminUsuariosScreen(
             message?.let { msg ->
                 Snackbar(
                     modifier = Modifier.padding(16.dp),
-                    containerColor = NeonGreen,
+                    containerColor = MeliBlue,
                     contentColor = Color.Black
                 ) {
                     Text(msg)
@@ -316,11 +316,11 @@ fun SuperAdminUsuariosScreen(
     showResetPinDialog?.let { admin ->
         AlertDialog(
             onDismissRequest = { showResetPinDialog = null },
-            title = { Text("Resetar PIN", color = TextWhite) },
+            title = { Text("Resetar PIN", color = TextBlack) },
             text = {
                 Text(
                     "Tem certeza que deseja resetar o PIN do administrador ${admin.nome}?",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -350,17 +350,17 @@ fun SuperAdminUsuariosScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                 ) {
                     Text("Resetar", color = Color.Black)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetPinDialog = null }) {
-                    Text("Cancelar", color = TextGray)
+                    Text("Cancelar", color = TextGrayLightMode)
                 }
             },
-            containerColor = DarkSurface
+            containerColor = Color.White
         )
     }
     
@@ -371,7 +371,7 @@ fun SuperAdminUsuariosScreen(
             title = {
                 Text(
                     if (admin.ativo) "Desativar Conta" else "Reativar Conta",
-                    color = TextWhite
+                    color = TextBlack
                 )
             },
             text = {
@@ -381,7 +381,7 @@ fun SuperAdminUsuariosScreen(
                     } else {
                         "Tem certeza que deseja reativar a conta do administrador ${admin.nome}?"
                     },
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -415,7 +415,7 @@ fun SuperAdminUsuariosScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (admin.ativo) Color(0xFFEF4444) else NeonGreen
+                        containerColor = if (admin.ativo) Color(0xFFEF4444) else MeliBlue
                     )
                 ) {
                     Text(
@@ -426,10 +426,10 @@ fun SuperAdminUsuariosScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDesativarDialog = null }) {
-                    Text("Cancelar", color = TextGray)
+                    Text("Cancelar", color = TextGrayLightMode)
                 }
             },
-            containerColor = DarkSurface
+            containerColor = Color.White
         )
     }
     
@@ -440,7 +440,7 @@ fun SuperAdminUsuariosScreen(
             title = {
                 Text(
                     "Confirmar Limpeza",
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -448,7 +448,7 @@ fun SuperAdminUsuariosScreen(
                 Text(
                     "Tem certeza que deseja excluir permanentemente $adminsInativosCount administrador(es) inativo(s)?\n\n" +
                     "⚠️ Esta ação não pode ser desfeita e excluirá todos os dados relacionados.",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -607,12 +607,12 @@ fun SuperAdminUsuariosScreen(
                 TextButton(
                     onClick = { showLimparInativosDialog = false }
                 ) {
-                    Text("Cancelar", color = TextWhite)
+                    Text("Cancelar", color = TextBlack)
                 }
             },
-            containerColor = DarkSurface,
-            titleContentColor = TextWhite,
-            textContentColor = TextGray
+            containerColor = Color.White,
+            titleContentColor = TextBlack,
+            textContentColor = TextGrayLightMode
         )
     }
 }
@@ -624,15 +624,14 @@ fun AdminCard(
     onDesativar: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val modoClaro = MaterialTheme.colorScheme.onSurface == TextBlack
-    val corAtivo = if (modoClaro) NeonGreenDark else NeonGreen
+    val corAtivo = NeonGreen
     
     val dataFormatada = remember(admin.criadoEm) {
         val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
         sdf.format(Date(admin.criadoEm))
     }
     
-    GlassCard {
+    AppCard {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -733,10 +732,10 @@ fun AdminCard(
     DropdownMenu(
         expanded = showMenu,
         onDismissRequest = { showMenu = false },
-        modifier = Modifier.background(DarkSurface)
+        modifier = Modifier.background(Color.White)
     ) {
         DropdownMenuItem(
-            text = { Text("Resetar PIN", color = TextWhite) },
+            text = { Text("Resetar PIN", color = TextBlack) },
             onClick = {
                 showMenu = false
                 onResetPin()
@@ -746,7 +745,7 @@ fun AdminCard(
             text = {
                 Text(
                     if (admin.ativo) "Desativar Conta" else "Reativar Conta",
-                    color = if (admin.ativo) Color(0xFFEF4444) else NeonGreen
+                    color = if (admin.ativo) Color(0xFFEF4444) else MeliBlue
                 )
             },
             onClick = {

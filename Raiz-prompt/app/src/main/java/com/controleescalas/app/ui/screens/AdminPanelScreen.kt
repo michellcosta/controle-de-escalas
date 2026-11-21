@@ -19,13 +19,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.controleescalas.app.data.SessionManager
 import com.controleescalas.app.ui.components.*
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
@@ -60,34 +59,27 @@ fun AdminPanelScreen(
     val message by viewModel.message.collectAsState()
 
     val context = LocalContext.current
-    val sessionManager = remember { SessionManager(context) }
-    val themeMode by sessionManager.themeModeFlow.collectAsState(initial = "dark")
-    var modoEscuro by remember { mutableStateOf(themeMode == "dark") }
-    LaunchedEffect(themeMode) { modoEscuro = themeMode == "dark" }
-    val coresInterruptor = SwitchDefaults.colors(
-            checkedThumbColor = Color.White,
-            checkedTrackColor = Color(0xFF3A3A3C),
-            uncheckedThumbColor = Color.White,
-            uncheckedTrackColor = Color(0xFFD1D1D6),
-            checkedBorderColor = Color.Transparent,
-            uncheckedBorderColor = Color.Transparent
-    )
-    val scope = rememberCoroutineScope()
 
     // Estados para controlar os diálogos
     var showSobreApp by remember { mutableStateOf(false) }
     var showAjuda by remember { mutableStateOf(false) }
     var showTermos by remember { mutableStateOf(false) }
     var showNotificationSettings by remember { mutableStateOf(false) }
+    var showTurnosDialog by remember { mutableStateOf(false) }
+
+    // Turnos cadastrados da base (dirigem Operação e Disponibilidade)
+    val escopo = rememberCoroutineScope()
+    val configRepository = remember { com.controleescalas.app.data.repositories.ConfigRepository() }
+    var turnosDaBase by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(baseId) {
+        turnosDaBase = configRepository.getTurnosBase(baseId)
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Configurações", color = MaterialTheme.colorScheme.onBackground) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
+            AppTopBar(
+                title = "Configurações"
             )
         }
     ) { paddingValues ->
@@ -95,228 +87,87 @@ fun AdminPanelScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(top = paddingValues.calculateTopPadding())
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 180.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Seção de Configurações Gerais
                 SectionHeader(title = "Geral")
-                
-                GlassCard {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    if (modoEscuro) Icons.Default.DarkMode else Icons.Default.LightMode,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = if (modoEscuro) "Modo Escuro" else "Modo Claro",
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            }
-                            Switch(
-                                checked = modoEscuro,
-                                onCheckedChange = { ligado ->
-                                    modoEscuro = ligado
-                                    scope.launch {
-                                        sessionManager.setThemeMode(if (ligado) "dark" else "light")
-                                    }
-                                },
-                                colors = coresInterruptor
-                            )
-                        }
-                    }
-
-                // Botões de Configuração
-                val menuContentColor = MaterialTheme.colorScheme.onSurface
-                val menuBorder = BorderStroke(1.dp, TextGray.copy(alpha = 0.35f))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    OutlinedButton(
+                    AppMenuItem(
+                        text = "Local",
+                        icon = Icons.Default.LocationOn,
                         onClick = onLocationConfigClick,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                        border = menuBorder
-                    ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Local", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    
-                    OutlinedButton(
-                        onClick = onQuinzenaClick,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                        border = menuBorder
-                    ) {
-                        Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Quinzena", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                
-                // Botão Devolução
-                OutlinedButton(
-                    onClick = {
-                        println("🔴 AdminPanelScreen: BOTÃO DEVOLUÇÃO CLICADO!")
-                        println("🔴 AdminPanelScreen: Chamando onDevolucaoClick...")
-                        println("🔴 AdminPanelScreen: onDevolucaoClick.toString() = ${onDevolucaoClick.toString()}")
-                        try {
-                            onDevolucaoClick.invoke()
-                            println("🔴 AdminPanelScreen: onDevolucaoClick.invoke() executado")
-                        } catch (e: Exception) {
-                            println("❌ AdminPanelScreen: Erro ao executar onDevolucaoClick: ${e.message}")
-                            e.printStackTrace()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                    border = menuBorder
-                ) {
-                    Icon(Icons.Default.Inventory2, contentDescription = "Devolução", modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Devolução", style = MaterialTheme.typography.bodyMedium)
-                }
-                
-                // Botão Planos (visível apenas quando habilitado pelo Super Admin)
-                if (showPlanosButton) {
-                    OutlinedButton(
-                        onClick = onPlanosClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                        border = menuBorder
-                    ) {
-                        Icon(Icons.Default.Star, contentDescription = "Planos", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Planos e Assinatura", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                
-                // Botão Notificações
-                OutlinedButton(
-                    onClick = { showNotificationSettings = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                    border = menuBorder
-                ) {
-                    Icon(Icons.Default.Notifications, contentDescription = "Notificações", modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Notificações", style = MaterialTheme.typography.bodyMedium)
-                }
-                
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-                
-                // Seção de Gestão de Equipe (Acesso rápido)
-                SectionHeader(title = "Gestão")
-                
-                OutlinedButton(
-                    onClick = onUserManagementClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                    border = menuBorder
-                ) {
-                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Gerenciar Equipe e Motoristas", style = MaterialTheme.typography.bodyMedium)
-                }
-                
-                // Botão de Aprovação de Transportadoras (apenas para Super Admin)
-                if (isSuperAdmin) {
-                    OutlinedButton(
-                        onClick = onBaseApprovalClick,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                        border = menuBorder
-                    ) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Aprovar Transportadoras", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-
-                // Seção Ajuda e Suporte
-                SectionHeader(title = "Ajuda e Suporte")
-
-                OutlinedButton(
-                    onClick = { showSobreApp = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                    border = menuBorder
-                ) {
-                    Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Sobre o App", style = MaterialTheme.typography.bodyMedium)
-                }
-
-                OutlinedButton(
-                    onClick = { showAjuda = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                    border = menuBorder
-                ) {
-                    Icon(Icons.Default.Help, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Ajuda", style = MaterialTheme.typography.bodyMedium)
-                }
-
-                OutlinedButton(
-                    onClick = { showTermos = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                    border = menuBorder
-                ) {
-                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Termos de Uso", style = MaterialTheme.typography.bodyMedium)
-                }
-
-                OutlinedButton(
-                    onClick = onFeedbackClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = menuContentColor),
-                    border = menuBorder
-                ) {
-                    Icon(Icons.Default.Feedback, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Enviar Feedback", style = MaterialTheme.typography.bodyMedium)
-                }
-
-                HorizontalDivider(color = TextGray.copy(alpha = 0.2f))
-                
-                // Seção de Conta
-                SectionHeader(title = "Conta")
-                
-                OutlinedButton(
-                    onClick = onLogout,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444))
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ExitToApp,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.weight(1f)
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Sair da Conta", style = MaterialTheme.typography.bodyMedium)
+                    AppMenuItem(
+                        text = "Quinzena",
+                        icon = Icons.Default.DateRange,
+                        onClick = onQuinzenaClick,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
+                AppMenuItem(
+                    text = "Turnos da Base",
+                    icon = Icons.Default.Schedule,
+                    onClick = { showTurnosDialog = true }
+                )
+                AppMenuItem(
+                    text = "Devolução",
+                    icon = Icons.Default.Inventory2,
+                    onClick = onDevolucaoClick
+                )
+                if (showPlanosButton) {
+                    AppMenuItem(
+                        text = "Planos e Assinatura",
+                        icon = Icons.Default.Star,
+                        onClick = onPlanosClick
+                    )
+                }
+                AppMenuItem(
+                    text = "Notificações",
+                    icon = Icons.Default.Notifications,
+                    onClick = { showNotificationSettings = true }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                SectionHeader(title = "Gestão")
+                AppMenuItem(
+                    text = "Gerenciar Equipe e Motoristas",
+                    icon = Icons.Default.Person,
+                    onClick = onUserManagementClick
+                )
+                if (isSuperAdmin) {
+                    AppMenuItem(
+                        text = "Aprovar Transportadoras",
+                        icon = Icons.Default.CheckCircle,
+                        onClick = onBaseApprovalClick
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                SectionHeader(title = "Ajuda e Suporte")
+                AppMenuItem("Sobre o App", Icons.Default.Info, { showSobreApp = true })
+                AppMenuItem("Ajuda", Icons.Default.Help, { showAjuda = true })
+                AppMenuItem("Termos de Uso", Icons.Default.Description, { showTermos = true })
+                AppMenuItem("Enviar Feedback", Icons.Default.Feedback, onFeedbackClick)
+
+                Spacer(modifier = Modifier.height(8.dp))
+                SectionHeader(title = "Conta")
+                AppMenuItem(
+                    text = "Sair da Conta",
+                    icon = Icons.AutoMirrored.Filled.ExitToApp,
+                    onClick = onLogout,
+                    iconTint = Color(0xFFEF4444),
+                    textColor = Color(0xFFEF4444)
+                )
 
                 if (isLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = NeonGreen)
+                        CircularProgressIndicator(color = MeliBlue)
                     }
                 }
                 
@@ -324,7 +175,7 @@ fun AdminPanelScreen(
                 message?.let { msg ->
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Snackbar(
-                            containerColor = NeonGreen,
+                            containerColor = MeliBlue,
                             contentColor = Color.Black
                         ) {
                             Text(msg)
@@ -362,13 +213,149 @@ fun AdminPanelScreen(
     if (showTermos) {
         AdminTermosDialog(onDismiss = { showTermos = false })
     }
-    
+
+    // Editor de Turnos da Base
+    if (showTurnosDialog) {
+        TurnosDaBaseDialog(
+            baseId = baseId,
+            turnosAtuais = turnosDaBase,
+            configRepository = configRepository,
+            escopo = escopo,
+            onDismiss = { showTurnosDialog = false },
+            onSalvo = { novos ->
+                turnosDaBase = novos
+                showTurnosDialog = false
+            }
+        )
+    }
+
     // Tela de configurações de notificações
     if (showNotificationSettings) {
         AdminNotificationSettingsScreen(
             onBack = { showNotificationSettings = false }
         )
     }
+}
+
+/**
+ * Diálogo para o admin montar a lista de turnos da base.
+ * Esses turnos dirigem os botões da Operação e as opções que os
+ * motoristas marcam na Disponibilidade.
+ */
+@Composable
+fun TurnosDaBaseDialog(
+    baseId: String,
+    turnosAtuais: List<String>,
+    configRepository: com.controleescalas.app.data.repositories.ConfigRepository,
+    escopo: kotlinx.coroutines.CoroutineScope,
+    onDismiss: () -> Unit,
+    onSalvo: (List<String>) -> Unit
+) {
+    var turnosEditaveis by remember { mutableStateOf(turnosAtuais) }
+    var novoTurno by remember { mutableStateOf("") }
+    var salvando by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Turnos da Base",
+                color = TextBlack,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Esses turnos aparecem como botões na Operação e como opções que os motoristas marcam na Disponibilidade.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextGrayLightMode
+                )
+
+                if (turnosEditaveis.isEmpty()) {
+                    Text(
+                        "Nenhum turno. Adicione pelo menos um.",
+                        color = StatusError,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                turnosEditaveis.forEach { turno ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = turno,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TextBlack,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = { turnosEditaveis = turnosEditaveis - turno }) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Remover $turno",
+                                tint = StatusError
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = novoTurno,
+                        onValueChange = { novoTurno = it },
+                        label = { Text("Novo turno") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            val limpo = novoTurno.trim().uppercase()
+                            if (limpo.isNotBlank() && limpo !in turnosEditaveis) {
+                                turnosEditaveis = turnosEditaveis + limpo
+                                novoTurno = ""
+                            }
+                        },
+                        enabled = novoTurno.isNotBlank()
+                    ) {
+                        Text("Add")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    salvando = true
+                    escopo.launch {
+                        val ok = configRepository.salvarTurnosBase(baseId, turnosEditaveis)
+                        salvando = false
+                        if (ok) onSalvo(turnosEditaveis)
+                    }
+                },
+                enabled = turnosEditaveis.isNotEmpty() && !salvando
+            ) {
+                if (salvando) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = TextGrayLightMode)
+            }
+        },
+        containerColor = Color.White,
+        titleContentColor = TextBlack,
+        textContentColor = TextBlack
+    )
 }
 
 /**
@@ -398,18 +385,18 @@ fun AdminSobreAppDialog(onDismiss: () -> Unit) {
                 Text(
                     "Versão ${com.controleescalas.app.BuildConfig.VERSION_NAME}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Text(
                     "Desenvolvido por: Michell Oliveira",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Aplicativo para gestão de escalas de motoristas e controle de disponibilidade.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 com.controleescalas.app.ui.components.BotaoBuscarAtualizacao()
@@ -417,12 +404,12 @@ fun AdminSobreAppDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fechar", color = NeonGreen)
+                Text("Fechar", color = MeliBlue)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
         titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor = TextGray
+        textContentColor = TextGrayLightMode
     )
 }
 
@@ -455,24 +442,24 @@ fun AdminAjudaDialog(onDismiss: () -> Unit) {
                     "• Disponibilidade: Solicite e gerencie disponibilidade da equipe\n" +
                     "• Configurações: Acesse configurações de local, quinzena e gestão de equipe",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Para suporte técnico, entre em contato com o desenvolvedor.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray.copy(alpha = 0.7f)
+                    color = TextGrayLightMode.copy(alpha = 0.7f)
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fechar", color = NeonGreen)
+                Text("Fechar", color = MeliBlue)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
         titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor = TextGray
+        textContentColor = TextGrayLightMode
     )
 }
 
@@ -498,7 +485,7 @@ fun AdminTermosDialog(onDismiss: () -> Unit) {
                 Text(
                     "Ao usar este aplicativo, você concorda com os seguintes termos:",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
                 Text(
                     "• O aplicativo é destinado exclusivamente para uso profissional\n" +
@@ -510,23 +497,23 @@ fun AdminTermosDialog(onDismiss: () -> Unit) {
                     "• O aplicativo pode apresentar interrupções temporárias para manutenção ou melhorias\n" +
                     "• O desenvolvedor se reserva o direito de modificar os termos a qualquer momento",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray.copy(alpha = 0.8f)
+                    color = TextGrayLightMode.copy(alpha = 0.8f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Para mais informações, entre em contato com o desenvolvedor.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextGray.copy(alpha = 0.7f)
+                    color = TextGrayLightMode.copy(alpha = 0.7f)
                 )
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Fechar", color = NeonGreen)
+                Text("Fechar", color = MeliBlue)
             }
         },
         containerColor = MaterialTheme.colorScheme.surface,
         titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor = TextGray
+        textContentColor = TextGrayLightMode
     )
 }

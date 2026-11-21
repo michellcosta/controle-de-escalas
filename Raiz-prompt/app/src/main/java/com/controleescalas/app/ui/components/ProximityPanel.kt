@@ -37,7 +37,7 @@ fun ProximityPanel(
 ) {
     if (proximityAlerts.isEmpty()) return
     
-    GlassCard(
+    AppCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -80,7 +80,7 @@ private fun ProximityAlertRow(
     onClick: () -> Unit
 ) {
     Surface(
-        color = DarkSurfaceVariant,
+        color = LightSurfaceVariant,
         shape = MaterialTheme.shapes.small,
         modifier = Modifier
             .fillMaxWidth()
@@ -105,13 +105,13 @@ private fun ProximityAlertRow(
                     Text(
                         alert.nome,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         alert.onda,
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGray
+                        color = TextGrayLightMode
                     )
                 }
             }

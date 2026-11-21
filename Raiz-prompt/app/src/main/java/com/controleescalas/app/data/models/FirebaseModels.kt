@@ -119,7 +119,10 @@ data class ConfiguracaoBase(
     @DocumentId val id: String = "",
     val baseId: String = "",
     val galpao: GeofenceConfig = GeofenceConfig(),
-    val estacionamento: GeofenceConfig = GeofenceConfig()
+    val estacionamento: GeofenceConfig = GeofenceConfig(),
+    // Turnos cadastrados da base: dirigem os botões da Operação e a
+    // disponibilidade por turno. Docs antigos sem o campo recebem o padrão.
+    val turnos: List<String> = listOf("AM0", "AM", "PM", "SD", "SN")
 )
 
 data class GeofenceConfig(

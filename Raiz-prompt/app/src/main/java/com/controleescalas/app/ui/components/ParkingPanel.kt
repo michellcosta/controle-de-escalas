@@ -33,7 +33,7 @@ fun ParkingPanel(
         return
     }
     
-    GlassCard(
+    AppCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -117,7 +117,7 @@ private fun ParkingDriverCard(
     onCallToVaga: (() -> Unit)?
 ) {
     Surface(
-        color = DarkSurfaceVariant,
+        color = LightSurfaceVariant,
         shape = MaterialTheme.shapes.medium,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -140,7 +140,7 @@ private fun ParkingDriverCard(
                     Text(
                         motorista.nome,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -158,7 +158,7 @@ private fun ParkingDriverCard(
                 Button(
                     onClick = onCallToVaga,
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
+                        containerColor = MeliBlue,
                         contentColor = Color.Black
                     ),
                     modifier = Modifier.height(36.dp)

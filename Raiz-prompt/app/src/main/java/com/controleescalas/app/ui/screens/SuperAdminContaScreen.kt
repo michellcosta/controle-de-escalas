@@ -18,7 +18,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.models.Motorista
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppTopBar
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 import kotlinx.coroutines.launch
@@ -91,23 +92,13 @@ fun SuperAdminContaScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Configurações de Conta", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+            AppTopBar(
+                title = "Configurações de Conta",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onBack
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         if (isLoading) {
             Box(
@@ -116,7 +107,7 @@ fun SuperAdminContaScreen(
                     .padding(paddingValues),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = NeonGreen)
+                CircularProgressIndicator(color = MeliBlue)
             }
         } else {
             Column(
@@ -129,7 +120,7 @@ fun SuperAdminContaScreen(
             ) {
                 // Informações do Perfil
                 SectionHeader(title = "Perfil")
-                GlassCard {
+                AppCard {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -146,7 +137,7 @@ fun SuperAdminContaScreen(
                 
                 // Ações
                 SectionHeader(title = "Ações")
-                GlassCard {
+                AppCard {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -154,7 +145,7 @@ fun SuperAdminContaScreen(
                         Button(
                             onClick = { showAlterarPinDialog = true },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonBlue)
+                            colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                         ) {
                             Icon(Icons.Default.Lock, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -199,7 +190,7 @@ fun SuperAdminContaScreen(
     message?.let { msg ->
         Snackbar(
             modifier = Modifier.padding(16.dp),
-            containerColor = NeonGreen,
+            containerColor = MeliBlue,
             contentColor = Color.Black
         ) {
             Text(msg)
@@ -225,14 +216,14 @@ private fun InfoRowConta(label: String, value: String) {
     ) {
         Text(
             label, 
-            color = TextGray, 
+            color = TextGrayLightMode, 
             style = MaterialTheme.typography.bodyMedium,
             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
         )
         Text(
             value,
-            color = TextWhite,
+            color = TextBlack,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -257,43 +248,43 @@ fun AlterarPinDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Alterar PIN", color = TextWhite) },
+        title = { Text("Alterar PIN", color = TextBlack) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
                     value = pinAtual,
                     onValueChange = { pinAtual = it },
-                    label = { Text("PIN Atual", color = TextGray) },
+                    label = { Text("PIN Atual", color = TextGrayLightMode) },
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue
                     )
                 )
                 OutlinedTextField(
                     value = novoPin,
                     onValueChange = { novoPin = it },
-                    label = { Text("Novo PIN", color = TextGray) },
+                    label = { Text("Novo PIN", color = TextGrayLightMode) },
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue
                     )
                 )
                 OutlinedTextField(
                     value = confirmarPin,
                     onValueChange = { confirmarPin = it },
-                    label = { Text("Confirmar Novo PIN", color = TextGray) },
+                    label = { Text("Confirmar Novo PIN", color = TextGrayLightMode) },
                     modifier = Modifier.fillMaxWidth(),
                     visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = TextWhite,
-                        unfocusedTextColor = TextWhite,
-                        focusedBorderColor = NeonGreen
+                        focusedTextColor = TextBlack,
+                        unfocusedTextColor = TextBlack,
+                        focusedBorderColor = MeliBlue
                     )
                 )
             }
@@ -379,25 +370,25 @@ fun AlterarPinDialog(
                     }
                 },
                 enabled = !isLoading,
-                colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
-                        color = Color.Black,
+                        color = Color.White,
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Alterar", color = Color.Black)
+                    Text("Alterar", color = Color.White)
                 }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss, enabled = !isLoading) {
-                Text("Cancelar", color = TextGray)
+                Text("Cancelar", color = TextGrayLightMode)
             }
         },
-        containerColor = DarkSurface
+        containerColor = Color.White
     )
 }
 

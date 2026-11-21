@@ -23,8 +23,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.ui.components.CustomTextField
-import com.controleescalas.app.ui.components.GlassCard
-import com.controleescalas.app.ui.components.NeonButton
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppButton
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.theme.*
 
@@ -68,17 +69,11 @@ fun CreateBaseScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = { Text("Criar Transportadora", color = TextWhite) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar", tint = TextWhite)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
+            AppTopBar(
+                title = "Criar Transportadora",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onBackClick
+)
         }
     ) { paddingValues ->
         Box(
@@ -86,7 +81,7 @@ fun CreateBaseScreen(
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(DarkBackground, DeepBlue)
+                        colors = listOf(MeliYellow.copy(alpha = 0.5f), Color.White)
                     )
                 )
                 .padding(paddingValues)
@@ -106,7 +101,7 @@ fun CreateBaseScreen(
                     Icon(
                         Icons.Default.Add,
                         contentDescription = null,
-                        tint = NeonGreen,
+                        tint = MeliBlue,
                         modifier = Modifier.size(64.dp)
                     )
                     
@@ -115,7 +110,7 @@ fun CreateBaseScreen(
                     Text(
                         "Nova Transportadora",
                         style = MaterialTheme.typography.headlineMedium,
-                        color = TextWhite,
+                        color = TextBlack,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center
                     )
@@ -123,13 +118,13 @@ fun CreateBaseScreen(
                     Text(
                         "Preencha os dados para criar sua base de operações",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         textAlign = TextAlign.Center
                     )
                 }
 
                 // Formulário
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         SectionHeader(title = "Dados da Empresa")
                         
@@ -149,14 +144,14 @@ fun CreateBaseScreen(
                     }
                 }
 
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                AppCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         SectionHeader(title = "Administrador")
                         
                         Text(
                             "Estes serão os dados de acesso do administrador principal",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
 
                         CustomTextField(
@@ -183,7 +178,7 @@ fun CreateBaseScreen(
                 }
 
                 // Botão de Criar
-                NeonButton(
+                AppButton(
                     text = "CRIAR TRANSPORTADORA",
                     onClick = {
                         onCreateBaseClick(
@@ -211,7 +206,7 @@ fun CreateBaseScreen(
                     showSuccessDialog = false
                     onSuccessAcknowledged()
                 },
-                containerColor = DarkSurface,
+                containerColor = Color.White,
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -220,12 +215,12 @@ fun CreateBaseScreen(
                         Icon(
                             Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = NeonGreen,
+                            tint = MeliBlue,
                             modifier = Modifier.size(32.dp)
                         )
                         Text(
                             "Transportadora criada!",
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleLarge
                         )
@@ -237,7 +232,7 @@ fun CreateBaseScreen(
                     ) {
                         Text(
                             "🎉 Versão Beta - Acesso gratuito para testes",
-                            color = NeonGreen,
+                            color = MeliBlue,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.titleMedium
                         )
@@ -246,13 +241,13 @@ fun CreateBaseScreen(
                         
                         Text(
                             "Sua transportadora está pronta. Faça login com o telefone e PIN do admin para começar a usar.",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
                         Text(
                             "Aproveite todos os recursos durante o período de testes.",
-                            color = TextGray,
+                            color = TextGrayLightMode,
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -264,8 +259,8 @@ fun CreateBaseScreen(
                             onSuccessAcknowledged()
                         },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonGreen,
-                            contentColor = Color.Black
+                            containerColor = MeliBlue,
+                            contentColor = Color.White
                         ),
                         modifier = Modifier.fillMaxWidth()
                     ) {

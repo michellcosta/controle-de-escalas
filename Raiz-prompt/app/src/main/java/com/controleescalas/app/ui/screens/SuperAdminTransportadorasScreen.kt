@@ -17,7 +17,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.Base
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.components.TransportadoraCardSkeleton
 import androidx.compose.foundation.background
@@ -77,20 +77,20 @@ fun SuperAdminTransportadorasScreen(
             placeholder = { 
                 Text(
                     "Pesquisar...",
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 ) 
             },
             leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = "Pesquisar", tint = NeonGreen)
+                Icon(Icons.Default.Search, contentDescription = "Pesquisar", tint = MeliBlue)
             },
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = TextWhite,
-                unfocusedTextColor = TextWhite,
-                focusedBorderColor = NeonGreen,
-                unfocusedBorderColor = TextGray
+                focusedTextColor = TextBlack,
+                unfocusedTextColor = TextBlack,
+                focusedBorderColor = MeliBlue,
+                unfocusedBorderColor = CardBorderLight
             ),
             shape = RoundedCornerShape(12.dp)
         )
@@ -111,7 +111,7 @@ fun SuperAdminTransportadorasScreen(
                     ) 
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = NeonGreen,
+                    selectedContainerColor = MeliBlue,
                     selectedLabelColor = Color.Black
                 )
             )
@@ -126,7 +126,7 @@ fun SuperAdminTransportadorasScreen(
                     ) 
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = NeonGreen,
+                    selectedContainerColor = MeliBlue,
                     selectedLabelColor = Color.Black
                 )
             )
@@ -177,7 +177,7 @@ fun SuperAdminTransportadorasScreen(
                     ) 
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = NeonGreen,
+                    selectedContainerColor = MeliBlue,
                     selectedLabelColor = Color.Black
                 )
             )
@@ -207,7 +207,7 @@ fun SuperAdminTransportadorasScreen(
                     ) 
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = NeonBlue,
+                    selectedContainerColor = MeliBlue,
                     selectedLabelColor = Color.White
                 )
             )
@@ -250,12 +250,12 @@ fun SuperAdminTransportadorasScreen(
                     Icon(
                         Icons.Default.Business,
                         contentDescription = null,
-                        tint = TextGray,
+                        tint = TextGrayLightMode,
                         modifier = Modifier.size(64.dp)
                     )
                     Text(
                         text = "Nenhuma transportadora encontrada",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -301,14 +301,13 @@ fun TransportadoraCard(
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     
-    val modoClaro = MaterialTheme.colorScheme.onSurface == TextBlack
     val statusColor = when (base.statusAprovacao) {
         "ativa" -> NeonGreen
         "pendente" -> NeonOrange
         "rejeitada" -> Color(0xFFEF4444)
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val statusLabelColor = if (modoClaro && base.statusAprovacao == "ativa") NeonGreenDark else statusColor
+    val statusLabelColor = statusColor
     
     val statusText = when (base.statusAprovacao) {
         "ativa" -> "Ativa"
@@ -322,7 +321,7 @@ fun TransportadoraCard(
         sdf.format(Date(base.criadoEm))
     }
     
-    GlassCard(
+    AppCard(
         onClick = onNavigateToBase
     ) {
         Column(
@@ -415,7 +414,7 @@ fun TransportadoraCard(
                     OutlinedButton(
                         onClick = onNavigateToBase,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonBlue)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MeliBlue)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Login, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -432,7 +431,7 @@ fun TransportadoraCard(
                         Button(
                             onClick = onAprovar,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = NeonGreen)
+                            colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
                         ) {
                             Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -457,10 +456,10 @@ fun TransportadoraCard(
     DropdownMenu(
         expanded = showMenu,
         onDismissRequest = { showMenu = false },
-        modifier = Modifier.background(DarkSurface)
+        modifier = Modifier.background(Color.White)
     ) {
         DropdownMenuItem(
-            text = { Text("Ver Detalhes", color = TextWhite) },
+            text = { Text("Ver Detalhes", color = TextBlack) },
             onClick = {
                 showMenu = false
                 onVerDetalhes()
@@ -468,7 +467,7 @@ fun TransportadoraCard(
         )
         if (base.statusAprovacao == "pendente") {
             DropdownMenuItem(
-                text = { Text("Aprovar", color = NeonGreen) },
+                text = { Text("Aprovar", color = MeliBlue) },
                 onClick = {
                     showMenu = false
                     onAprovar()
@@ -500,7 +499,7 @@ fun TransportadoraCard(
             title = {
                 Text(
                     "Confirmar Exclusão",
-                    color = TextWhite,
+                    color = TextBlack,
                     fontWeight = FontWeight.Bold
                 )
             },
@@ -508,7 +507,7 @@ fun TransportadoraCard(
                 Text(
                     "Tem certeza que deseja excluir a transportadora '${base.nome}'?\n\n" +
                     "⚠️ Esta ação não pode ser desfeita e excluirá todos os dados relacionados.",
-                    color = TextGray
+                    color = TextGrayLightMode
                 )
             },
             confirmButton = {
@@ -525,12 +524,12 @@ fun TransportadoraCard(
                 TextButton(
                     onClick = { showDeleteDialog = false }
                 ) {
-                    Text("Cancelar", color = TextWhite)
+                    Text("Cancelar", color = TextBlack)
                 }
             },
-            containerColor = DarkSurface,
-            titleContentColor = TextWhite,
-            textContentColor = TextGray
+            containerColor = Color.White,
+            titleContentColor = TextBlack,
+            textContentColor = TextGrayLightMode
         )
     }
 }

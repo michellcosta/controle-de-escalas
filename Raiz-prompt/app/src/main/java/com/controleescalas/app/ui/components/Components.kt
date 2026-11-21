@@ -30,93 +30,139 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.controleescalas.app.ui.theme.NeonGreen
+import com.controleescalas.app.ui.theme.MeliBlue
+import com.controleescalas.app.ui.theme.CardBorderLight
+import com.controleescalas.app.ui.theme.TextBlack
 import com.controleescalas.app.ui.theme.TextGray
-import com.controleescalas.app.ui.theme.TextWhite
+import com.controleescalas.app.ui.theme.TextGrayLightMode
 import com.controleescalas.app.ui.theme.StatusError
 import com.controleescalas.app.ui.theme.NeonOrange
-import com.controleescalas.app.ui.theme.NeonBlue
+import com.controleescalas.app.ui.theme.NeonGreen
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
 import java.text.SimpleDateFormat
 import java.util.*
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.foundation.isSystemInDarkTheme
-import com.controleescalas.app.ui.theme.DarkBackground
-import com.controleescalas.app.ui.theme.LightBackground
 
 /**
- * Fundo sólido, sem degradê nem textura.
+ * Fundo da tela (branco, estilo Meli). O recorte do card vem da borda + sombra.
  */
 @Composable
 fun PremiumBackground(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    val isDarkMode = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isDarkMode) DarkBackground else LightBackground)
+            .background(Color(0xFFF5F5F5))
     ) {
         content()
     }
 }
 
 @Composable
-fun GlassCard(
+fun AppCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    containerColor: Color = MaterialTheme.colorScheme.surface,
+    containerColor: Color = Color.White,
     content: @Composable () -> Unit
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = containerColor
-        ),
-        onClick = onClick ?: {}
-    ) {
-        Box(modifier = Modifier.padding(20.dp)) {
+    val shape = RoundedCornerShape(12.dp)
+    val shadowed = modifier
+        .padding(vertical = 4.dp, horizontal = 1.dp)
+        .shadow(
+            elevation = 16.dp,
+            shape = shape,
+            clip = false,
+            ambientColor = Color.Black.copy(alpha = 0.18f),
+            spotColor = Color.Black.copy(alpha = 0.34f)
+        )
+    val inner: @Composable () -> Unit = {
+        Box(modifier = Modifier.padding(16.dp)) {
             content()
+        }
+    }
+    if (onClick != null) {
+        Surface(
+            onClick = onClick,
+            modifier = shadowed,
+            shape = shape,
+            color = containerColor,
+            shadowElevation = 0.dp,
+            tonalElevation = 0.dp
+        ) { inner() }
+    } else {
+        Surface(
+            modifier = shadowed,
+            shape = shape,
+            color = containerColor,
+            shadowElevation = 0.dp,
+            tonalElevation = 0.dp
+        ) { inner() }
+    }
+}
+
+@Composable
+fun AppMenuItem(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    iconTint: Color = MeliBlue,
+    textColor: Color = TextBlack
+) {
+    AppCard(onClick = onClick, modifier = modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = text,
+                color = textColor,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
 
 /**
- * Botão principal preenchido, sem brilho nem animação.
+ * Botão principal preenchido (azul, estilo Meli).
  */
 @Composable
-fun NeonButton(
+fun AppButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     isLoading: Boolean = false,
     enabled: Boolean = true,
-    color: Color = NeonGreen
+    color: Color = MeliBlue
 ) {
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier.fillMaxWidth().height(48.dp),
         enabled = enabled && !isLoading,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = color,
             contentColor = Color.White,
             disabledContainerColor = color.copy(alpha = 0.3f),
             disabledContentColor = Color.White.copy(alpha = 0.6f)
         ),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
         elevation = ButtonDefaults.buttonElevation(
             defaultElevation = 0.dp,
             pressedElevation = 0.dp
@@ -146,7 +192,50 @@ fun NeonButton(
 }
 
 /**
- * CustomTextField - Input estilizado para dark mode
+ * Botão tonal (estilo Meli): fundo azul-claro, texto azul. Para ações secundárias
+ * (ex.: "Ligar", "Mensagens", "Não consegui entregar").
+ */
+@Composable
+fun AppTonalButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    enabled: Boolean = true
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(44.dp),
+        enabled = enabled,
+        shape = RoundedCornerShape(8.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MeliBlue.copy(alpha = 0.12f),
+            contentColor = MeliBlue,
+            disabledContainerColor = MeliBlue.copy(alpha = 0.06f),
+            disabledContentColor = MeliBlue.copy(alpha = 0.5f)
+        ),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+/**
+ * CustomTextField - Input estilizado para o tema claro
  */
 @Composable
 fun CustomTextField(
@@ -166,19 +255,17 @@ fun CustomTextField(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = NeonGreen,
-            unfocusedBorderColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) 
-                TextGray.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.3f),
-            focusedLabelColor = NeonGreen,
-            unfocusedLabelColor = if (MaterialTheme.colorScheme.surface.luminance() < 0.5f) 
-                TextGray else Color.Black.copy(alpha = 0.6f),
-            cursorColor = NeonGreen,
+            focusedBorderColor = MeliBlue,
+            unfocusedBorderColor = CardBorderLight,
+            focusedLabelColor = MeliBlue,
+            unfocusedLabelColor = TextGrayLightMode,
+            cursorColor = MeliBlue,
             errorBorderColor = MaterialTheme.colorScheme.error,
             focusedTextColor = MaterialTheme.colorScheme.onSurface,
             unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         ),
         leadingIcon = if (leadingIcon != null) {
-            { Icon(imageVector = leadingIcon, contentDescription = null, tint = if (isError) MaterialTheme.colorScheme.error else NeonGreen) }
+            { Icon(imageVector = leadingIcon, contentDescription = null, tint = if (isError) MaterialTheme.colorScheme.error else MeliBlue) }
         } else null,
         isError = isError,
         keyboardOptions = keyboardOptions,
@@ -202,7 +289,7 @@ fun SectionHeader(title: String) {
             modifier = Modifier
                 .width(4.dp)
                 .height(24.dp)
-                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                .background(MeliBlue, RoundedCornerShape(2.dp))
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
@@ -225,11 +312,11 @@ fun ConnectionStatusIndicator(
     val (icon, color) = when {
         !connectionState.isOnline -> Icons.Default.CloudOff to StatusError
         connectionState.isUsingCache -> Icons.Default.CloudSync to NeonOrange
-        connectionState.connectionType == com.controleescalas.app.data.NetworkUtils.ConnectionType.WIFI -> 
+        connectionState.connectionType == com.controleescalas.app.data.NetworkUtils.ConnectionType.WIFI ->
             Icons.Default.Wifi to NeonGreen
-        else -> Icons.Default.SignalCellularAlt to NeonBlue
+        else -> Icons.Default.SignalCellularAlt to MeliBlue
     }
-    
+
     val lastSyncText = connectionState.lastSyncTime?.let { time ->
         val diff = (System.currentTimeMillis() - time) / 1000
         when {
@@ -242,7 +329,7 @@ fun ConnectionStatusIndicator(
             }
         }
     } ?: "Nunca"
-    
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -275,14 +362,14 @@ fun ConnectionStatusIndicator(
                     Text(
                         text = "Sincronizando em background...",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 } else if (connectionState.lastSyncTime != null) {
                     Text(
                         text = "Última atualização: $lastSyncText",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }

@@ -64,11 +64,28 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     // Mutex para garantir que atualizações na escala sejam sequenciais e evitar condições de corrida
     private val escalaMutex = Mutex()
     
-    private val _turnoAtual = MutableStateFlow("AM")
+        private val configRepository = com.controleescalas.app.data.repositories.ConfigRepository()
+    // Controla se o turno inicial (primeiro da lista) já foi definido nesta sessão
+    private var turnoInicialDefinido = false
+
+    // Turno selecionado: SEMPRE o PRIMEIRO da lista da base ao entrar na Operação
+    private val _turnoAtual = MutableStateFlow(configRepository.turnosPadrao.first())
     val turnoAtual: StateFlow<String> = _turnoAtual.asStateFlow()
-    
-    private val _escalaAM = MutableStateFlow<Escala?>(null)
-    private val _escalaPM = MutableStateFlow<Escala?>(null)
+
+    // Turnos cadastrados da base (realtime — admin pode adicionar/remover)
+    private val _turnosDaBase = MutableStateFlow(configRepository.turnosPadrao)
+    val turnosDaBase: StateFlow<List<String>> = _turnosDaBase.asStateFlow()
+
+    // Escalas por turno (chave = nome do turno cadastrado na base)
+    private val _escalasPorTurno = MutableStateFlow<Map<String, Escala>>(emptyMap())
+
+    private fun escalaDoTurno(turno: String): Escala? =
+        _escalasPorTurno.value[turno]
+
+    private fun setEscalaDoTurno(turno: String, escala: Escala) {
+        _escalasPorTurno.value = _escalasPorTurno.value + (turno to escala)
+        escalasCache["${escala.data}_${turno}"] = escala
+    }
     
     // Cache local para evitar recarregamentos desnecessários
     private val escalasCache = mutableMapOf<String, Escala>()
@@ -143,14 +160,26 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                 escalaDataHoje = hoje
 
-                // Carregar ambas as escalas
-                val escalaAM = escalaRepository.getEscalaByDateAndTurno(baseId, hoje, "AM")
-                    ?: Escala(baseId = baseId, data = hoje, turno = "AM", ondas = emptyList())
-                _escalaAM.value = escalaAM
+                // Turnos cadastrados da base (padrão AM0/AM/PM/SD/SN se não cadastrado)
+                val turnos = configRepository.getTurnosBase(baseId)
+                _turnosDaBase.value = turnos
+                // Turno selecionado ao ENTRAR no app = PRIMEIRO da lista da base.
+                // Durante a sessão, trocar de aba preserva a seleção do admin;
+                // volta ao primeiro apenas se o turno atual for removido da lista.
+                if (!turnoInicialDefinido || _turnoAtual.value !in turnos) {
+                    _turnoAtual.value = turnos.firstOrNull() ?: "AM"
+                    turnoInicialDefinido = true
+                }
 
-                val escalaPM = escalaRepository.getEscalaByDateAndTurno(baseId, hoje, "PM")
-                    ?: Escala(baseId = baseId, data = hoje, turno = "PM", ondas = emptyList())
-                _escalaPM.value = escalaPM
+                // Carregar a escala de CADA turno cadastrado
+                val mapaEscalas = mutableMapOf<String, Escala>()
+                for (turno in turnos) {
+                    val escala = escalaRepository.getEscalaByDateAndTurno(baseId, hoje, turno)
+                        ?: Escala(baseId = baseId, data = hoje, turno = turno, ondas = emptyList())
+                    mapaEscalas[turno] = escala
+                    escalasCache["${hoje}_$turno"] = escala
+                }
+                _escalasPorTurno.value = mapaEscalas
 
                 // Mostrar ondas do turno atual
                 updateOndasForCurrentTurno()
@@ -164,12 +193,47 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 startMotoristasListener(baseId)
                 startEscalaListener(baseId, hoje)
 
+                // Realtime: admin adiciona/remove turnos -> Operação acompanha
+                startTurnosListener(baseId)
+
             } catch (e: Exception) {
                 _error.value = "Erro ao carregar dados: ${e.message}"
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+
+    /**
+     * Realtime dos turnos cadastrados da base: turno novo entra na Operação;
+     * turno removido sai (a escala dele deixa de ser exibida, doc permanece).
+     */
+    private var turnosListener: ListenerRegistration? = null
+    private fun startTurnosListener(baseId: String) {
+        turnosListener?.remove()
+        val configRepository = com.controleescalas.app.data.repositories.ConfigRepository()
+        turnosListener = configRepository.observeTurnosBase(baseId, onUpdate = { turnos ->
+            _turnosDaBase.value = turnos
+            val mapaAtual = _escalasPorTurno.value
+            // Adicionar turnos novos com escala vazia
+            for (turno in turnos) {
+                if (!mapaAtual.containsKey(turno)) {
+                    val escala = Escala(baseId = currentBaseId, data = escalaDataHoje, turno = turno, ondas = emptyList())
+                    setEscalaDoTurno(turno, escala)
+                }
+            }
+            // Remover turnos retirados
+            val mapaFiltrado = mapaAtual.filterKeys { it in turnos }
+            if (mapaFiltrado != mapaAtual) {
+                _escalasPorTurno.value = mapaFiltrado
+            }
+            // Turno atual não existe mais -> voltar para o primeiro
+            if (_turnoAtual.value !in turnos) {
+                changeTurno(turnos.firstOrNull() ?: "AM")
+            } else {
+                updateOndasForCurrentTurno()
+            }
+        })
     }
 
     fun changeTurno(novoTurno: String) {
@@ -182,13 +246,9 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             startEscalaListener(currentBaseId, escalaDataHoje)
         }
     }
-    
+
     private fun updateOndasForCurrentTurno() {
-        val ondasOriginais = when (_turnoAtual.value) {
-            "AM" -> _escalaAM.value?.ondas ?: emptyList()
-            "PM" -> _escalaPM.value?.ondas ?: emptyList()
-            else -> emptyList()
-        }
+        val ondasOriginais = _escalasPorTurno.value[_turnoAtual.value]?.ondas ?: emptyList()
         
         // Aplicar ordenação inteligente:
         // 1. Separar ondas normais e dedicadas
@@ -586,11 +646,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun updateMotoristaInOndaByDetails(ondaIndex: Int, motoristaId: String, novaVaga: String?, novaRota: String?, novasSacas: Int?) {
         viewModelScope.launch {
             val turno = _turnoAtual.value
-            val currentEscala = when (turno) {
-                "AM" -> _escalaAM.value
-                "PM" -> _escalaPM.value
-                else -> null
-            } ?: return@launch
+            val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@launch
             val onda = currentEscala.ondas.getOrNull(ondaIndex) ?: return@launch
             val item = onda.itens.find { it.motoristaId == motoristaId } ?: return@launch
             val vaga = novaVaga?.takeIf { it.isNotBlank() } ?: item.vaga
@@ -603,7 +659,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     /**
      * B8 da auditoria: aplica uma transformação na escala do turno ATUAL
      * ATOMICAMENTE sob o escalaMutex. O eco do snapshot listener (que grava
-     * _escalaAM/_escalaPM sob o MESMO mutex) não pode mais sobrescrever uma
+     * o mapa _escalasPorTurno sob o MESMO mutex) não pode mais sobrescrever uma
      * edição no meio do caminho (lost update: admin edita, chega snapshot, a
      * edição some da tela e da próxima gravação).
      * A gravação no Firestore fica FORA do lock — Mutex do Kotlin não é
@@ -611,21 +667,15 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
      * Retorna a escala atualizada, ou null se não havia escala ou a
      * transformação decidiu abortar (chamador não salva).
      */
-    private suspend fun editarEscalaDoTurno(transformar: (Escala) -> Escala?): Escala? =
-        escalaMutex.withLock {
+    private suspend fun editarEscalaDoTurno(transformar: (Escala) -> Escala?): Escala? {
+        return escalaMutex.withLock {
             val turno = _turnoAtual.value
-            val current = when (turno) {
-                "AM" -> _escalaAM.value
-                "PM" -> _escalaPM.value
-                else -> null
-            } ?: return@withLock null
+            val current = _escalasPorTurno.value[turno] ?: return@withLock null
             val atualizada = transformar(current) ?: return@withLock null
-            when (turno) {
-                "AM" -> _escalaAM.value = atualizada
-                "PM" -> _escalaPM.value = atualizada
-            }
+            setEscalaDoTurno(turno, atualizada)
             atualizada
         }
+    }
 
     /**
      * Atualizar vaga, rota e sacas de um motorista em uma onda
@@ -968,11 +1018,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 // Obter turno e escala atual primeiro
                 val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
-                } ?: return@launch
+                val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@launch
                 
                 // ✅ NOVO: Verificar se o motorista já está em alguma onda do turno ATUAL
                 val ondaExistente = currentEscala.ondas.find { onda ->
@@ -1016,10 +1062,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 Log.d("OperationalViewModel", "🔍 DEBUG: Data da escala depois: ${updatedEscala.data}")
                 Log.d("OperationalViewModel", "🔍 DEBUG: Turno: ${updatedEscala.turno}")
                 
-                when (turno) {
-                    "AM" -> _escalaAM.value = updatedEscala
-                    "PM" -> _escalaPM.value = updatedEscala
-                }
+                setEscalaDoTurno(turno, updatedEscala)
                 
                 // Log para debug
                 Log.d("OperationalViewModel", "✅ Motorista ${motorista.nome} adicionado à onda $ondaIndex com vaga=$vaga, rota=$rota. Total de itens: ${itensAtualizados.size}")
@@ -1072,11 +1115,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 escalaMutex.withLock {
                     val turno = _turnoAtual.value
-                    val currentEscala = when (turno) {
-                        "AM" -> _escalaAM.value
-                        "PM" -> _escalaPM.value
-                        else -> null
-                    } ?: return@withLock
+                    val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@withLock
 
                     // Se já está escalado em alguma onda, apenas atualizar vaga/rota/sacas (não duplicar)
                     for ((idx, o) in currentEscala.ondas.withIndex()) {
@@ -1097,10 +1136,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                                 asOndas[idx] = asOndas[idx].copy(itens = itensOnda.sortedBy { it.vaga.toIntOrNull() ?: Int.MAX_VALUE })
                                 val updateEscala = currentEscala.copy(ondas = asOndas, data = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date()))
                                 
-                                when (turno) {
-                                    "AM" -> _escalaAM.value = updateEscala
-                                    "PM" -> _escalaPM.value = updateEscala
-                                }
+                                setEscalaDoTurno(turno, updateEscala)
                                 updateOndasForCurrentTurno()
                                 escalaRepository.saveEscala(currentBaseId, updateEscala)
                                 
@@ -1144,10 +1180,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                     val updatedEscala = currentEscala.copy(ondas = ondas, data = hoje)
 
-                    when (turno) {
-                        "AM" -> _escalaAM.value = updatedEscala
-                        "PM" -> _escalaPM.value = updatedEscala
-                    }
+                    setEscalaDoTurno(turno, updatedEscala)
                     updateOndasForCurrentTurno()
                     escalaRepository.saveEscala(currentBaseId, updatedEscala)
 
@@ -1178,11 +1211,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 escalaMutex.withLock {
                     val turno = _turnoAtual.value
-                    var currentEscala = when (turno) {
-                        "AM" -> _escalaAM.value
-                        "PM" -> _escalaPM.value
-                        else -> null
-                    } ?: return@withLock
+                    var currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@withLock
 
                     val ondas = currentEscala.ondas.toMutableList()
                     val dataEscala = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
@@ -1249,10 +1278,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     }
 
                     val updatedEscala = currentEscala.copy(ondas = ondas, data = dataEscala)
-                    when (turno) {
-                        "AM" -> _escalaAM.value = updatedEscala
-                        "PM" -> _escalaPM.value = updatedEscala
-                    }
+                    setEscalaDoTurno(turno, updatedEscala)
                     updateOndasForCurrentTurno()
                     escalaRepository.saveEscala(currentBaseId, updatedEscala)
                 }
@@ -1332,11 +1358,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     val ondaIndexStr = targetId.removePrefix("WAVE_")
                     val ondaIndex = ondaIndexStr.toIntOrNull() ?: return@launch
                     val currentTurno = _turnoAtual.value
-                    val skala = when (currentTurno) {
-                        "AM" -> _escalaAM.value
-                        "PM" -> _escalaPM.value
-                        else -> null
-                    }
+                    val skala = (_escalasPorTurno.value[currentTurno] ?: null)
 
                     skala?.ondas?.getOrNull(ondaIndex)?.itens?.forEach {
                         recipients.add(it.motoristaId to it.nome)
@@ -1471,11 +1493,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     fun saveCurrentEscala(showMessage: Boolean = true) {
         viewModelScope.launch {
             try {
-                val escala = when (_turnoAtual.value) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
-                } ?: return@launch
+                val escala = (_escalasPorTurno.value[_turnoAtual.value] ?: null) ?: return@launch
                 
                 // ✅ CRÍTICO: Garantir que a escala sempre tenha a data atual
                 val escalaComDataAtual = ensureEscalaDataAtual(escala)
@@ -1628,10 +1646,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                     if (escala != null) {
                         viewModelScope.launch {
                             escalaMutex.withLock {
-                                when (turnoAtual) {
-                                    "AM" -> _escalaAM.value = escala
-                                    "PM" -> _escalaPM.value = escala
-                                }
+                                setEscalaDoTurno(turnoAtual, escala)
                                 updateOndasForCurrentTurno()
                                 // Atualizar estado de conexão
                                 updateConnectionState()
@@ -1678,11 +1693,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
     private fun syncOndasWithMotoristaData() {
         viewModelScope.launch {
             val turno = _turnoAtual.value
-            val currentEscala = when (turno) {
-                "AM" -> _escalaAM.value
-                "PM" -> _escalaPM.value
-                else -> null
-            } ?: return@launch
+            val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@launch
             
             val motoristasMap = _motoristasMap.value
             var updated = false
@@ -1715,10 +1726,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
                 val hoje = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
                 val escalaAtualizada = currentEscala.copy(ondas = ondasAtualizadas, data = hoje)
                 
-                when (turno) {
-                    "AM" -> _escalaAM.value = escalaAtualizada
-                    "PM" -> _escalaPM.value = escalaAtualizada
-                }
+                setEscalaDoTurno(turno, escalaAtualizada)
                 
                 updateOndasForCurrentTurno()
                 
@@ -1738,11 +1746,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
             try {
                 _isLoading.value = true
                 val turno = _turnoAtual.value
-                val currentEscala = when (turno) {
-                    "AM" -> _escalaAM.value
-                    "PM" -> _escalaPM.value
-                    else -> null
-                }
+                val currentEscala = (_escalasPorTurno.value[turno] ?: null)
                 
                 if (currentEscala == null || currentEscala.ondas.isEmpty()) {
                     _error.value = "Nenhuma escala para notificar"
@@ -1868,6 +1872,7 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
         statusListener?.remove()
         motoristasListener?.remove()
         escalaListener?.remove()
+        turnosListener?.remove()
     }
 }
 

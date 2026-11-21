@@ -1,5 +1,6 @@
 package com.controleescalas.app.ui.screens
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,8 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.data.NotificationSettingsManager
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -38,19 +40,13 @@ fun AdminNotificationSettingsScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Notificações", color = TextWhite) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "Voltar", tint = TextWhite)
-                    }
-                }
-            )
+            AppTopBar(
+                title = "Notificações",
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onBack
+                )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -70,21 +66,21 @@ fun AdminNotificationSettingsScreen(
                     Icons.Default.Notifications,
                     contentDescription = null,
                     modifier = Modifier.size(48.dp),
-                    tint = NeonGreen
+                    tint = MeliBlue
                 )
             }
             
             Text(
                 "Configure quais notificações você deseja receber",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextGray,
+                color = TextGrayLightMode,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             
             SectionHeader(title = "Notificações do Sistema")
             
             // Notificação: Motorista Concluiu Carregamento
-            GlassCard {
+            AppCard {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -96,14 +92,14 @@ fun AdminNotificationSettingsScreen(
                         Text(
                             "Conclusão de Carregamento",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "Receber notificação quando um motorista concluir o carregamento",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                     Switch(
@@ -114,15 +110,15 @@ fun AdminNotificationSettingsScreen(
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = NeonGreen,
-                            checkedTrackColor = NeonGreen.copy(alpha = 0.5f)
+                            checkedThumbColor = MeliBlue,
+                            checkedTrackColor = MeliBlue.copy(alpha = 0.5f)
                         )
                     )
                 }
             }
             
             // Notificação: Chamada de Motorista
-            GlassCard {
+            AppCard {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -134,14 +130,14 @@ fun AdminNotificationSettingsScreen(
                         Text(
                             "Chamada de Motorista",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "Receber notificação de chamadas para carregamento",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                     Switch(
@@ -152,15 +148,15 @@ fun AdminNotificationSettingsScreen(
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = NeonGreen,
-                            checkedTrackColor = NeonGreen.copy(alpha = 0.5f)
+                            checkedThumbColor = MeliBlue,
+                            checkedTrackColor = MeliBlue.copy(alpha = 0.5f)
                         )
                     )
                 }
             }
             
             // Notificação: Atualização de Status
-            GlassCard {
+            AppCard {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -172,14 +168,14 @@ fun AdminNotificationSettingsScreen(
                         Text(
                             "Atualização de Status",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "Receber notificação quando houver atualização de status",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                     Switch(
@@ -190,15 +186,15 @@ fun AdminNotificationSettingsScreen(
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = NeonGreen,
-                            checkedTrackColor = NeonGreen.copy(alpha = 0.5f)
+                            checkedThumbColor = MeliBlue,
+                            checkedTrackColor = MeliBlue.copy(alpha = 0.5f)
                         )
                     )
                 }
             }
             
             // Notificação: Atualização de Escala
-            GlassCard {
+            AppCard {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -210,14 +206,14 @@ fun AdminNotificationSettingsScreen(
                         Text(
                             "Atualização de Escala",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "Receber notificação quando houver atualização de escala",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                     Switch(
@@ -228,15 +224,15 @@ fun AdminNotificationSettingsScreen(
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = NeonGreen,
-                            checkedTrackColor = NeonGreen.copy(alpha = 0.5f)
+                            checkedThumbColor = MeliBlue,
+                            checkedTrackColor = MeliBlue.copy(alpha = 0.5f)
                         )
                     )
                 }
             }
             
             // Notificação: Genéricas
-            GlassCard {
+            AppCard {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -248,14 +244,14 @@ fun AdminNotificationSettingsScreen(
                         Text(
                             "Notificações Genéricas",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextWhite,
+                            color = TextBlack,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "Receber outras notificações do sistema",
                             style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                     Switch(
@@ -266,8 +262,8 @@ fun AdminNotificationSettingsScreen(
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = NeonGreen,
-                            checkedTrackColor = NeonGreen.copy(alpha = 0.5f)
+                            checkedThumbColor = MeliBlue,
+                            checkedTrackColor = MeliBlue.copy(alpha = 0.5f)
                         )
                     )
                 }

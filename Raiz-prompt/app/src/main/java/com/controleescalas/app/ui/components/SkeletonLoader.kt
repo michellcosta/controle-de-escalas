@@ -12,8 +12,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.controleescalas.app.ui.theme.DarkSurfaceVariant
-import com.controleescalas.app.ui.theme.Surface3
+import com.controleescalas.app.ui.theme.LightSurfaceVariant
+import com.controleescalas.app.ui.theme.CardBorderLight
 
 /**
  * Efeito shimmer para skeleton loading
@@ -38,9 +38,9 @@ fun ShimmerEffect(
             .background(
                 Brush.linearGradient(
                     colors = listOf(
-                        DarkSurfaceVariant,
-                        Surface3,
-                        DarkSurfaceVariant
+                        LightSurfaceVariant,
+                        Color(0xFFF7F7F7),
+                        LightSurfaceVariant
                     ),
                     start = Offset(shimmerOffset - 300f, shimmerOffset - 300f),
                     end = Offset(shimmerOffset, shimmerOffset)
@@ -73,7 +73,7 @@ fun TransportadoraCardSkeleton(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(DarkSurfaceVariant)
+            .background(LightSurfaceVariant)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {

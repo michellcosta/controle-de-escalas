@@ -45,14 +45,12 @@ fun SuperAdminDashboardScreen(
     var stats by remember { mutableStateOf<DashboardStats?>(null) }
     var novosFeedbacksCount by remember { mutableStateOf(0) }
     var config by remember { mutableStateOf<SistemaConfig?>(null) }
-    var temaVisivel by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(true) }
     
     LaunchedEffect(Unit) {
         scope.launch {
             stats = statsRepository.getDashboardStats()
             config = sistemaRepository.getConfiguracao(forceRefresh = true)
-            temaVisivel = config?.temaHabilitado == true
             try {
                 val feedbacks = feedbackRepository.getAllFeedbacks()
                 novosFeedbacksCount = feedbacks.count { it.status == FeedbackStatus.NOVO }
@@ -155,7 +153,7 @@ fun SuperAdminDashboardScreen(
                 
                 // Card de ação rápida (transportadoras pendentes)
                 if (dashboardStats.transportadorasPendentes > 0) {
-                    GlassCard(
+                    AppCard(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { navigateToTransportadoras("pendente") }
                     ) {
@@ -195,7 +193,7 @@ fun SuperAdminDashboardScreen(
                 
                 // Card de novos feedbacks
                 if (novosFeedbacksCount > 0) {
-                    GlassCard(
+                    AppCard(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = { navigateToFeedbacks() }
                     ) {
@@ -234,7 +232,7 @@ fun SuperAdminDashboardScreen(
                 }
                 
                 // Atalho Configurações do Sistema
-                GlassCard(
+                AppCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -252,7 +250,7 @@ fun SuperAdminDashboardScreen(
                                 Icon(
                                     Icons.Default.Settings,
                                     contentDescription = null,
-                                    tint = NeonGreen,
+                                    tint = MeliBlue,
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Column {
@@ -280,74 +278,14 @@ fun SuperAdminDashboardScreen(
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        
-                        HorizontalDivider(
-                            modifier = Modifier.padding(vertical = 12.dp),
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
-                        )
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    if (temaVisivel) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                    contentDescription = null,
-                                    tint = if (temaVisivel) NeonBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Column {
-                                    Text(
-                                        text = "Modo Claro/Escuro",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = if (temaVisivel) "Visível para todos os usuários" else "Oculto para usuários (em desenvolvimento)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            
-                            Switch(
-                                checked = temaVisivel,
-                                onCheckedChange = { ligado ->
-                                    val anterior = temaVisivel
-                                    temaVisivel = ligado
-                                    scope.launch {
-                                        val success = sistemaRepository.setTemaHabilitado(ligado)
-                                        if (success) {
-                                            config = (config ?: SistemaConfig()).copy(temaHabilitado = ligado)
-                                        } else {
-                                            temaVisivel = anterior
-                                        }
-                                    }
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = NeonBlue,
-                                    uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = Color(0xFFD1D1D6),
-                                    checkedBorderColor = Color.Transparent,
-                                    uncheckedBorderColor = Color.Transparent
-                                )
-                            )
-                        }
                     }
                 }
-                
+
                 // Seção de status de transportadoras
                 SectionHeader(title = "Status das Transportadoras")
                 
                 // Gráfico donut para status (mais moderno)
-                GlassCard {
+                AppCard {
                     DonutChart(
                         segments = listOf(
                             PieChartSegment(
@@ -410,7 +348,7 @@ fun SuperAdminDashboardScreen(
                     SectionHeader(title = "Distribuição de Planos")
                     
                     // Gráfico donut para planos
-                    GlassCard {
+                    AppCard {
                         DonutChart(
                             segments = listOf(
                                 PieChartSegment(
@@ -421,7 +359,7 @@ fun SuperAdminDashboardScreen(
                                 PieChartSegment(
                                     label = "Gratuito",
                                     value = dashboardStats.basesGratuitas.toFloat(),
-                                    color = NeonBlue
+                                    color = MeliBlue
                                 ),
                                 PieChartSegment(
                                     label = "Trial",
@@ -453,7 +391,7 @@ fun SuperAdminDashboardScreen(
                         StatusCard(
                             title = "Gratuito",
                             count = dashboardStats.basesGratuitas,
-                            color = NeonBlue,
+                            color = MeliBlue,
                             modifier = Modifier.weight(1f)
                         )
                         StatusCard(
@@ -477,7 +415,7 @@ fun StatCard(
     icon: ImageVector,
     color: Color
 ) {
-    GlassCard {
+    AppCard {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -522,7 +460,7 @@ fun StatusCard(
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    GlassCard(modifier = modifier) {
+    AppCard(modifier = modifier) {
         Column(
             modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

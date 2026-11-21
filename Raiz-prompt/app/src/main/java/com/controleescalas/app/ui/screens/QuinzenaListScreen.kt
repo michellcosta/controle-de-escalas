@@ -1,5 +1,6 @@
 package com.controleescalas.app.ui.screens
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,8 +19,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.QuinzenaResumo
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.QuinzenaViewModel
 import java.text.SimpleDateFormat
@@ -67,36 +69,14 @@ fun QuinzenaListScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "Controle de Quinzena",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = mesAtual,
-                            fontSize = 14.sp,
-                            color = TextGray
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                )
+            AppTopBar(
+                title = "Controle de Quinzena",
+                subtitle = mesAtual,
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                onNavigationClick = onBack
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { padding ->
         Box(
             modifier = Modifier
@@ -106,7 +86,7 @@ fun QuinzenaListScreen(
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
-                    color = NeonBlue
+                    color = MeliBlue
                 )
             } else if (resumos.isEmpty()) {
                 // Estado vazio
@@ -120,19 +100,19 @@ fun QuinzenaListScreen(
                     Icon(
                         imageVector = Icons.Default.DateRange,
                         contentDescription = null,
-                        tint = TextGray,
+                        tint = TextGrayLightMode,
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Nenhum registro de quinzena",
                         fontSize = 16.sp,
-                        color = TextGray
+                        color = TextGrayLightMode
                     )
                     Text(
                         text = "Os dias trabalhados aparecerão aqui",
                         fontSize = 14.sp,
-                        color = TextGray.copy(alpha = 0.7f)
+                        color = TextGrayLightMode.copy(alpha = 0.7f)
                     )
                 }
             } else {
@@ -149,24 +129,24 @@ fun QuinzenaListScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 8.dp),
-                            placeholder = { Text("Pesquisar...", color = TextGray) },
+                            placeholder = { Text("Pesquisar...", color = TextGrayLightMode) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Default.Search,
                                     contentDescription = "Pesquisar",
-                                    tint = NeonGreen
+                                    tint = MeliBlue
                                 )
                             },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = TextWhite,
-                                unfocusedTextColor = TextWhite,
-                                focusedBorderColor = NeonGreen,
-                                unfocusedBorderColor = TextGray,
-                                focusedLabelColor = NeonGreen,
-                                unfocusedLabelColor = TextGray,
-                                focusedPlaceholderColor = TextGray,
-                                unfocusedPlaceholderColor = TextGray
+                                focusedTextColor = TextBlack,
+                                unfocusedTextColor = TextBlack,
+                                focusedBorderColor = MeliBlue,
+                                unfocusedBorderColor = CardBorderLight,
+                                focusedLabelColor = MeliBlue,
+                                unfocusedLabelColor = TextGrayLightMode,
+                                focusedPlaceholderColor = TextDisabled,
+                                unfocusedPlaceholderColor = TextDisabled
                             ),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -199,7 +179,7 @@ private fun QuinzenaResumoCard(
     resumo: QuinzenaResumo,
     onClick: () -> Unit
 ) {
-    GlassCard(
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick
     ) {
@@ -214,7 +194,7 @@ private fun QuinzenaResumoCard(
                 text = resumo.motoristaNome,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextWhite
+                color = TextBlack
             )
             
             // Estatísticas
@@ -225,7 +205,7 @@ private fun QuinzenaResumoCard(
                 QuinzenaStatItem(
                     label = "1ª Quinzena",
                     valor = resumo.primeiraQuinzenaDias,
-                    cor = NeonBlue
+                    cor = MeliBlue
                 )
                 
                 QuinzenaStatItem(
@@ -237,7 +217,7 @@ private fun QuinzenaResumoCard(
                 QuinzenaStatItem(
                     label = "Total",
                     valor = resumo.totalDias,
-                    cor = NeonGreen
+                    cor = MeliBlue
                 )
             }
         }
@@ -260,7 +240,7 @@ private fun QuinzenaStatItem(
         Text(
             text = label,
             fontSize = 12.sp,
-            color = TextGray
+            color = TextGrayLightMode
         )
         Text(
             text = "$valor",

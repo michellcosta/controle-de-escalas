@@ -47,7 +47,7 @@ fun DisponibilidadeListDialog(
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
+        containerColor = Color.White,
         title = {
             Column {
                 Text(
@@ -58,7 +58,7 @@ fun DisponibilidadeListDialog(
                 status?.let {
                     Text(
                         "${it.disponiveis} disponíveis de ${it.totalMotoristas}",
-                        color = TextGray,
+                        color = TextGrayLightMode,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -75,7 +75,7 @@ fun DisponibilidadeListDialog(
                         StatChip(
                             label = "Disponíveis",
                             value = stats.disponiveis.toString(),
-                            color = NeonGreen
+                            color = MeliBlue
                         )
                         StatChip(
                             label = "Indisponíveis",
@@ -85,12 +85,12 @@ fun DisponibilidadeListDialog(
                         StatChip(
                             label = "Sem resposta",
                             value = stats.semResposta.toString(),
-                            color = TextGray
+                            color = TextGrayLightMode
                         )
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))
-                    Divider(color = TextGray.copy(alpha = 0.2f))
+                    Divider(color = TextGrayLightMode.copy(alpha = 0.2f))
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 
@@ -104,7 +104,7 @@ fun DisponibilidadeListDialog(
                         item {
                             Text(
                                 "✅ Disponíveis (${motoristasDisponiveis.size})",
-                                color = NeonGreen,
+                                color = MeliBlue,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleSmall
                             )
@@ -136,13 +136,13 @@ fun DisponibilidadeListDialog(
                         item {
                             Text(
                                 "⏳ Sem resposta (${motoristasSemResposta.size})",
-                                color = TextGray,
+                                color = TextGrayLightMode,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleSmall
                             )
                         }
                         items(motoristasSemResposta) { motorista ->
-                            MotoristaDisponibilidadeCard(motorista, TextGray, Icons.Default.Info)
+                            MotoristaDisponibilidadeCard(motorista, TextGrayLightMode, Icons.Default.Info)
                         }
                     }
                 }
@@ -156,7 +156,7 @@ fun DisponibilidadeListDialog(
                         onDismiss()
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonGreen,
+                        containerColor = MeliBlue,
                         contentColor = Color.Black
                     )
                 ) {
@@ -166,7 +166,7 @@ fun DisponibilidadeListDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("FECHAR", color = TextGray)
+                Text("FECHAR", color = TextGrayLightMode)
             }
         }
     )
@@ -187,7 +187,7 @@ private fun StatChip(label: String, value: String, color: Color) {
         Text(
             label,
             style = MaterialTheme.typography.bodySmall,
-            color = TextGray
+            color = TextGrayLightMode
         )
     }
 }
@@ -200,7 +200,7 @@ private fun MotoristaDisponibilidadeCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = DarkSurfaceVariant
+            containerColor = Color(0xFFE5E5EA)
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -227,7 +227,7 @@ private fun MotoristaDisponibilidadeCard(
                 )
                 Text(
                     motorista.telefone,
-                    color = TextGray,
+                    color = TextGrayLightMode,
                     style = MaterialTheme.typography.bodySmall
                 )
             }

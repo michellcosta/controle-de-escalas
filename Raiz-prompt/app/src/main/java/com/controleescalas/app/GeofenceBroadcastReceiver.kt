@@ -85,7 +85,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         context,
                         "ESTACIONAMENTO",
                         "Chegou ao estacionamento (automático)",
-                        listOf("IR_ESTACIONAMENTO")
+                        listOf("IR_ESTACIONAMENTO", "A_CAMINHO", "CHEGUEI")
                     )
                 }
             }
@@ -129,7 +129,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                         context,
                         "ESTACIONAMENTO",
                         "Chegou ao estacionamento (automático)",
-                        listOf("IR_ESTACIONAMENTO")
+                        listOf("IR_ESTACIONAMENTO", "A_CAMINHO", "CHEGUEI")
                     )
                 }
             }

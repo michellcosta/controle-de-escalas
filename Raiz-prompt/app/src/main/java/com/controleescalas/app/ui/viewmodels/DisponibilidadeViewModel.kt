@@ -10,6 +10,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.MetadataChanges
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -49,6 +50,23 @@ class DisponibilidadeViewModel : ViewModel() {
     // Listener para atualizações em tempo real
     private var disponibilidadeListener: ListenerRegistration? = null
 
+    // Turnos cadastrados da base (dirige as opções do motorista e as abas do admin)
+    private val _turnosDaBase = MutableStateFlow(
+        com.controleescalas.app.data.repositories.ConfigRepository().turnosPadrao
+    )
+    val turnosDaBase: StateFlow<List<String>> = _turnosDaBase.asStateFlow()
+
+    private val configRepository = com.controleescalas.app.data.repositories.ConfigRepository()
+
+    /**
+     * Carregar os turnos cadastrados da base (padrão AM0/AM/PM/SD/SN se não cadastrado).
+     */
+    fun carregarTurnosDaBase(baseId: String) {
+        viewModelScope.launch {
+            _turnosDaBase.value = configRepository.getTurnosBase(baseId)
+        }
+    }
+
     // Cache de nomes resolvidos ("baseId:motoristaId" -> nome)
     private val nomeCache = mutableMapOf<String, String>()
     
@@ -85,6 +103,7 @@ class DisponibilidadeViewModel : ViewModel() {
             "telefone" to telefone
         )
         disponivel?.let { mapa["disponivel"] = it }
+        if (turnos.isNotEmpty()) mapa["turnos"] = turnos
         respondidoEm?.let { mapa["respondidoEm"] = it }
         return mapa
     }
@@ -93,11 +112,14 @@ class DisponibilidadeViewModel : ViewModel() {
         val bruto = snapshot.get("motoristas") as? List<*>
         val lidos = bruto?.mapNotNull { item ->
             val mapa = item as? Map<*, *> ?: return@mapNotNull null
+            @Suppress("UNCHECKED_CAST")
+            val turnosMapa = (mapa["turnos"] as? Map<String, Any>)?.mapValues { (it.value as? Boolean) == true } ?: emptyMap()
             DisponibilidadeMotorista(
                 motoristaId = mapa["motoristaId"] as? String ?: "",
                 nome = mapa["nome"] as? String ?: "",
                 telefone = mapa["telefone"] as? String ?: "",
                 disponivel = mapa["disponivel"] as? Boolean,
+                turnos = turnosMapa,
                 respondidoEm = (mapa["respondidoEm"] as? Number)?.toLong()
             )
         }.orEmpty()
@@ -865,7 +887,7 @@ class DisponibilidadeViewModel : ViewModel() {
             try {
                 _isLoading.value = true
                 _error.value = null
-                
+
                 val dataAmanha = getDataAmanha()
                 val docId = "${baseId}_$dataAmanha"
                 val docRef = firestore.collection("disponibilidades").document(docId)
@@ -944,13 +966,118 @@ class DisponibilidadeViewModel : ViewModel() {
                         respondidoEm = atualizado.respondidoEm ?: agora
                     ) ?: _minhaDisponibilidade.value
                 }
-                
+
             } catch (e: Exception) {
                 println("❌ Erro ao marcar disponibilidade: ${e.message}")
                 val local = _minhaDisponibilidade.value
                 if ((local?.respondidoEm ?: 0L) <= agora) {
                     _minhaDisponibilidade.value = anterior
                 }
+                _error.value = "Erro ao marcar disponibilidade: ${e.message}"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Motorista marca disponibilidade PARA UM TURNO específico (por turnos da base).
+     * Grava no mapa `turnos` da própria entrada do motorista, no mesmo doc do dia.
+     */
+    fun marcarDisponibilidadeTurno(baseId: String, motoristaId: String, turno: String, disponivel: Boolean) {
+        val agora = System.currentTimeMillis()
+        val anterior = _minhaDisponibilidade.value
+        _minhaDisponibilidade.value = (
+            anterior ?: DisponibilidadeMotorista(motoristaId = motoristaId)
+        ).copy(
+            turnos = (anterior?.turnos ?: emptyMap()) + (turno to disponivel),
+            respondidoEm = agora
+        )
+
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _error.value = null
+
+                val dataAmanha = getDataAmanha()
+                val docId = "${baseId}_$dataAmanha"
+                val docRef = firestore.collection("disponibilidades").document(docId)
+                val nomeBuscado = try {
+                    buscarNomeMotorista(baseId, motoristaId)
+                } catch (e: Exception) {
+                    null
+                }
+
+                val listaLocal = _disponibilidade.value?.motoristas.orEmpty()
+                val motoristasSemDuplicatas = firestore.runTransaction { tx ->
+                    val snap = tx.get(docRef)
+                    val motoristasAtuais = if (snap.exists()) {
+                        motoristasDoSnapshot(snap).ifEmpty {
+                            snap.toObject(Disponibilidade::class.java)?.motoristas.orEmpty()
+                        }
+                    } else {
+                        listaLocal
+                    }
+                    val motoristasLimpos = removerDuplicatasMotoristas(motoristasAtuais)
+                    val atualizados = motoristasLimpos.map { motorista ->
+                        if (!correspondeMotorista(motorista, motoristaId)) return@map motorista
+                        val nomeAtualizado = if (motorista.nome.isBlank() || motorista.nome == "Motorista") {
+                            nomeBuscado?.takeIf { it.isNotBlank() && it != "Motorista" } ?: motorista.nome
+                        } else {
+                            motorista.nome
+                        }
+                        motorista.copy(
+                            nome = nomeAtualizado,
+                            turnos = motorista.turnos + (turno to disponivel),
+                            respondidoEm = agora
+                        )
+                    }.toMutableList()
+                    if (atualizados.none { correspondeMotorista(it, motoristaId) }) {
+                        atualizados.add(
+                            DisponibilidadeMotorista(
+                                motoristaId = motoristaId,
+                                nome = nomeBuscado?.takeIf { it.isNotBlank() } ?: "",
+                                turnos = mapOf(turno to disponivel),
+                                respondidoEm = agora
+                            )
+                        )
+                    }
+                    val semDuplicatas = removerDuplicatasMotoristas(atualizados)
+                    val mapas = semDuplicatas.map { it.paraMapa() }
+                    if (snap.exists()) {
+                        tx.update(docRef, "motoristas", mapas)
+                    } else {
+                        tx.set(
+                            docRef,
+                            mapOf(
+                                "id" to docId,
+                                "baseId" to baseId,
+                                "data" to dataAmanha,
+                                "motoristas" to mapas,
+                                "notificacaoEnviada" to false,
+                                "criadoEm" to System.currentTimeMillis(),
+                                "criadoPor" to "system"
+                            )
+                        )
+                    }
+                    semDuplicatas
+                }.await()
+
+                val statusTexto = if (disponivel) "disponível" else "indisponível"
+                _message.value = "Turno $turno: você foi marcado como $statusTexto para amanhã"
+
+                val local = _minhaDisponibilidade.value
+                if ((local?.respondidoEm ?: 0L) <= agora) {
+                    val atualizado = motoristasSemDuplicatas.find { correspondeMotorista(it, motoristaId) }
+                    _minhaDisponibilidade.value = atualizado?.copy(
+                        turnos = atualizado.turnos + (turno to disponivel),
+                        respondidoEm = atualizado.respondidoEm ?: agora
+                    ) ?: _minhaDisponibilidade.value
+                }
+
+            } catch (e: Exception) {
+                println("❌ Erro ao marcar disponibilidade por turno: ${e.message}")
+                _minhaDisponibilidade.value = anterior
                 _error.value = "Erro ao marcar disponibilidade: ${e.message}"
             } finally {
                 _isLoading.value = false

@@ -16,7 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.controleescalas.app.ui.components.GlassCard
+import com.controleescalas.app.ui.components.AppCard
+import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
 import kotlinx.coroutines.delay
@@ -104,43 +105,24 @@ fun AdminDevolucaoDetalhesScreen(
     
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { 
-                    Column {
-                        Text("Devoluções", color = TextWhite)
-                        Text(
-                            motoristaNome,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextGray
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DarkBackground
-                ),
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Voltar",
-                            tint = TextWhite
-                        )
-                    }
-                },
+            AppTopBar(
+                title = "Devoluções",
+                subtitle = motoristaNome,
+                navigationIcon = Icons.Default.ArrowBack,
+                onNavigationClick = onDismiss,
                 actions = {
                     // Menu de 3 pontos com filtros
                     Box {
                         IconButton(onClick = { showFilterMenu = true }) {
                             Icon(
                                 Icons.Default.MoreVert,
-                                contentDescription = "Filtros",
-                                tint = TextWhite
+                                contentDescription = "Filtros"
                             )
                         }
                         DropdownMenu(
                             expanded = showFilterMenu,
                             onDismissRequest = { showFilterMenu = false },
-                            modifier = Modifier.background(DarkSurface)
+                            modifier = Modifier.background(Color.White)
                         ) {
                             DropdownMenuItem(
                                 text = {
@@ -148,12 +130,12 @@ fun AdminDevolucaoDetalhesScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Hoje", color = if (filtroData == "hoje") NeonGreen else TextWhite)
+                                        Text("Hoje", color = if (filtroData == "hoje") MeliBlue else TextBlack)
                                         if (filtroData == "hoje") {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -170,12 +152,12 @@ fun AdminDevolucaoDetalhesScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Esta Semana", color = if (filtroData == "semana") NeonGreen else TextWhite)
+                                        Text("Esta Semana", color = if (filtroData == "semana") MeliBlue else TextBlack)
                                         if (filtroData == "semana") {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -192,12 +174,12 @@ fun AdminDevolucaoDetalhesScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Este Mês", color = if (filtroData == "mes") NeonGreen else TextWhite)
+                                        Text("Este Mês", color = if (filtroData == "mes") MeliBlue else TextBlack)
                                         if (filtroData == "mes") {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -214,12 +196,12 @@ fun AdminDevolucaoDetalhesScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Text("Todos", color = if (filtroData == null) NeonGreen else TextWhite)
+                                        Text("Todos", color = if (filtroData == null) MeliBlue else TextBlack)
                                         if (filtroData == null) {
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = NeonGreen,
+                                                tint = MeliBlue,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
@@ -231,10 +213,10 @@ fun AdminDevolucaoDetalhesScreen(
                                 }
                             )
                             if (temFiltrosAtivos) {
-                                HorizontalDivider(color = TextGray.copy(alpha = 0.3f))
+                                HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.3f))
                                 DropdownMenuItem(
                                     text = {
-                                        Text("Limpar Filtros", color = TextGray)
+                                        Text("Limpar Filtros", color = TextGrayLightMode)
                                     },
                                     onClick = {
                                         filtroData = null
@@ -248,7 +230,7 @@ fun AdminDevolucaoDetalhesScreen(
                 }
             )
         },
-        containerColor = DarkBackground
+        containerColor = Color.White
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -262,7 +244,7 @@ fun AdminDevolucaoDetalhesScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = NeonGreen)
+                        CircularProgressIndicator(color = MeliBlue)
                     }
                 }
                 else -> {
@@ -275,14 +257,14 @@ fun AdminDevolucaoDetalhesScreen(
                         // Total por dia
                         if (contagemPorDia.isNotEmpty()) {
                             item {
-                                GlassCard {
+                                AppCard {
                                     Column(
                                         modifier = Modifier.padding(16.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Text(
                                             "Total por Dia",
-                                            color = NeonGreen,
+                                            color = MeliBlue,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -291,13 +273,13 @@ fun AdminDevolucaoDetalhesScreen(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween
                                             ) {
-                                                Text(data, color = TextWhite)
+                                                Text(data, color = TextBlack)
                                                 val devolucoesText = if (total == 1) {
                                                     "01 devolução"
                                                 } else {
                                                     String.format("%02d devoluções", total)
                                                 }
-                                                Text(devolucoesText, color = TextGray)
+                                                Text(devolucoesText, color = TextGrayLightMode)
                                             }
                                         }
                                     }
@@ -313,13 +295,13 @@ fun AdminDevolucaoDetalhesScreen(
                                 OutlinedTextField(
                                     value = idPacoteFiltro,
                                     onValueChange = { idPacoteFiltro = it },
-                                    label = { Text("Buscar por ID do Pacote", color = TextGray) },
-                                    placeholder = { Text("Digite o ID...", color = TextGray.copy(alpha = 0.5f)) },
+                                    label = { Text("Buscar por ID do Pacote", color = TextGrayLightMode) },
+                                    placeholder = { Text("Digite o ID...", color = TextGrayLightMode.copy(alpha = 0.5f)) },
                                     leadingIcon = {
                                         Icon(
                                             Icons.Default.Search,
                                             contentDescription = "Buscar",
-                                            tint = NeonBlue
+                                            tint = MeliBlue
                                         )
                                     },
                                     trailingIcon = {
@@ -328,19 +310,19 @@ fun AdminDevolucaoDetalhesScreen(
                                                 Icon(
                                                     Icons.Default.Clear,
                                                     contentDescription = "Limpar busca",
-                                                    tint = TextGray
+                                                    tint = TextGrayLightMode
                                                 )
                                             }
                                         }
                                     },
                                     singleLine = true,
                                     colors = OutlinedTextFieldDefaults.colors(
-                                        focusedTextColor = TextWhite,
-                                        unfocusedTextColor = TextWhite,
-                                        focusedBorderColor = NeonBlue,
-                                        unfocusedBorderColor = TextGray,
-                                        focusedLabelColor = NeonBlue,
-                                        unfocusedLabelColor = TextGray
+                                        focusedTextColor = TextBlack,
+                                        unfocusedTextColor = TextBlack,
+                                        focusedBorderColor = MeliBlue,
+                                        unfocusedBorderColor = CardBorderLight,
+                                        focusedLabelColor = MeliBlue,
+                                        unfocusedLabelColor = TextGrayLightMode
                                     ),
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -353,7 +335,7 @@ fun AdminDevolucaoDetalhesScreen(
                                         } else {
                                             "${devolucoes.size} devolução(ões) encontrada(s)"
                                         },
-                                        color = if (devolucoes.isEmpty() && temFiltrosAtivos) TextGray else TextWhite,
+                                        color = if (devolucoes.isEmpty() && temFiltrosAtivos) TextGrayLightMode else TextBlack,
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.padding(horizontal = 4.dp)
                                     )
@@ -378,11 +360,11 @@ fun AdminDevolucaoDetalhesScreen(
                                             Icons.Default.Inventory2,
                                             contentDescription = "Nenhuma devolução",
                                             modifier = Modifier.size(64.dp),
-                                            tint = TextGray
+                                            tint = TextGrayLightMode
                                         )
                                         Text(
                                             "Nenhuma devolução encontrada",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                     }
@@ -407,16 +389,16 @@ fun AdminDevolucaoDetalhesScreen(
                                             Icons.Default.SearchOff,
                                             contentDescription = "Nenhum resultado",
                                             modifier = Modifier.size(64.dp),
-                                            tint = TextGray
+                                            tint = TextGrayLightMode
                                         )
                                         Text(
                                             "Nenhuma devolução encontrada",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.titleMedium
                                         )
                                         Text(
                                             "Tente ajustar os filtros",
-                                            color = TextGray,
+                                            color = TextGrayLightMode,
                                             style = MaterialTheme.typography.bodyMedium
                                         )
                                     }
@@ -426,7 +408,7 @@ fun AdminDevolucaoDetalhesScreen(
                         
                         // Lista de devoluções - Card simplificado (apenas quantidade, data e hora)
                         items(devolucoes) { devolucao ->
-                            GlassCard(
+                            AppCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
                                     // Abrir diálogo com os IDs dos pacotes
@@ -449,14 +431,14 @@ fun AdminDevolucaoDetalhesScreen(
                                         Icon(
                                             Icons.Default.Inventory2,
                                             contentDescription = null,
-                                            tint = NeonGreen,
+                                            tint = MeliBlue,
                                             modifier = Modifier.size(32.dp)
                                         )
                                         Column {
                                             // Quantidade de pacotes
                                             Text(
                                                 "${devolucao.quantidade} ${if (devolucao.quantidade == 1) "pacote" else "pacotes"}",
-                                                color = TextWhite,
+                                                color = TextBlack,
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -464,7 +446,7 @@ fun AdminDevolucaoDetalhesScreen(
                                             // Data e hora
                                             Text(
                                                 "${devolucao.data} - ${devolucao.hora}",
-                                                color = TextGray,
+                                                color = TextGrayLightMode,
                                                 style = MaterialTheme.typography.bodyMedium
                                             )
                                         }
@@ -474,7 +456,7 @@ fun AdminDevolucaoDetalhesScreen(
                                     Icon(
                                         Icons.Default.ChevronRight,
                                         contentDescription = "Ver IDs dos pacotes",
-                                        tint = TextGray
+                                        tint = TextGrayLightMode
                                     )
                                 }
                             }
@@ -491,14 +473,14 @@ fun AdminDevolucaoDetalhesScreen(
                         Column {
                             Text(
                                 "IDs dos Pacotes",
-                                color = TextWhite,
+                                color = TextBlack,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "${devolucao.data} - ${devolucao.hora}",
-                                color = TextGray,
+                                color = TextGrayLightMode,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -507,7 +489,7 @@ fun AdminDevolucaoDetalhesScreen(
                         if (devolucao.idsPacotes.isEmpty()) {
                             Text(
                                 "Nenhum ID de pacote encontrado",
-                                color = TextGray
+                                color = TextGrayLightMode
                             )
                         } else {
                             Column(
@@ -518,11 +500,11 @@ fun AdminDevolucaoDetalhesScreen(
                             ) {
                                 Text(
                                     "Total: ${devolucao.idsPacotes.size} ${if (devolucao.idsPacotes.size == 1) "pacote" else "pacotes"}",
-                                    color = TextWhite,
+                                    color = TextBlack,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold
                                 )
-                                HorizontalDivider(color = TextGray.copy(alpha = 0.3f))
+                                HorizontalDivider(color = TextGrayLightMode.copy(alpha = 0.3f))
                                 devolucao.idsPacotes.forEachIndexed { index, idPacote ->
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
@@ -531,14 +513,14 @@ fun AdminDevolucaoDetalhesScreen(
                                     ) {
                                         Text(
                                             "${index + 1}.",
-                                            color = NeonGreen,
+                                            color = MeliBlue,
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Bold,
                                             modifier = Modifier.width(24.dp)
                                         )
                                         Text(
                                             idPacote,
-                                            color = TextWhite,
+                                            color = TextBlack,
                                             style = MaterialTheme.typography.bodyMedium,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -551,12 +533,12 @@ fun AdminDevolucaoDetalhesScreen(
                         TextButton(
                             onClick = { devolucaoSelecionada = null }
                         ) {
-                            Text("Fechar", color = NeonGreen)
+                            Text("Fechar", color = MeliBlue)
                         }
                     },
-                    containerColor = DarkSurface,
-                    titleContentColor = TextWhite,
-                    textContentColor = TextWhite
+                    containerColor = Color.White,
+                    titleContentColor = TextBlack,
+                    textContentColor = TextBlack
                 )
             }
             
@@ -569,8 +551,8 @@ fun AdminDevolucaoDetalhesScreen(
                 val isError = error != null || messageText.contains("erro", ignoreCase = true)
                 Snackbar(
                     snackbarData = snackbarData,
-                    containerColor = if (isError) Color(0xFFEF4444) else NeonGreen,
-                    contentColor = if (isError) TextWhite else Color.Black
+                    containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                    contentColor = TextWhite
                 )
             }
         }

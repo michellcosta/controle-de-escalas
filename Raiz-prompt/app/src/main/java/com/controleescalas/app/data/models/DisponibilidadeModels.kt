@@ -31,9 +31,20 @@ data class DisponibilidadeMotorista(
     val motoristaId: String = "",
     val nome: String = "", // Desnormalizado para facilitar exibição
     val telefone: String = "", // Desnormalizado
-    val disponivel: Boolean? = null, // null = não respondeu, true = disponível, false = indisponível
+    val disponivel: Boolean? = null, // LEGADO: null = não respondeu, true/false = resposta única do dia
+    // Resposta POR TURNO (turno -> disponível). Turnos ausentes no mapa = sem resposta.
+    val turnos: Map<String, Boolean> = emptyMap(),
     val respondidoEm: Long? = null
-)
+) {
+    /**
+     * Estado do motorista em um turno específico.
+     * Compatibilidade: docs antigos sem o mapa derivam do boolean legado.
+     */
+    fun estadoNoTurno(turno: String): Boolean? {
+        if (turnos.containsKey(turno)) return turnos[turno]
+        return disponivel
+    }
+}
 
 /**
  * DTO para facilitar a exibição na UI
