@@ -102,6 +102,13 @@ data class OndaItem(
     val nota: String? = null // Observação livre (pré-escala: vuc, saca...)
 )
 
+/**
+ * Slot de rota vindo da importação da tabela de ondas (sem motorista ainda).
+ * IDs começam com "slot_" — status/notificação/compartilhar os ignoram.
+ */
+val OndaItem.isSlot: Boolean
+    get() = motoristaId.startsWith("slot_")
+
 data class StatusMotorista(
     @DocumentId val id: String = "",
     val motoristaId: String = "",

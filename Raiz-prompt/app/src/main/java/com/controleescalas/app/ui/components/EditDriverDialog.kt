@@ -75,6 +75,10 @@ private fun formatarRota(input: String): String {
     if (input.isBlank()) return ""
     
     val trimmed = input.trim().uppercase()
+
+    // Código da planilha (I13_AM1): já é o código completo da rota — não mexe
+    // (a formatação abaixo o transformaria em "I-131")
+    if (trimmed.contains('_')) return trimmed
     
     // Se já está no formato correto (letra(s)-número(s)), manter como está
     val formatoCorreto = Regex("^[A-Z]+-\\d+$")

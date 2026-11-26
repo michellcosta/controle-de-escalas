@@ -8,11 +8,17 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -37,6 +43,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.controleescalas.app.data.models.Onda
@@ -49,11 +62,14 @@ import com.controleescalas.app.ui.components.SectionHeader
 import com.controleescalas.app.ui.components.AppTopBar
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.data.models.AdminMotoristaCardData
+import com.controleescalas.app.data.models.isSlot
 import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
 import com.controleescalas.app.utils.BrasilDate
 import com.controleescalas.app.utils.WhatsAppShare
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 /**
  * Valida se a vaga já está sendo usada na mesma onda
@@ -110,6 +126,21 @@ fun validarRotaNoTurno(
     }
 }
 
+/**
+ * Converte o índice de uma onda REAL (sem a PRÉ-ESCALA — é o que os diálogos de
+ * destino mostram) para o índice posicional na lista completa, que é o que o
+ * ViewModel usa. Índice a partir do fim das reais é onda NOVA, que o ViewModel
+ * cria no fim da lista.
+ */
+fun List<Onda>.indicePosicional(indiceReal: Int): Int {
+    val ondasReais = filter { !it.nome.equals("PRÉ-ESCALA", true) }
+    return if (indiceReal < ondasReais.size) {
+        indexOfFirst { it.nome == ondasReais[indiceReal].nome }
+    } else {
+        size + (indiceReal - ondasReais.size)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OperationalDashboardScreen(
@@ -135,11 +166,11 @@ fun OperationalDashboardScreen(
     var showAddDriverDialog by remember { mutableStateOf(false) }
     var selectedOndaIndex by remember { mutableIntStateOf(-1) }
     
-    // Verificar se há escala válida para compartilhar (ondas REAIS com itens;
-    // a PRÉ-ESCALA é rascunho e não entra no compartilhamento)
+    // Verificar se há escala válida para compartilhar (motoristas reais em ondas;
+    // PRÉ-ESCALA e slots da importação não entram no compartilhamento)
     val temEscalaValida = remember(ondas) {
         val ondasReais = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
-        ondasReais.isNotEmpty() && ondasReais.any { it.itens.isNotEmpty() }
+        ondasReais.isNotEmpty() && ondasReais.any { it.itens.any { !it.isSlot } }
     }
     
     // Função para formatar o texto da escala para compartilhar
@@ -170,10 +201,13 @@ fun OperationalDashboardScreen(
                     appendLine("🚨 `$nomeOnda ONDA:`  ${onda.horario}")
                     appendLine()
 
-                    // Ordenar itens por vaga (numérica) antes de formatar
-                    val itensOrdenados = onda.itens.sortedBy { item ->
-                        item.vaga.toIntOrNull() ?: Int.MAX_VALUE
-                    }
+                    // Ordenar itens por vaga (numérica) antes de formatar;
+                    // slots da importação (sem motorista) não entram na mensagem
+                    val itensOrdenados = onda.itens
+                        .filter { !it.isSlot }
+                        .sortedBy { item ->
+                            item.vaga.toIntOrNull() ?: Int.MAX_VALUE
+                        }
 
                     // Listar cada item
                     itensOrdenados.forEach { item ->
@@ -231,6 +265,7 @@ fun OperationalDashboardScreen(
     // disparava também na primeira composição — set() do documento inteiro
     // sem nenhuma alteração = escrita de cota de graça em cada troca de aba.
     
+    // Long-press no motorista abre o seletor "Mover para onda"
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -288,47 +323,209 @@ fun OperationalDashboardScreen(
                         .fillMaxSize()
                         .padding(top = paddingValues.calculateTopPadding())
                 ) {
-                    WavesContent(
-                        ondas = ondas,
-                        turnos = turnosDaBase,
-                        turnoAtual = turnoAtual,
-                        motoristasStatus = motoristasStatus,
-                        motoristasDisponiveis = motoristasDisponiveis,
-                        onTurnoChange = { viewModel.changeTurno(it) },
-                        onCallDriver = { motorista -> 
-                            viewModel.callDriverToVaga(motorista) 
-                        },
-                        onCallDriverWithVagaRota = { motorista, vaga, rota ->
-                            viewModel.callDriverToVaga(motorista, vaga, rota)
-                        },
-                        onCallToParking = { viewModel.callDriverToParking(it) },
-                        onCompleteLoad = { viewModel.completeDriverLoad(it) },
-                        onReset = { viewModel.resetDriverStatus(it) },
-                        onMarcarComoConcluido = { viewModel.marcarMotoristaComoConcluido(it) },
-                        onResetarStatus = { viewModel.resetarStatusMotorista(it) },
-                        onUpdateDriver = { m: OndaItem, v: String, r: String, s: Int? -> 
-                            viewModel.updateDriverInOnda(ondas.indexOfFirst { it.itens.contains(m) }, m, v, r, s) 
-                        },
-                        onUpdateWave = { index, nome, horario, tipo ->
-                            viewModel.updateOnda(index, nome, horario, tipo)
-                        },
-                        onAddDriverToOnda = { index ->
-                            selectedOndaIndex = index
-                            showAddDriverDialog = true
-                        },
-                        onRemoveDriver = { ondaIndex, motoristaId ->
-                            viewModel.removeMotoristaFromOnda(ondaIndex, motoristaId)
-                        },
-                        onSaveAndNotifyAll = {
-                            viewModel.saveAndNotifyAll()
-                        },
-                        onRemoveWave = { index ->
-                            viewModel.removeOnda(index)
+                    // Importar a tabela de ondas do dia por foto (OCR) —
+                    // cria as ondas com slots (rota + vaga = doca) para o turno atual
+                    var showImportarRotas by remember { mutableStateOf(false) }
+                    var showConfirmarLimpar by remember { mutableStateOf(false) }
+                    // Long-press em motorista/rota → escolher a onda destino
+                    var motoristaParaMover by remember { mutableStateOf<OndaItem?>(null) }
+                    var ondaOrigemParaMover by remember { mutableIntStateOf(-1) }
+                    val preEscalaViewModel: com.controleescalas.app.ui.viewmodels.PreEscalaViewModel = viewModel()
+
+                    // Feedback do import (mensagem/erro do VM) no snackbar
+                    LaunchedEffect(Unit) {
+                        preEscalaViewModel.message.collect { msg ->
+                            msg?.let { snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Short) }
                         }
-                    )
+                    }
+                    LaunchedEffect(Unit) {
+                        preEscalaViewModel.error.collect { erro ->
+                            erro?.let { snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Long) }
+                        }
+                    }
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        WavesContent(
+                            ondas = ondas,
+                            turnos = turnosDaBase,
+                            turnoAtual = turnoAtual,
+                            motoristasStatus = motoristasStatus,
+                            motoristasDisponiveis = motoristasDisponiveis,
+                            disponibilidadeMap = disponibilidadeMap,
+                            onImportarClick = { showImportarRotas = true },
+                            onLimparClick = { showConfirmarLimpar = true },
+                            onMoverParaOnda = { origem, item, destino ->
+                                viewModel.moverMotoristaEntreOndas(origem, destino, item)
+                            },
+                            onMoverSlot = { origem, slot, destino ->
+                                viewModel.moverMotoristaEntreOndas(origem, destino, slot)
+                            },
+                            onPreencherSlot = { ondaIndex, slot, motorista ->
+                                viewModel.preencherSlot(ondaIndex, slot, motorista)
+                            },
+                            onTurnoChange = { viewModel.changeTurno(it) },
+                            onCallDriver = { motorista ->
+                                viewModel.callDriverToVaga(motorista)
+                            },
+                            onCallDriverWithVagaRota = { motorista, vaga, rota ->
+                                viewModel.callDriverToVaga(motorista, vaga, rota)
+                            },
+                            onCallToParking = { viewModel.callDriverToParking(it) },
+                            onCompleteLoad = { viewModel.completeDriverLoad(it) },
+                            onReset = { viewModel.resetDriverStatus(it) },
+                            onMarcarComoConcluido = { viewModel.marcarMotoristaComoConcluido(it) },
+                            onResetarStatus = { viewModel.resetarStatusMotorista(it) },
+                            onUpdateDriver = { m: OndaItem, v: String, r: String, s: Int? ->
+                                viewModel.updateDriverInOnda(ondas.indexOfFirst { it.itens.contains(m) }, m, v, r, s)
+                            },
+                            onUpdateWave = { index, nome, horario, tipo ->
+                                viewModel.updateOnda(index, nome, horario, tipo)
+                            },
+                            onAddDriverToOnda = { index ->
+                                selectedOndaIndex = index
+                                showAddDriverDialog = true
+                            },
+                            onRemoveDriver = { ondaIndex, motoristaId ->
+                                viewModel.removeMotoristaFromOnda(ondaIndex, motoristaId)
+                            },
+                            onSaveAndNotifyAll = {
+                                viewModel.saveAndNotifyAll()
+                            },
+                            onRemoveWave = { index ->
+                                viewModel.removeOnda(index)
+                            }
+                        )
+                    }
+
+                    // Import da tabela de ondas por foto: reorganiza as ondas do turno
+                    // atual pela tabela e coloca cada motorista já escalado (pré-escala)
+                    // na onda e na vaga da sua rota
+                    if (showImportarRotas) {
+                        ImportarRotasDialog(
+                            baseId = baseId,
+                            data = BrasilDate.hoje(),
+                            turno = turnoAtual,
+                            viewModel = preEscalaViewModel,
+                            onDismiss = { showImportarRotas = false }
+                        )
+                    }
+
+                    // Confirmação da limpeza total do turno
+                    if (showConfirmarLimpar) {
+                        AlertDialog(
+                            onDismissRequest = { showConfirmarLimpar = false },
+                            containerColor = Color.White,
+                            shape = RoundedCornerShape(16.dp),
+                            title = {
+                                Text("Limpar todas as ondas?", color = TextBlack, fontWeight = FontWeight.Bold)
+                            },
+                            text = {
+                                Text(
+                                    "Todas as ondas do turno $turnoAtual serão apagadas — motoristas, rotas e vagas. " +
+                                        "Isso não pode ser desfeito.",
+                                    color = TextGrayLightMode,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        viewModel.limparTodasOndas()
+                                        showConfirmarLimpar = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = StatusError,
+                                        contentColor = Color.White
+                                    )
+                                ) {
+                                    Text("LIMPAR TUDO", fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showConfirmarLimpar = false }) {
+                                    Text("CANCELAR", color = TextGrayLightMode)
+                                }
+                            }
+                        )
+                    }
+
+                    // Long-press em motorista/rota → escolher a onda destino
+                    if (motoristaParaMover != null) {
+                        val item = motoristaParaMover!!
+                        val ondasReais = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
+                        AlertDialog(
+                            onDismissRequest = {
+                                motoristaParaMover = null
+                                ondaOrigemParaMover = -1
+                            },
+                            containerColor = Color.White,
+                            shape = RoundedCornerShape(16.dp),
+                            title = {
+                                Column {
+                                    Text(
+                                        "Mover ${item.nome.ifBlank { "rota ${item.rota}" }}",
+                                        color = TextBlack,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        "Escolha a onda de destino:",
+                                        color = TextGrayLightMode,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    ondasReais.forEachIndexed { destino, onda ->
+                                        TextButton(
+                                            onClick = {
+                                                viewModel.moverMotoristaEntreOndas(ondaOrigemParaMover, destino, item)
+                                                motoristaParaMover = null
+                                                ondaOrigemParaMover = -1
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                "${onda.nome}${if (destino == ondaOrigemParaMover) " (atual)" else ""}",
+                                                color = if (destino == ondaOrigemParaMover) TextGrayLightMode else TextBlack,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.moverMotoristaEntreOndas(
+                                                ondaOrigemParaMover,
+                                                ondasReais.size, // nova onda no fim
+                                                item
+                                            )
+                                            motoristaParaMover = null
+                                            ondaOrigemParaMover = -1
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            "➕ Nova onda",
+                                            color = MeliBlue,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            },
+                            confirmButton = {},
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    motoristaParaMover = null
+                                    ondaOrigemParaMover = -1
+                                }) {
+                                    Text("CANCELAR", color = TextGrayLightMode)
+                                }
+                            }
+                        )
+                    }
                 }
             }
-            
+
             if (showAddDriverDialog && selectedOndaIndex >= 0) {
                 val jaEscalados = ondas
                     .flatMap { it.itens }
@@ -351,18 +548,10 @@ fun OperationalDashboardScreen(
                         // O bulkApply remove duplicatas e preserva rota/sacas quando a
                         // ação não informa (ex.: mover da pré-escala mantém a rota).
                         // destinosPorMotorista usa índice no espaço de ondas REAIS
-                        // (sem PRÉ-ESCALA) — converter para índice posicional:
-                        val ondasReais = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
-                        fun posicional(realIdx: Int): Int =
-                            if (realIdx < ondasReais.size) {
-                                ondas.indexOfFirst { it.nome == ondasReais[realIdx].nome }
-                            } else {
-                                ondas.size + (realIdx - ondasReais.size)
-                            }
-
+                        // (sem PRÉ-ESCALA) — converter para índice posicional
                         val primeiraNova = ondas.size
                         val acoes = selecionados.mapIndexed { i, motorista ->
-                            val ondaIndex = destinosPorMotorista[motorista.id]?.let(::posicional)
+                            val ondaIndex = destinosPorMotorista[motorista.id]?.let { ondas.indicePosicional(it) }
                                 ?: if (distribuirEm != null && distribuirEm > 0) {
                                     primeiraNova + (i % distribuirEm)
                                 } else {
@@ -383,7 +572,7 @@ fun OperationalDashboardScreen(
                     }
                 )
             }
-            
+
             Box(modifier = Modifier.fillMaxSize()) {
                 val currentMessage = message
                 val currentError = error
@@ -422,6 +611,12 @@ fun WavesContent(
     turnoAtual: String,
     motoristasStatus: Map<String, StatusMotorista>,
     motoristasDisponiveis: List<AdminMotoristaCardData>,
+    disponibilidadeMap: Map<String, Boolean?>,
+    onImportarClick: () -> Unit,
+    onLimparClick: () -> Unit,
+    onMoverParaOnda: (Int, OndaItem, Int) -> Unit,
+    onMoverSlot: (Int, OndaItem, Int) -> Unit,
+    onPreencherSlot: (Int, OndaItem, AdminMotoristaCardData) -> Unit,
     onTurnoChange: (String) -> Unit, // Novo parâmetro
     onCallDriver: (OndaItem) -> Unit,
     onCallDriverWithVagaRota: (OndaItem, String, String) -> Unit,
@@ -438,7 +633,7 @@ fun WavesContent(
     onRemoveWave: (Int) -> Unit
 ) {
     val (ondasNormais, ondasDedicadas) = ondas.partition { it.tipo != "DEDICADO" }
-    
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -451,6 +646,36 @@ fun WavesContent(
                 turnoAtual = turnoAtual,
                 onTurnoChange = onTurnoChange
             )
+
+            // Ações do turno (rolam junto com o conteúdo)
+            Button(
+                onClick = onImportarClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MeliBlue,
+                    contentColor = Color.White
+                )
+            ) {
+                Text("📥 Importar ondas", fontWeight = FontWeight.Bold)
+            }
+
+            if (ondas.isNotEmpty()) {
+                TextButton(
+                    onClick = onLimparClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp)
+                ) {
+                    Text(
+                        "🗑️ Limpar todas as ondas do turno $turnoAtual",
+                        color = StatusError,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
 
         itemsIndexed(ondasNormais) { idx, onda ->
@@ -462,6 +687,10 @@ fun WavesContent(
                 ondas = ondas,
                 motoristasStatus = motoristasStatus,
                 motoristasDisponiveis = motoristasDisponiveis,
+                disponibilidadeMap = disponibilidadeMap,
+                onMoverParaOnda = onMoverParaOnda,
+                onMoverSlot = onMoverSlot,
+                onPreencherSlot = onPreencherSlot,
                 onCallDriver = onCallDriver,
                 onCallDriverWithVagaRota = onCallDriverWithVagaRota,
                 onCallToParking = onCallToParking,
@@ -490,6 +719,10 @@ fun WavesContent(
                 ondas = ondas,
                 motoristasStatus = motoristasStatus,
                 motoristasDisponiveis = motoristasDisponiveis,
+                disponibilidadeMap = disponibilidadeMap,
+                onMoverParaOnda = onMoverParaOnda,
+                onMoverSlot = onMoverSlot,
+                onPreencherSlot = onPreencherSlot,
                 onCallDriver = onCallDriver,
                 onCallDriverWithVagaRota = onCallDriverWithVagaRota,
                 onCallToParking = onCallToParking,
@@ -515,8 +748,12 @@ fun WavesContent(
             }
         }
         
-        // Botão NOTIFICAR TODOS (aparece se houver motoristas escalados)
-        val totalMotoristas = ondas.sumOf { it.itens.size }
+        // Botão NOTIFICAR TODOS (aparece se houver motoristas escalados). Só
+        // motoristas reais das ondas reais: rotas livres (slots) e a PRÉ-ESCALA
+        // ficam de fora, como no saveAndNotifyAll
+        val totalMotoristas = ondas
+            .filter { !it.nome.equals("PRÉ-ESCALA", true) }
+            .sumOf { onda -> onda.itens.count { !it.isSlot } }
         if (totalMotoristas > 0) {
             item {
                 Spacer(modifier = Modifier.height(24.dp))
@@ -691,6 +928,10 @@ fun WaveOperationCard(
     ondas: List<Onda>,
     motoristasStatus: Map<String, StatusMotorista>,
     motoristasDisponiveis: List<AdminMotoristaCardData>,
+    disponibilidadeMap: Map<String, Boolean?>,
+    onMoverParaOnda: (Int, OndaItem, Int) -> Unit,
+    onMoverSlot: (Int, OndaItem, Int) -> Unit,
+    onPreencherSlot: (Int, OndaItem, AdminMotoristaCardData) -> Unit,
     onCallDriver: (OndaItem) -> Unit,
     onCallDriverWithVagaRota: (OndaItem, String, String) -> Unit,
     onCallToParking: (OndaItem) -> Unit,
@@ -811,7 +1052,7 @@ fun WaveOperationCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { 
+                    .clickable {
                         val novoEstado = !isExpanded
                         isExpanded = novoEstado
                         // Se o usuário expandir manualmente, marcar como expansão manual
@@ -987,22 +1228,60 @@ fun WaveOperationCard(
                         var showActionsDialog by remember { mutableStateOf(false) }
                         var selectedMotoristaForActions by remember { mutableStateOf<OndaItem?>(null) }
                         var showEditDialog by remember { mutableStateOf(false) }
-                        
+                        var showEscolherSlotDialog by remember { mutableStateOf(false) }
+                        var slotParaPreencher by remember { mutableStateOf<OndaItem?>(null) }
+
                         onda.itens.forEach { motorista ->
                             val status = motoristasStatus[motorista.motoristaId]
-                            
+
                             DriverOperationRow(
                                 motorista = motorista,
                                 status = status,
                                 onCardClick = {
-                                    selectedMotoristaForActions = motorista
-                                    showActionsDialog = true
+                                    if (motorista.isSlot) {
+                                        slotParaPreencher = motorista
+                                        showEscolherSlotDialog = true
+                                    } else {
+                                        selectedMotoristaForActions = motorista
+                                        showActionsDialog = true
+                                    }
                                 }
                             )
-                            
+
                             Spacer(modifier = Modifier.height(8.dp))
                         }
-                        
+
+                        // Escolher motorista para preencher um slot da importação
+                        if (showEscolherSlotDialog && slotParaPreencher != null) {
+                            val ondaIndexSlot = ondas.indexOfFirst { it.itens.contains(slotParaPreencher!!) }
+                            if (ondaIndexSlot >= 0) {
+                                EscolherMotoristaSlotDialog(
+                                    slot = slotParaPreencher!!,
+                                    motoristas = motoristasDisponiveis,
+                                    disponibilidadeMap = disponibilidadeMap,
+                                    ondas = ondas,
+                                    ondaAtualIndex = ondaIndexSlot,
+                                    onMoverSlot = { destinoOndaIndex ->
+                                        onMoverSlot(ondaIndexSlot, slotParaPreencher!!, destinoOndaIndex)
+                                        showEscolherSlotDialog = false
+                                        slotParaPreencher = null
+                                    },
+                                    onDismiss = {
+                                        showEscolherSlotDialog = false
+                                        slotParaPreencher = null
+                                    },
+                                    onConfirm = { motorista ->
+                                        onPreencherSlot(ondaIndexSlot, slotParaPreencher!!, motorista)
+                                        showEscolherSlotDialog = false
+                                        slotParaPreencher = null
+                                    }
+                                )
+                            } else {
+                                showEscolherSlotDialog = false
+                                slotParaPreencher = null
+                            }
+                        }
+
                         // Modal de ações (chamar para vaga/estacionamento + editar/excluir)
                         if (showActionsDialog && selectedMotoristaForActions != null) {
                             val ondaAtualIndexParaActions = ondas.indexOfFirst { it.itens.contains(selectedMotoristaForActions!!) }
@@ -1052,6 +1331,13 @@ fun WaveOperationCard(
                                     // Chamar diretamente onRemoveDriver sem abrir segundo dialog
                                     // O primeiro dialog já foi confirmado dentro do DriverActionsDialog
                                     onRemoveDriver(selectedMotoristaForActions!!.motoristaId)
+                                },
+                                onMoverParaOnda = { destinoOndaIndex ->
+                                    onMoverParaOnda(
+                                        ondas.indexOfFirst { it.itens.contains(selectedMotoristaForActions!!) },
+                                        selectedMotoristaForActions!!,
+                                        destinoOndaIndex
+                                    )
                                 }
                             )
                             }
@@ -1174,6 +1460,63 @@ fun DriverOperationRow(
     status: StatusMotorista?,
     onCardClick: () -> Unit
 ) {
+    // Slot da importação (rota sem motorista): visual próprio, toque escolhe o motorista
+    if (motorista.isSlot) {
+        Surface(
+            color = LightSurfaceVariant,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onCardClick() }
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Rota livre: ${motorista.rota}",
+                        color = TextBlack,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp
+                    )
+                    if (motorista.vaga.isNotBlank()) {
+                        Text(
+                            text = "Vaga ${motorista.vaga}",
+                            color = MeliBlue,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        text = "Toque para escolher o motorista",
+                        color = TextGrayLightMode,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Surface(
+                    color = NeonOrange.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(4.dp),
+                    border = BorderStroke(1.dp, NeonOrange)
+                ) {
+                    Text(
+                        text = "LIVRE",
+                        color = NeonOrange,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                    )
+                }
+            }
+        }
+        return
+    }
+
     val estadoAtual = status?.estado?.takeIf { it.isNotBlank() } ?: "A_CAMINHO"
     val isConcluido = estadoAtual == "CONCLUIDO"
     
@@ -1186,7 +1529,7 @@ fun DriverOperationRow(
         shape = MaterialTheme.shapes.small,
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (isConcluido) 0.5f else 1f) // Opacidade reduzida quando concluído
+            .alpha(if (isConcluido) 0.5f else 1f) // Opacidade reduzida quando concluido
             .clickable { onCardClick() }
     ) {
         Column(
@@ -1319,11 +1662,190 @@ fun DriverOperationRow(
 }
 
 /**
+ * Escolher motorista para preencher um slot de rota vindo da importação.
+ * Disponíveis primeiro; indisponíveis aparecem com aviso.
+ */
+@Composable
+fun EscolherMotoristaSlotDialog(
+    slot: OndaItem,
+    motoristas: List<AdminMotoristaCardData>,
+    disponibilidadeMap: Map<String, Boolean?>,
+    ondas: List<Onda> = emptyList(),
+    ondaAtualIndex: Int = -1,
+    onMoverSlot: (destinoOndaIndex: Int) -> Unit = {},
+    onDismiss: () -> Unit,
+    onConfirm: (AdminMotoristaCardData) -> Unit
+) {
+    var busca by remember { mutableStateOf("") }
+
+    val lista = motoristas
+        .filter { it.papel != "admin" }
+        .sortedWith(
+            compareBy<AdminMotoristaCardData> {
+                when (disponibilidadeMap[it.id]) {
+                    true -> 0
+                    null -> 1
+                    false -> 2
+                }
+            }.thenBy { it.nome }
+        )
+        .filter {
+            busca.isBlank() || it.nome.contains(busca, ignoreCase = true) ||
+                it.telefone.contains(busca, ignoreCase = true)
+        }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        shape = RoundedCornerShape(16.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Quem pega a rota ${slot.rota}?", color = TextBlack, fontWeight = FontWeight.Bold)
+                    if (slot.vaga.isNotBlank()) {
+                        Text(
+                            "Vaga ${slot.vaga}",
+                            color = MeliBlue,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = TextGrayLightMode)
+                }
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = busca,
+                    onValueChange = { busca = it },
+                    label = { Text("Buscar motorista...") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedBorderColor = MeliBlue,
+                        unfocusedBorderColor = CardBorderLight,
+                        cursorColor = MeliBlue
+                    )
+                )
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 320.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(lista.size) { index ->
+                        val m = lista[index]
+                        val disponibilidade = disponibilidadeMap[m.id]
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onConfirm(m) }
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    m.nome,
+                                    color = TextBlack,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    when (disponibilidade) {
+                                        true -> "✓ Disponível neste turno"
+                                        false -> "✕ Indisponível neste turno"
+                                        else -> "Sem resposta"
+                                    },
+                                    color = when (disponibilidade) {
+                                        true -> NeonGreen
+                                        false -> StatusError
+                                        else -> TextGrayLightMode
+                                    },
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            Icon(
+                                Icons.Default.Done,
+                                contentDescription = "Escalar ${m.nome}",
+                                tint = MeliBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Mover esta rota livre para outra onda
+                var mostrarOndas by remember { mutableStateOf(false) }
+                if (!mostrarOndas) {
+                    TextButton(onClick = { mostrarOndas = true }) {
+                        Text(
+                            "📌 Mover rota para outra onda",
+                            color = MeliBlue,
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                } else {
+                    // Ondas reais (sem a PRÉ-ESCALA). O destino é convertido para o
+                    // índice posicional, que é o que o ViewModel usa
+                    val ondasReais = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
+                    ondasReais.forEachIndexed { destinoIdx, ondaDestino ->
+                        val destinoPosicional = ondas.indicePosicional(destinoIdx)
+                        if (destinoPosicional != ondaAtualIndex) {
+                            TextButton(
+                                onClick = {
+                                    onMoverSlot(destinoPosicional)
+                                    onDismiss()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    "→ ${ondaDestino.nome}",
+                                    color = TextBlack,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            onMoverSlot(ondas.indicePosicional(ondasReais.size))
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "→ Nova onda",
+                            color = MeliBlue,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("CANCELAR", color = TextGrayLightMode)
+                }
+            }
+        }
+    )
+}
+
+/**
  * Badge de status consolidado
  */
 @Composable
-fun StatusBadge(count: Int, label: String, color: Color) {
-    Surface(
+fun StatusBadge(count: Int, label: String, color: Color) {    Surface(
         color = color.copy(alpha = 0.15f),
         shape = RoundedCornerShape(6.dp)
     ) {
@@ -1359,6 +1881,10 @@ fun formatarRota(input: String): String {
     if (input.isBlank()) return ""
     
     val trimmed = input.trim().uppercase()
+
+    // Código da planilha (I13_AM1): já é o código completo da rota — não mexe
+    // (a formatação abaixo o transformaria em "I-131")
+    if (trimmed.contains('_')) return trimmed
     
     // Se já está no formato correto (letra(s)-número(s)), manter como está
     val formatoCorreto = Regex("^[A-Z]+-\\d+$")
@@ -1439,7 +1965,8 @@ fun DriverActionsDialog(
     onMarcarComoConcluido: () -> Unit,
     onResetarStatus: () -> Unit,
     onEdit: () -> Unit,
-    onRemove: () -> Unit
+    onRemove: () -> Unit,
+    onMoverParaOnda: (destinoOndaIndex: Int) -> Unit
 ) {
     val context = LocalContext.current
 
@@ -1860,6 +2387,67 @@ fun DriverActionsDialog(
                             )
                         }
                     }
+                }
+            }
+
+            // Mover para outra onda (rolagem de ondas abaixo da atual, + nova onda)
+            var mostrarOndasDestino by remember { mutableStateOf(false) }
+            if (!mostrarOndasDestino) {
+                TextButton(
+                    onClick = { mostrarOndasDestino = true },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Icon(
+                        Icons.Default.SwapVert,
+                        contentDescription = null,
+                        tint = MeliBlue,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        "Mover para outra onda",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MeliBlue
+                    )
+                }
+            } else {
+                // Lista de ondas destino (reais + nova onda no fim). As reais são
+                // indexadas sem a PRÉ-ESCALA; o destino é convertido para o
+                // índice posicional, que é o que o ViewModel usa
+                val ondasReaisDestino = ondas.filter { !it.nome.equals("PRÉ-ESCALA", true) }
+                ondasReaisDestino.forEachIndexed { destinoIdx, ondaDestino ->
+                    val destinoPosicional = ondas.indicePosicional(destinoIdx)
+                    if (destinoPosicional != ondaIndex) {
+                        TextButton(
+                            onClick = {
+                                onMoverParaOnda(destinoPosicional)
+                                onDismiss()
+                            },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text(
+                                "→ ${ondaDestino.nome}",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = TextBlack,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                // Nova onda no fim
+                TextButton(
+                    onClick = {
+                        onMoverParaOnda(ondas.indicePosicional(ondasReaisDestino.size))
+                        onDismiss()
+                    },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text(
+                        "→ Nova onda",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MeliBlue,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 

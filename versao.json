@@ -1,16 +1,14 @@
 {
-  "versaoCodigo": 18,
-  "versaoNome": "1.7.0-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.7.0-beta/controle-de-escalas-1.7.0-beta.apk",
-  "sha256": "90ed0f0169f67644d9ddefce18e14f52a1eb38d51d5e2aabdcd122ba621be1a9",
+  "versaoCodigo": 19,
+  "versaoNome": "1.8.0-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.8.0-beta/controle-de-escalas-1.8.0-beta.apk",
+  "sha256": "PENDENTE",
   "novidades": [
-    "Montagem rápida da escala: seleciona vários motoristas de uma vez e distribui nas ondas 1, 2, 3...",
-    "Escala rápida + WhatsApp na tela de Disponibilidade: quem vai trabalhar em cada turno com a rota",
-    "Pré-escala fica salva no dia; ao montar as ondas, as rotas já vêm preenchidas",
-    "Rota é única por motorista na escala rápida (chip desabilitado mostrando o dono)",
-    "Motoristas já escalados podem ser movidos de onda mantendo rota e sacas",
-    "Turnos da base agora podem ser renomeados no Painel Admin",
-    "Dialogs com rolagem: nada mais é cortado em telas grandes ou fonte ampliada",
-    "Correções: compartilhar e notificar ignoram o rascunho da pré-escala; cabeçalho usa o turno real (AM0/SD/SN)"
+    "Importar ondas por foto em Operações do Dia: cada rota da tabela já entra na onda e na vaga (doca)",
+    "A foto da tabela de ondas aproveita a pré-escala: quem já tinha rota vai direto para a onda e a vaga; só rota sem motorista fica livre",
+    "Rota livre aparece como LIVRE e recebe o motorista com um toque",
+    "Escala rápida: os chips de rota voltam ao reabrir e a próxima rota livre já fica selecionada (1 toque por motorista)",
+    "Escala rápida só compartilha no WhatsApp depois de salvar",
+    "Correções: a escala fica no turno selecionado (o sufixo da rota não cria mais um turno sem chip); rota da planilha não é alterada no painel do motorista; NOTIFICAR TODOS conta só motoristas escalados"
   ]
 }

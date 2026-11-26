@@ -1236,6 +1236,152 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    /**
+     * Preenche um slot da importação (rota sem motorista) com um motorista real.
+     * Rota, vaga e horário vêm do slot; id/nome/modalidade vêm do motorista.
+     * Se o motorista já estiver em OUTRA onda do turno, ele é removido de lá
+     * (recriando o slot LIVRE quando havia rota/vaga da tabela) — um motorista
+     * nunca fica em 2 ondas no mesmo turno.
+     */
+    fun preencherSlot(ondaIndex: Int, slot: OndaItem, motorista: com.controleescalas.app.data.models.AdminMotoristaCardData) {
+        viewModelScope.launch {
+            try {
+                escalaMutex.withLock {
+                    val turno = _turnoAtual.value
+                    val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@withLock
+                    val ondas = currentEscala.ondas.toMutableList()
+                    if (ondaIndex !in ondas.indices) return@withLock
+
+                    val onda = ondas[ondaIndex]
+                    val idxSlot = onda.itens.indexOfFirst { it.motoristaId == slot.motoristaId }
+                    if (idxSlot < 0) return@withLock
+
+                    // Regra de ouro: motorista só em UMA onda do turno.
+                    // Onde ele já estiver, sai de lá — se era um slot da tabela
+                    // (tem rota/vaga), o slot volta a ficar LIVRE.
+                    for (i in ondas.indices) {
+                        if (i == ondaIndex) continue
+                        val existente = ondas[i].itens.firstOrNull { it.motoristaId == motorista.id } ?: continue
+                        ondas[i] = if (existente.rota.isNotBlank()) {
+                            ondas[i].copy(
+                                itens = ondas[i].itens.map {
+                                    if (it.motoristaId == motorista.id) {
+                                        it.copy(motoristaId = "slot_" + java.util.UUID.randomUUID().toString(), nome = "")
+                                    } else it
+                                }
+                            )
+                        } else {
+                            ondas[i].copy(itens = ondas[i].itens.filter { it.motoristaId != motorista.id })
+                        }
+                    }
+
+                    val itemReal = OndaItem(
+                        motoristaId = motorista.id,
+                        nome = motorista.nome,
+                        rota = slot.rota,
+                        vaga = slot.vaga,
+                        horario = slot.horario,
+                        modalidade = motorista.modalidade,
+                        nota = slot.nota
+                    )
+                    ondas[ondaIndex] = onda.copy(
+                        itens = onda.itens.map { if (it.motoristaId == slot.motoristaId) itemReal else it }
+                    )
+
+                    val updatedEscala = currentEscala.copy(ondas = ondas, data = BrasilDate.hoje())
+                    setEscalaDoTurno(turno, updatedEscala)
+                    updateOndasForCurrentTurno()
+                    escalaRepository.saveEscala(currentBaseId, updatedEscala)
+                }
+                _message.value = "${motorista.nome} pegou a rota ${slot.rota}"
+            } catch (e: Exception) {
+                Log.e("OperationalViewModel", "Erro ao preencher slot: ${e.message}", e)
+                _error.value = "Erro ao preencher slot: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Move um motorista de uma onda para outra (arrastar e soltar / reagrupar).
+     * Preserva rota, vaga, sacas, modalidade e nota; horário passa a ser o da
+     * onda de destino. PRÉ-ESCALA vazia é podada depois da mudança.
+     */
+    fun moverMotoristaEntreOndas(deOndaIndex: Int, paraOndaIndex: Int, item: OndaItem) {
+        if (deOndaIndex == paraOndaIndex) return
+        viewModelScope.launch {
+            try {
+                escalaMutex.withLock {
+                    val turno = _turnoAtual.value
+                    val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@withLock
+                    val ondas = currentEscala.ondas.toMutableList()
+                    if (deOndaIndex !in ondas.indices || paraOndaIndex !in ondas.indices) return@withLock
+
+                    // 1. Remover da onda de origem (mantendo slots intactos)
+                    val ondaOrigem = ondas[deOndaIndex]
+                    val itemMovido = ondaOrigem.itens.firstOrNull { it.motoristaId == item.motoristaId }
+                        ?: return@withLock
+                    ondas[deOndaIndex] = ondaOrigem.copy(
+                        itens = ondaOrigem.itens.filter { it.motoristaId != item.motoristaId }
+                    )
+
+                    // 2. Garantir que a onda de destino existe (numeração real)
+                    while (paraOndaIndex >= ondas.size) {
+                        val numero = ondas.count { !it.nome.equals("PRÉ-ESCALA", true) } + 1
+                        ondas.add(Onda(nome = "${numero}ª ONDA", horario = "", itens = emptyList()))
+                    }
+
+                    // 3. Adicionar na onda de destino (horário herdado, ordem por vaga)
+                    val ondaDestino = ondas[paraOndaIndex]
+                    val itemAtualizado = itemMovido.copy(horario = ondaDestino.horario)
+                    val itensDestino = (ondaDestino.itens + itemAtualizado).sortedBy {
+                        it.vaga.toIntOrNull() ?: Int.MAX_VALUE
+                    }
+                    ondas[paraOndaIndex] = ondaDestino.copy(itens = itensDestino)
+
+                    // 4. PRÉ-ESCALA vazia sai da lista
+                    val ondasFinais = ondas.filterNot {
+                        it.nome.equals("PRÉ-ESCALA", true) && it.itens.isEmpty()
+                    }
+
+                    val updatedEscala = currentEscala.copy(ondas = ondasFinais, data = BrasilDate.hoje())
+                    setEscalaDoTurno(turno, updatedEscala)
+                    updateOndasForCurrentTurno()
+                    escalaRepository.saveEscala(currentBaseId, updatedEscala)
+                }
+                val quem = item.nome.ifBlank { "Rota ${item.rota}" }
+                _message.value = "$quem movido para a ${paraOndaIndex + 1}ª onda"
+            } catch (e: Exception) {
+                Log.e("OperationalViewModel", "Erro ao mover motorista: ${e.message}", e)
+                _error.value = "Erro ao mover: ${e.message}"
+            }
+        }
+    }
+
+    /**
+     * Limpa TODAS as ondas do turno atual (reais, slots e pré-escala).
+     * Usado para recomeçar o dia/turno do zero (ex.: import errado).
+     */
+    fun limparTodasOndas() {
+        viewModelScope.launch {
+            try {
+                escalaMutex.withLock {
+                    val turno = _turnoAtual.value
+                    val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@withLock
+                    if (currentEscala.ondas.isEmpty()) return@withLock
+
+                    val updatedEscala = currentEscala.copy(ondas = emptyList(), data = BrasilDate.hoje())
+                    setEscalaDoTurno(turno, updatedEscala)
+                    updateOndasForCurrentTurno()
+                    escalaRepository.saveEscala(currentBaseId, updatedEscala)
+                }
+                _message.value = "Todas as ondas do turno foram limpas"
+            } catch (e: Exception) {
+                Log.e("OperationalViewModel", "Erro ao limpar ondas: ${e.message}", e)
+                _error.value = "Erro ao limpar ondas: ${e.message}"
+            }
+        }
+    }
+
     fun bulkApplyScaleActions(actions: List<BulkScaleAction>) {
         if (actions.isEmpty()) return
         viewModelScope.launch {
@@ -1813,8 +1959,10 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
 
                 // 1. Atualizar status de todos os motoristas para A_CAMINHO
                 // Gravação em lote único (1 RPC) em vez de um set + leitura de
-                // verificação por motorista.
-                val motoristaIds = ondasReais.flatMap { onda -> onda.itens.map { it.motoristaId } }
+                // verificação por motorista. Slots da importação (sem motorista) ficam de fora.
+                val motoristaIds = ondasReais
+                    .flatMap { onda -> onda.itens.map { it.motoristaId } }
+                    .filter { !it.startsWith("slot_") }
                 var sucessos = 0
                 try {
                     sucessos = motoristaRepository.atualizarStatusVariosMotoristas(
