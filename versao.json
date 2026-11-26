@@ -2,7 +2,7 @@
   "versaoCodigo": 19,
   "versaoNome": "1.8.0-beta",
   "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.8.0-beta/controle-de-escalas-1.8.0-beta.apk",
-  "sha256": "PENDENTE",
+  "sha256": "2e1050d0b3d84f6916948323588b15017a690f328e6a511f67e46976461cccc4",
   "novidades": [
     "Importar ondas por foto em Operações do Dia: cada rota da tabela já entra na onda e na vaga (doca)",
     "A foto da tabela de ondas aproveita a pré-escala: quem já tinha rota vai direto para a onda e a vaga; só rota sem motorista fica livre",
