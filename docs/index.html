@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle de Escalas — escalas, ondas e chamadas em tempo real</title>
+<meta name="description" content="App para transportadoras: monte as ondas do dia, chame motoristas para a vaga em tempo real, acompanhe a disponibilidade por turno e compartilhe a escala no WhatsApp.">
+<meta property="og:title" content="Controle de Escalas">
+<meta property="og:description" content="Monte as ondas do dia, chame motoristas para a vaga em tempo real e compartilhe a escala no WhatsApp. Baixe a última versão do app.">
+<meta property="og:image" content="https://michellcosta.github.io/controle-de-escalas/img/icone.png">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<style>
+  :root {
+    --amarelo-topo: #FEE303;
+    --amarelo-base: #FDCB03;
+    --escuro: #141822;
+    --azul: #3483FA;
+    --fundo: #F2F2F7;
+    --card: #FFFFFF;
+    --texto: #121212;
+    --texto2: #495057;
+    --borda: #E6E6E6;
+    --verde: #10B981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--fundo); color: var(--texto); line-height: 1.55;
+  }
+  .limite { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- destaque ---------- */
+  .destaque {
+    background: linear-gradient(180deg, var(--amarelo-topo), var(--amarelo-base));
+    padding: 56px 0 64px; text-align: center;
+  }
+  .destaque img.logo { width: 104px; height: 104px; border-radius: 24px; box-shadow: 0 8px 24px rgba(20,24,34,.25); }
+  .destaque h1 { font-size: clamp(1.9rem, 5vw, 2.8rem); font-weight: 800; margin: 18px 0 4px; letter-spacing: -.5px; }
+  .destaque .slogan { font-size: clamp(1rem, 3vw, 1.2rem); color: #3a3d18; max-width: 620px; margin: 0 auto 28px; }
+  .botoes { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 14px 26px; border-radius: 12px;
+    font-weight: 700; font-size: 1rem; text-decoration: none; transition: transform .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+  .btn-azul { background: var(--azul); color: #fff; }
+  .btn-contorno { border: 2px solid rgba(20,24,34,.55); color: var(--escuro); }
+
+  /* ---------- seções ---------- */
+  section { padding: 56px 0; }
+  section h2 { font-size: clamp(1.4rem, 4vw, 1.9rem); font-weight: 800; margin-bottom: 8px; }
+  section .secao-sub { color: var(--texto2); margin-bottom: 28px; max-width: 640px; }
+
+  /* funções */
+  .funcoes { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 640px) { .funcoes { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 960px) { .funcoes { grid-template-columns: repeat(3, 1fr); } }
+  .funcao {
+    background: var(--card); border: 1px solid var(--borda); border-radius: 16px;
+    padding: 22px 20px;
+  }
+  .funcao .icone { font-size: 1.9rem; }
+  .funcao h3 { font-size: 1.08rem; font-weight: 700; margin: 10px 0 6px; }
+  .funcao p { color: var(--texto2); font-size: .95rem; }
+
+  /* telas */
+  .telas-row {
+    display: flex; gap: 20px; overflow-x: auto; padding: 8px 4px 18px;
+    scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  }
+  .tela { flex: 0 0 auto; width: 250px; scroll-snap-align: center; text-align: center; }
+  .moldura {
+    border: 10px solid var(--escuro); border-radius: 30px; overflow: hidden;
+    background: #fff; box-shadow: 0 12px 28px rgba(20,24,34,.18);
+  }
+  .moldura img { display: block; width: 100%; height: auto; }
+  .tela figcaption { margin-top: 10px; font-size: .9rem; color: var(--texto2); font-weight: 600; }
+
+  /* download */
+  .download { background: var(--escuro); color: #fff; }
+  .download h2 { color: var(--amarelo-topo); }
+  .download .card {
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
+    border-radius: 18px; padding: 26px 22px; max-width: 620px;
+  }
+  .download .versao-linha { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .download .versao-num { font-size: 1.7rem; font-weight: 800; color: var(--amarelo-topo); }
+  .download .novidades { margin: 16px 0 22px; padding-left: 0; list-style: none; }
+  .download .novidades li { padding: 5px 0 5px 28px; position: relative; color: #e8eaef; }
+  .download .novidades li::before { content: "✓"; position: absolute; left: 4px; color: var(--verde); font-weight: 800; }
+  .download .btn-azul { font-size: 1.1rem; padding: 16px 30px; }
+  .download .sha { margin-top: 18px; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; color: #9aa0ad; word-break: break-all; }
+  .download .nota { margin-top: 14px; font-size: .88rem; color: #b9bec9; }
+  .download .aviso-fallback { display: none; margin-top: 12px; font-size: .88rem; color: #f3c623; }
+
+  /* histórico */
+  .historico-lista { display: grid; gap: 10px; max-width: 620px; }
+  .versao-item {
+    background: var(--card); border: 1px solid var(--borda); border-radius: 12px;
+    padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .versao-item .nome { font-weight: 700; }
+  .versao-item .data { color: var(--texto2); font-size: .88rem; white-space: nowrap; }
+  .versao-item a { color: var(--azul); font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .historico-fallback { color: var(--texto2); }
+  .historico-fallback a { color: var(--azul); }
+
+  /* rodapé */
+  footer { background: #0e111a; color: #9aa0ad; padding: 28px 0; font-size: .9rem; text-align: center; }
+  footer a { color: #c8cdd8; }
+</style>
+</head>
+<body>
+
+<!-- destaque -->
+<header class="destaque">
+  <div class="limite">
+    <img class="logo" src="img/icone.png" alt="Símbolo do Controle de Escalas: pin, estrada e check no quadrado amarelo">
+    <h1>Controle de Escalas</h1>
+    <p class="slogan">Organize as ondas do dia, chame motoristas para a vaga em tempo real e compartilhe a escala no WhatsApp — do galpão até o celular do motorista.</p>
+    <div class="botoes">
+      <a id="btn-download" class="btn btn-azul" href="https://github.com/michellcosta/controle-de-escalas/releases">Baixar última versão</a>
+      <a class="btn btn-contorno" href="https://github.com/michellcosta/controle-de-escalas">Ver no GitHub</a>
+    </div>
+  </div>
+</header>
+
+<!-- funções -->
+<section>
+  <div class="limite">
+    <h2>O que o app faz</h2>
+    <p class="secao-sub">Feito para a rotina de quem coordena carregamento: menos grupo de WhatsApp, menos planilha, menos giz na prancheta.</p>
+    <div class="funcoes">
+      <div class="funcao">
+        <div class="icone">📊</div>
+        <h3>Ondas do dia</h3>
+        <p>Monte as ondas com vaga e rota por motorista. Os turnos da base (AM0, AM, PM, SD, SN…) dirigem a operação — você cria e remove os que usar.</p>
+      </div>
+      <div class="funcao">
+        <div class="icone">📣</div>
+        <h3>Chamadas em tempo real</h3>
+        <p>Chame o motorista para a vaga ou para o estacionamento: ele recebe a notificação na hora e o status (a caminho, chegou, carregando, concluído) aparece no painel.</p>
+      </div>
+      <div class="funcao">
+        <div class="icone">🗓️</div>
+        <h3>Disponibilidade por turno</h3>
+        <p>O motorista responde turno por turno e o admin vê, antes de montar a escala, quem pode amanhã — sem caçar resposta no grupo.</p>
+      </div>
+      <div class="funcao">
+        <div class="icone">📷</div>
+        <h3>Importar ondas por foto</h3>
+        <p>Fotografe a tabela da logística: o app lê rotas e docas por OCR e monta as ondas do dia. Quem já tem rota na pré-escala vai direto para a vaga.</p>
+      </div>
+      <div class="funcao">
+        <div class="icone">💬</div>
+        <h3>Escala rápida + WhatsApp</h3>
+        <p>Diga quem pega cada rota e compartilhe a escala formatada por modalidade no WhatsApp em segundos — com horário do turno e observações.</p>
+      </div>
+      <div class="funcao">
+        <div class="icone">🚚</div>
+        <h3>No celular do motorista</h3>
+        <p>Escala do dia com onda, vaga e rota, status do carregamento e a quinzena de dias trabalhados — tudo no app do motorista.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- telas -->
+<section style="padding-top: 0;">
+  <div class="limite">
+    <h2>Telas do app</h2>
+    <p class="secao-sub">Arraste para o lado para ver mais.</p>
+  </div>
+  <div class="telas-row">
+    <figure class="tela">
+      <div class="moldura"><img src="img/tela-operacoes.png" alt="Tela Operações do Dia: turnos da base e ondas com motoristas" loading="lazy"></div>
+      <figcaption>Operações do Dia: ondas, vagas e turnos da base</figcaption>
+    </figure>
+    <figure class="tela">
+      <div class="moldura"><img src="img/tela-acoes.png" alt="Painel de ações do motorista: chamar para vaga, estacionamento e WhatsApp" loading="lazy"></div>
+      <figcaption>Ações do motorista: vaga, estacionamento e WhatsApp</figcaption>
+    </figure>
+    <figure class="tela">
+      <div class="moldura"><img src="img/tela-motorista.png" alt="Tela do motorista: status e escala do dia com onda, vaga e rota" loading="lazy"></div>
+      <figcaption>No celular do motorista: status e escala do dia</figcaption>
+    </figure>
+    <figure class="tela">
+      <div class="moldura"><img src="img/tela-disponibilidade.png" alt="Tela de disponibilidade do motorista com botões SIM e NÃO" loading="lazy"></div>
+      <figcaption>Disponibilidade: o motorista responde, o admin acompanha</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- download -->
+<section class="download" id="download">
+  <div class="limite">
+    <h2>Baixe a última versão</h2>
+    <p class="secao-sub" style="color:#b9bec9;">Instale o APK direto no celular. O app avisa sobre novas versões automaticamente ao abrir.</p>
+    <div class="card">
+      <div class="versao-linha">
+        <span class="versao-num" id="versao-num">—</span>
+        <span style="color:#b9bec9;" id="versao-rotulo">consultando a última versão…</span>
+      </div>
+      <ul class="novidades" id="novidades"></ul>
+      <a id="btn-apk" class="btn btn-azul" href="https://github.com/michellcosta/controle-de-escalas/releases">⬇ Baixar o APK</a>
+      <div class="aviso-fallback" id="aviso-fallback">Não consegui consultar a última versão agora — use a página de releases do GitHub.</div>
+      <div class="sha" id="sha" hidden>SHA-256: </div>
+    </div>
+  </div>
+</section>
+
+<!-- histórico -->
+<section>
+  <div class="limite">
+    <h2>Histórico de versões</h2>
+    <p class="secao-sub">As últimas releases publicadas.</p>
+    <div class="historico-lista" id="historico">
+      <p class="historico-fallback">Carregando…</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="limite">
+    Controle de Escalas — app para transportadoras ·
+    <a href="https://github.com/michellcosta/controle-de-escalas">código e releases no GitHub</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var VERSAO_URL = 'https://raw.githubusercontent.com/michellcosta/controle-de-escalas/main/versao.json';
+  var RELEASES_URL = 'https://api.github.com/repos/michellcosta/controle-de-escalas/releases?per_page=10';
+  var RELEASES_PAGE = 'https://github.com/michellcosta/controle-de-escalas/releases';
+
+  // Versão, novidades, APK e sha256 — a mesma fonte que o app lê
+  fetch(VERSAO_URL, { cache: 'no-store' })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (v) {
+      document.getElementById('versao-num').textContent = v.versaoNome;
+      document.getElementById('versao-rotulo').textContent = 'versão atual';
+      var btnHero = document.getElementById('btn-download');
+      btnHero.textContent = 'Baixar última versão (' + v.versaoNome + ')';
+      btnHero.href = v.apkUrl;
+      document.getElementById('btn-apk').href = v.apkUrl;
+      var lista = document.getElementById('novidades');
+      (v.novidades || []).forEach(function (item) {
+        var li = document.createElement('li');
+        li.textContent = item;
+        lista.appendChild(li);
+      });
+      if (v.sha256) {
+        var sha = document.getElementById('sha');
+        sha.hidden = false;
+        sha.textContent = 'SHA-256: ' + v.sha256;
+      }
+    })
+    .catch(function () {
+      document.getElementById('versao-num').textContent = '—';
+      document.getElementById('versao-rotulo').textContent = 'não consegui consultar agora';
+      document.getElementById('aviso-fallback').style.display = 'block';
+    });
+
+  // Histórico: últimas releases do GitHub (se a API estiver fora, fica só o link)
+  fetch(RELEASES_URL, { headers: { Accept: 'application/vnd.github+json' } })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (releases) {
+      var box = document.getElementById('historico');
+      box.innerHTML = '';
+      if (!Array.isArray(releases) || releases.length === 0) {
+        box.innerHTML = '<p class="historico-fallback">Nenhuma release publicada ainda — <a href="' + RELEASES_PAGE + '">ver página de releases</a>.</p>';
+        return;
+      }
+      releases.forEach(function (rel) {
+        var linha = document.createElement('div');
+        linha.className = 'versao-item';
+        var data = rel.published_at ? new Date(rel.published_at).toLocaleDateString('pt-BR') : '';
+        linha.innerHTML =
+          '<span class="nome">' + (rel.name || rel.tag_name) + '</span>' +
+          '<span class="data">' + data + '</span>' +
+          '<a href="' + rel.html_url + '" target="_blank" rel="noopener">detalhes</a>';
+        box.appendChild(linha);
+      });
+    })
+    .catch(function () {
+      document.getElementById('historico').innerHTML =
+        '<p class="historico-fallback">Não consegui carregar o histórico agora — <a href="' + RELEASES_PAGE + '">ver todas as versões no GitHub</a>.</p>';
+    });
+})();
+</script>
+</body>
+</html>
