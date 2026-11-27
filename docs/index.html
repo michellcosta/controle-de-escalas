@@ -200,11 +200,6 @@
   @media (hover: hover) and (pointer: fine) {
     .download .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(254,227,3,.22); }
   }
-  .download .sha {
-    margin-top: 20px; font-family: ui-monospace, Consolas, monospace;
-    font-size: .78rem; color: #8b919e; word-break: break-all; font-variant-numeric: tabular-nums;
-  }
-  .download .nota { margin-top: 16px; font-size: .9rem; color: #b9bec9; }
   .download .aviso-fallback { display: none; margin-top: 14px; font-size: .9rem; color: #f3c623; }
 
   /* rodapé */
@@ -369,7 +364,6 @@
       <ul class="novidades" id="novidades"></ul>
       <a id="btn-apk" class="btn" href="https://github.com/michellcosta/controle-de-escalas/releases">⬇ Baixar o APK</a>
       <div class="aviso-fallback" id="aviso-fallback">Não consegui consultar a última versão agora — use a página de releases do GitHub.</div>
-      <div class="sha" id="sha" hidden>SHA-256: </div>
     </div>
   </div>
 </section>
@@ -401,11 +395,6 @@
         li.textContent = item;
         lista.appendChild(li);
       });
-      if (v.sha256) {
-        var sha = document.getElementById('sha');
-        sha.hidden = false;
-        sha.textContent = 'SHA-256: ' + v.sha256;
-      }
     })
     .catch(function () {
       document.getElementById('versao-num').textContent = '—';
