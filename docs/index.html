@@ -2,113 +2,262 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Controle de Escalas — escalas, ondas e chamadas em tempo real</title>
 <meta name="description" content="App para transportadoras: monte as ondas do dia, chame motoristas para a vaga em tempo real, acompanhe a disponibilidade por turno e compartilhe a escala no WhatsApp.">
 <meta property="og:title" content="Controle de Escalas">
 <meta property="og:description" content="Monte as ondas do dia, chame motoristas para a vaga em tempo real e compartilhe a escala no WhatsApp. Baixe a última versão do app.">
 <meta property="og:image" content="https://michellcosta.github.io/controle-de-escalas/img/icone.png">
 <meta property="og:type" content="website">
+<meta name="theme-color" content="#FEE303">
+<meta name="color-scheme" content="light">
 <link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
     --amarelo-topo: #FEE303;
     --amarelo-base: #FDCB03;
     --escuro: #141822;
+    --escuro-2: #0E111A;
     --azul: #3483FA;
-    --fundo: #F2F2F7;
+    --fundo: #F4F4F2;
     --card: #FFFFFF;
-    --texto: #121212;
-    --texto2: #495057;
-    --borda: #E6E6E6;
+    --texto: #141822;
+    --texto2: #565D6B;
+    --borda: #E4E4DE;
     --verde: #10B981;
+
+    /* tokens de motion (emilkowalski/skills) */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --fonte-display: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --fonte-texto: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background: var(--fundo); color: var(--texto); line-height: 1.55;
+    font-family: var(--fonte-texto);
+    background: var(--fundo); color: var(--texto);
+    line-height: 1.55; overflow-x: hidden;
   }
-  .limite { max-width: 1040px; margin: 0 auto; padding: 0 20px; }
+  a, button { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  .limite { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
 
-  /* ---------- destaque ---------- */
+  /* ============================================================
+     Destaque — canvas amarelo, tipografia display grande
+     ============================================================ */
   .destaque {
+    position: relative;
     background: linear-gradient(180deg, var(--amarelo-topo), var(--amarelo-base));
-    padding: 56px 0 64px; text-align: center;
+    padding: calc(72px + env(safe-area-inset-top)) 0 0;
+    overflow: hidden;
   }
-  .destaque img.logo { width: 104px; height: 104px; border-radius: 24px; box-shadow: 0 8px 24px rgba(20,24,34,.25); }
-  .destaque h1 { font-size: clamp(1.9rem, 5vw, 2.8rem); font-weight: 800; margin: 18px 0 4px; letter-spacing: -.5px; }
-  .destaque .slogan { font-size: clamp(1rem, 3vw, 1.2rem); color: #3a3d18; max-width: 620px; margin: 0 auto 28px; }
-  .botoes { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .destaque::after {
+    /* grão sutil, dá textura de impressão ao amarelo */
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23r)'/%3E%3C/svg%3E");
+  }
+  .destaque .limite { position: relative; z-index: 1; }
+  .marca {
+    display: flex; align-items: center; gap: 14px; margin-bottom: 72px;
+  }
+  .marca img { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 4px 14px rgba(20,24,34,.22); }
+  .marca span {
+    font-family: var(--fonte-display); font-weight: 600; font-size: .95rem;
+    letter-spacing: .14em; text-transform: uppercase; color: rgba(20,24,34,.75);
+  }
+  .destaque h1 {
+    font-family: var(--fonte-display);
+    font-size: clamp(2.6rem, 8.2vw, 5.4rem);
+    line-height: 1.02; letter-spacing: -.035em; font-weight: 700;
+    max-width: 15ch;
+    text-wrap: balance;
+  }
+  .destaque h1 .linha { display: block; }
+  .destaque h1 .sublinhado { position: relative; white-space: nowrap; }
+  .destaque h1 .sublinhado::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: .04em; height: .12em;
+    background: var(--escuro); border-radius: .1em; z-index: -1; opacity: .14;
+  }
+  .chamada {
+    margin: 32px 0 36px; max-width: 46ch; font-size: clamp(1.05rem, 2.4vw, 1.25rem);
+    color: rgba(20,24,34,.82); font-weight: 500;
+  }
+  .botoes { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
   .btn {
-    display: inline-block; padding: 14px 26px; border-radius: 12px;
-    font-weight: 700; font-size: 1rem; text-decoration: none; transition: transform .15s, box-shadow .15s;
+    display: inline-block; padding: 16px 28px; border-radius: 999px;
+    font-weight: 600; font-size: 1rem; font-family: var(--fonte-texto);
+    text-decoration: none; cursor: pointer;
+    transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
   }
-  .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.18); }
-  .btn-azul { background: var(--azul); color: #fff; }
-  .btn-contorno { border: 2px solid rgba(20,24,34,.55); color: var(--escuro); }
+  .btn:active { transform: scale(.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .btn-escuro:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(20,24,34,.28); }
+    .btn-linha:hover { background: rgba(20,24,34,.08); }
+  }
+  .btn-escuro { background: var(--escuro); color: #fff; }
+  .btn-linha { border: 1.5px solid rgba(20,24,34,.4); color: var(--escuro); }
+  .destaque-rodape {
+    margin-top: 64px; padding-bottom: 48px;
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 24px;
+  }
+  .destaque-dica { font-size: .88rem; color: rgba(20,24,34,.6); max-width: 320px; }
 
-  /* ---------- seções ---------- */
-  section { padding: 56px 0; }
-  section h2 { font-size: clamp(1.4rem, 4vw, 1.9rem); font-weight: 800; margin-bottom: 8px; }
-  section .secao-sub { color: var(--texto2); margin-bottom: 28px; max-width: 640px; }
+  /* letreiro — movimento constante, linear */
+  .letreiro { background: var(--escuro-2); color: var(--amarelo-topo); overflow: hidden; padding: 18px 0; }
+  .letreiro-trilho {
+    display: flex; width: max-content;
+    animation: letreiro-rolar 44s linear infinite;
+  }
+  .letreiro-copia { display: flex; align-items: center; }
+  .letreiro-copia span {
+    font-family: var(--fonte-display); font-weight: 600; font-size: 1rem;
+    letter-spacing: .18em; text-transform: uppercase; padding: 0 28px; white-space: nowrap;
+  }
+  .letreiro-copia span::after { content: "✦"; margin-left: 56px; opacity: .5; }
+  @keyframes letreiro-rolar { to { transform: translateX(-50%); } }
+
+  /* ============================================================
+     Seções
+     ============================================================ */
+  section { padding: 96px 0; }
+  .cabeca { margin-bottom: 48px; }
+  .rotulo {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-family: var(--fonte-display); font-weight: 600; font-size: .85rem;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--texto2);
+    margin-bottom: 16px;
+  }
+  .rotulo::before { content: ""; width: 34px; height: 2px; background: var(--escuro); opacity: .8; }
+  section h2 {
+    font-family: var(--fonte-display);
+    font-size: clamp(1.9rem, 4.6vw, 3rem);
+    letter-spacing: -.025em; line-height: 1.08; font-weight: 700;
+    max-width: 20ch;
+  }
+  .secao-sub { color: var(--texto2); margin-top: 14px; max-width: 52ch; font-size: 1.05rem; }
 
   /* funções */
-  .funcoes { display: grid; grid-template-columns: 1fr; gap: 14px; }
-  @media (min-width: 640px) { .funcoes { grid-template-columns: repeat(2, 1fr); } }
-  @media (min-width: 960px) { .funcoes { grid-template-columns: repeat(3, 1fr); } }
+  .funcoes { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 700px) { .funcoes { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1000px) { .funcoes { grid-template-columns: repeat(3, 1fr); } }
   .funcao {
-    background: var(--card); border: 1px solid var(--borda); border-radius: 16px;
-    padding: 22px 20px;
+    background: var(--card); border: 1px solid var(--borda); border-radius: 20px;
+    padding: 26px 24px 28px;
+    transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
   }
-  .funcao .icone { font-size: 1.9rem; }
-  .funcao h3 { font-size: 1.08rem; font-weight: 700; margin: 10px 0 6px; }
-  .funcao p { color: var(--texto2); font-size: .95rem; }
+  .funcao .num {
+    font-family: var(--fonte-display); font-weight: 600; font-size: .85rem;
+    color: var(--texto2); font-variant-numeric: tabular-nums;
+  }
+  .funcao h3 { font-family: var(--fonte-display); font-size: 1.18rem; font-weight: 700; letter-spacing: -.01em; margin: 26px 0 8px; }
+  .funcao p { color: var(--texto2); font-size: .96rem; }
+  @media (hover: hover) and (pointer: fine) {
+    .funcao:hover { transform: translateY(-3px); border-color: rgba(20,24,34,.35); box-shadow: 0 14px 32px rgba(20,24,34,.08); }
+  }
 
   /* telas */
+  .telas { background: linear-gradient(180deg, var(--fundo), #ECECE6); }
   .telas-row {
-    display: flex; gap: 20px; overflow-x: auto; padding: 8px 4px 18px;
+    display: flex; gap: 26px; overflow-x: auto; padding: 30px 24px 34px;
     scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain; touch-action: pan-y;
   }
-  .tela { flex: 0 0 auto; width: 250px; scroll-snap-align: center; text-align: center; }
+  .tela { flex: 0 0 auto; width: 262px; scroll-snap-align: center; text-align: center; }
   .moldura {
-    border: 10px solid var(--escuro); border-radius: 30px; overflow: hidden;
-    background: #fff; box-shadow: 0 12px 28px rgba(20,24,34,.18);
+    border: 9px solid var(--escuro); border-radius: 36px; overflow: hidden;
+    background: #fff;
+    box-shadow: 0 24px 48px rgba(20,24,34,.2), 0 4px 12px rgba(20,24,34,.1);
   }
   .moldura img { display: block; width: 100%; height: auto; }
-  .tela figcaption { margin-top: 10px; font-size: .9rem; color: var(--texto2); font-weight: 600; }
+  .tela figcaption { margin-top: 14px; font-size: .92rem; color: var(--texto2); font-weight: 600; }
 
   /* download */
-  .download { background: var(--escuro); color: #fff; }
-  .download h2 { color: var(--amarelo-topo); }
-  .download .card {
-    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14);
-    border-radius: 18px; padding: 26px 22px; max-width: 620px;
+  .download {
+    background:
+      radial-gradient(52% 70% at 80% 12%, rgba(254,227,3,.09), transparent 70%),
+      var(--escuro);
+    color: #fff;
   }
-  .download .versao-linha { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-  .download .versao-num { font-size: 1.7rem; font-weight: 800; color: var(--amarelo-topo); }
-  .download .novidades { margin: 16px 0 22px; padding-left: 0; list-style: none; }
-  .download .novidades li { padding: 5px 0 5px 28px; position: relative; color: #e8eaef; }
-  .download .novidades li::before { content: "✓"; position: absolute; left: 4px; color: var(--verde); font-weight: 800; }
-  .download .btn-azul { font-size: 1.1rem; padding: 16px 30px; }
-  .download .sha { margin-top: 18px; font-family: ui-monospace, Consolas, monospace; font-size: .78rem; color: #9aa0ad; word-break: break-all; }
-  .download .nota { margin-top: 14px; font-size: .88rem; color: #b9bec9; }
-  .download .aviso-fallback { display: none; margin-top: 12px; font-size: .88rem; color: #f3c623; }
+  .download .rotulo { color: #9aa0ad; }
+  .download .rotulo::before { background: var(--amarelo-topo); }
+  .download .card {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 24px; padding: 34px 30px; max-width: 640px;
+  }
+  .download .versao-linha { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .download .versao-num {
+    font-family: var(--fonte-display); font-size: 2rem; font-weight: 700;
+    color: var(--amarelo-topo); letter-spacing: -.02em;
+  }
+  .download .novidades { margin: 20px 0 26px; padding-left: 0; list-style: none; }
+  .download .novidades li { padding: 6px 0 6px 30px; position: relative; color: #e8eaef; }
+  .download .novidades li::before { content: "✓"; position: absolute; left: 4px; color: var(--verde); font-weight: 700; }
+  .download .btn { background: var(--amarelo-topo); color: var(--escuro); font-weight: 700; }
+  .download .btn:active { transform: scale(.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .download .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(254,227,3,.22); }
+  }
+  .download .sha {
+    margin-top: 20px; font-family: ui-monospace, Consolas, monospace;
+    font-size: .78rem; color: #8b919e; word-break: break-all; font-variant-numeric: tabular-nums;
+  }
+  .download .nota { margin-top: 16px; font-size: .9rem; color: #b9bec9; }
+  .download .aviso-fallback { display: none; margin-top: 14px; font-size: .9rem; color: #f3c623; }
 
   /* histórico */
-  .historico-lista { display: grid; gap: 10px; max-width: 620px; }
+  .historico-lista { display: grid; gap: 12px; max-width: 660px; }
   .versao-item {
-    background: var(--card); border: 1px solid var(--borda); border-radius: 12px;
-    padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--borda); border-radius: 14px;
+    padding: 18px 20px; display: flex; justify-content: space-between; align-items: center;
+    gap: 14px; transition: border-color 200ms ease;
   }
-  .versao-item .nome { font-weight: 700; }
-  .versao-item .data { color: var(--texto2); font-size: .88rem; white-space: nowrap; }
-  .versao-item a { color: var(--azul); font-weight: 700; text-decoration: none; white-space: nowrap; }
+  .versao-item .nome { font-weight: 600; font-size: .98rem; }
+  .versao-item .data { color: var(--texto2); font-size: .88rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .versao-item a { color: var(--azul); font-weight: 600; text-decoration: none; white-space: nowrap; }
+  @media (hover: hover) and (pointer: fine) {
+    .versao-item:hover { border-color: rgba(20,24,34,.3); }
+  }
   .historico-fallback { color: var(--texto2); }
   .historico-fallback a { color: var(--azul); }
 
   /* rodapé */
-  footer { background: #0e111a; color: #9aa0ad; padding: 28px 0; font-size: .9rem; text-align: center; }
+  footer {
+    background: var(--escuro-2); color: #8b919e; padding: 30px 0 calc(30px + env(safe-area-inset-bottom));
+    font-size: .9rem; text-align: center;
+  }
   footer a { color: #c8cdd8; }
+
+  /* ============================================================
+     Motion — entrada do hero (marketing: stagger 100ms, 0.55s)
+     ============================================================ */
+  @keyframes entrar {
+    from { opacity: 0; transform: translateY(26px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+  .anima { animation: entrar .55s var(--ease-out) both; animation-delay: var(--delay, 0s); }
+  .anima-suave { animation: aparecer .6s ease both; animation-delay: var(--delay, 0s); }
+
+  /* revelação ao rolar — transition (retarget), uma vez só */
+  .revelar {
+    opacity: 0; transform: translateY(18px);
+    transition: opacity .55s var(--ease-out), transform .55s var(--ease-out);
+    transition-delay: var(--delay, 0ms);
+  }
+  .revelar.visivel { opacity: 1; transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .anima, .anima-suave { animation-name: aparecer; animation-duration: .35s; }
+    .revelar { transform: none; transition: opacity .3s ease; }
+    .letreiro-trilho { animation: none; }
+    .btn, .funcao, .download .btn { transition: none; }
+    @media (hover: hover) and (pointer: fine) {
+      .btn-escuro:hover, .download .btn:hover, .funcao:hover { transform: none; }
+    }
+  }
 </style>
 </head>
 <body>
@@ -116,12 +265,34 @@
 <!-- destaque -->
 <header class="destaque">
   <div class="limite">
-    <img class="logo" src="img/icone.png" alt="Símbolo do Controle de Escalas: pin, estrada e check no quadrado amarelo">
-    <h1>Controle de Escalas</h1>
-    <p class="slogan">Organize as ondas do dia, chame motoristas para a vaga em tempo real e compartilhe a escala no WhatsApp — do galpão até o celular do motorista.</p>
-    <div class="botoes">
-      <a id="btn-download" class="btn btn-azul" href="https://github.com/michellcosta/controle-de-escalas/releases">Baixar última versão</a>
-      <a class="btn btn-contorno" href="https://github.com/michellcosta/controle-de-escalas">Ver no GitHub</a>
+    <div class="marca anima-suave" style="--delay: .05s">
+      <img src="img/icone.png" alt="Símbolo do Controle de Escalas: pin, estrada e check no quadrado amarelo">
+      <span>Controle de Escalas</span>
+    </div>
+    <h1 class="anima" style="--delay: .15s">
+      <span class="linha">Do galpão ao</span>
+      <span class="linha"><span class="sublinhado">WhatsApp</span> do motorista.</span>
+    </h1>
+    <p class="chamada anima" style="--delay: .3s">
+      Ondas, vagas e turnos organizados em tempo real — e cada chamada de
+      carregamento chegando direto no celular de quem dirige.
+    </p>
+    <div class="botoes anima" style="--delay: .42s">
+      <a id="btn-download" class="btn btn-escuro" href="https://github.com/michellcosta/controle-de-escalas/releases">Baixar última versão</a>
+      <a class="btn btn-linha" href="https://github.com/michellcosta/controle-de-escalas">Ver no GitHub</a>
+    </div>
+    <div class="destaque-rodape anima-suave" style="--delay: .55s">
+      <p class="destaque-dica">Grátis durante o beta · o app avisa sobre versões novas sozinho</p>
+    </div>
+  </div>
+  <div class="letreiro" aria-hidden="true">
+    <div class="letreiro-trilho">
+      <div class="letreiro-copia">
+        <span>Ondas</span><span>Vagas</span><span>Turnos da base</span><span>Chamadas de carregamento</span><span>Disponibilidade</span><span>Escala no WhatsApp</span><span>Importar por foto</span>
+      </div>
+      <div class="letreiro-copia">
+        <span>Ondas</span><span>Vagas</span><span>Turnos da base</span><span>Chamadas de carregamento</span><span>Disponibilidade</span><span>Escala no WhatsApp</span><span>Importar por foto</span>
+      </div>
     </div>
   </div>
 </header>
@@ -129,36 +300,39 @@
 <!-- funções -->
 <section>
   <div class="limite">
-    <h2>O que o app faz</h2>
-    <p class="secao-sub">Feito para a rotina de quem coordena carregamento: menos grupo de WhatsApp, menos planilha, menos giz na prancheta.</p>
-    <div class="funcoes">
-      <div class="funcao">
-        <div class="icone">📊</div>
+    <div class="cabeca revelar" data-grupo>
+      <span class="rotulo">01 · O que o app faz</span>
+      <h2>Menos planilha, menos grupo, menos giz na prancheta.</h2>
+      <p class="secao-sub">Feito para a rotina de quem coordena carregamento — e de quem dirige.</p>
+    </div>
+    <div class="funcoes" data-grupo>
+      <div class="funcao revelar">
+        <span class="num">01</span>
         <h3>Ondas do dia</h3>
         <p>Monte as ondas com vaga e rota por motorista. Os turnos da base (AM0, AM, PM, SD, SN…) dirigem a operação — você cria e remove os que usar.</p>
       </div>
-      <div class="funcao">
-        <div class="icone">📣</div>
+      <div class="funcao revelar">
+        <span class="num">02</span>
         <h3>Chamadas em tempo real</h3>
         <p>Chame o motorista para a vaga ou para o estacionamento: ele recebe a notificação na hora e o status (a caminho, chegou, carregando, concluído) aparece no painel.</p>
       </div>
-      <div class="funcao">
-        <div class="icone">🗓️</div>
+      <div class="funcao revelar">
+        <span class="num">03</span>
         <h3>Disponibilidade por turno</h3>
         <p>O motorista responde turno por turno e o admin vê, antes de montar a escala, quem pode amanhã — sem caçar resposta no grupo.</p>
       </div>
-      <div class="funcao">
-        <div class="icone">📷</div>
+      <div class="funcao revelar">
+        <span class="num">04</span>
         <h3>Importar ondas por foto</h3>
         <p>Fotografe a tabela da logística: o app lê rotas e docas por OCR e monta as ondas do dia. Quem já tem rota na pré-escala vai direto para a vaga.</p>
       </div>
-      <div class="funcao">
-        <div class="icone">💬</div>
+      <div class="funcao revelar">
+        <span class="num">05</span>
         <h3>Escala rápida + WhatsApp</h3>
         <p>Diga quem pega cada rota e compartilhe a escala formatada por modalidade no WhatsApp em segundos — com horário do turno e observações.</p>
       </div>
-      <div class="funcao">
-        <div class="icone">🚚</div>
+      <div class="funcao revelar">
+        <span class="num">06</span>
         <h3>No celular do motorista</h3>
         <p>Escala do dia com onda, vaga e rota, status do carregamento e a quinzena de dias trabalhados — tudo no app do motorista.</p>
       </div>
@@ -167,25 +341,28 @@
 </section>
 
 <!-- telas -->
-<section style="padding-top: 0;">
+<section class="telas">
   <div class="limite">
-    <h2>Telas do app</h2>
-    <p class="secao-sub">Arraste para o lado para ver mais.</p>
+    <div class="cabeca revelar" data-grupo>
+      <span class="rotulo">02 · Telas do app</span>
+      <h2>Simples na mão de quem dirige, completo na mão de quem coordena.</h2>
+      <p class="secao-sub">Arraste para o lado para ver mais.</p>
+    </div>
   </div>
-  <div class="telas-row">
-    <figure class="tela">
+  <div class="telas-row" data-grupo>
+    <figure class="tela revelar">
       <div class="moldura"><img src="img/tela-operacoes.png" alt="Tela Operações do Dia: turnos da base e ondas com motoristas" loading="lazy"></div>
       <figcaption>Operações do Dia: ondas, vagas e turnos da base</figcaption>
     </figure>
-    <figure class="tela">
+    <figure class="tela revelar">
       <div class="moldura"><img src="img/tela-acoes.png" alt="Painel de ações do motorista: chamar para vaga, estacionamento e WhatsApp" loading="lazy"></div>
       <figcaption>Ações do motorista: vaga, estacionamento e WhatsApp</figcaption>
     </figure>
-    <figure class="tela">
+    <figure class="tela revelar">
       <div class="moldura"><img src="img/tela-motorista.png" alt="Tela do motorista: status e escala do dia com onda, vaga e rota" loading="lazy"></div>
       <figcaption>No celular do motorista: status e escala do dia</figcaption>
     </figure>
-    <figure class="tela">
+    <figure class="tela revelar">
       <div class="moldura"><img src="img/tela-disponibilidade.png" alt="Tela de disponibilidade do motorista com botões SIM e NÃO" loading="lazy"></div>
       <figcaption>Disponibilidade: o motorista responde, o admin acompanha</figcaption>
     </figure>
@@ -195,15 +372,18 @@
 <!-- download -->
 <section class="download" id="download">
   <div class="limite">
-    <h2>Baixe a última versão</h2>
-    <p class="secao-sub" style="color:#b9bec9;">Instale o APK direto no celular. O app avisa sobre novas versões automaticamente ao abrir.</p>
-    <div class="card">
+    <div class="cabeca revelar" data-grupo>
+      <span class="rotulo">03 · Download</span>
+      <h2>Baixe a última versão</h2>
+      <p class="secao-sub" style="color:#b9bec9;">Instale o APK direto no celular. O app avisa sobre novas versões automaticamente ao abrir.</p>
+    </div>
+    <div class="card revelar" data-grupo>
       <div class="versao-linha">
         <span class="versao-num" id="versao-num">—</span>
         <span style="color:#b9bec9;" id="versao-rotulo">consultando a última versão…</span>
       </div>
       <ul class="novidades" id="novidades"></ul>
-      <a id="btn-apk" class="btn btn-azul" href="https://github.com/michellcosta/controle-de-escalas/releases">⬇ Baixar o APK</a>
+      <a id="btn-apk" class="btn" href="https://github.com/michellcosta/controle-de-escalas/releases">⬇ Baixar o APK</a>
       <div class="aviso-fallback" id="aviso-fallback">Não consegui consultar a última versão agora — use a página de releases do GitHub.</div>
       <div class="sha" id="sha" hidden>SHA-256: </div>
     </div>
@@ -213,8 +393,11 @@
 <!-- histórico -->
 <section>
   <div class="limite">
-    <h2>Histórico de versões</h2>
-    <p class="secao-sub">As últimas releases publicadas.</p>
+    <div class="cabeca revelar" data-grupo>
+      <span class="rotulo">04 · Histórico</span>
+      <h2>Versões publicadas</h2>
+      <p class="secao-sub">Cada release, com data e detalhes no GitHub.</p>
+    </div>
     <div class="historico-lista" id="historico">
       <p class="historico-fallback">Carregando…</p>
     </div>
@@ -287,6 +470,33 @@
       document.getElementById('historico').innerHTML =
         '<p class="historico-fallback">Não consegui carregar o histórico agora — <a href="' + RELEASES_PAGE + '">ver todas as versões no GitHub</a>.</p>';
     });
+
+  // Revelação ao rolar: stagger 70ms nos primeiros itens do grupo (nunca uniforme infinito),
+  // IntersectionObserver com once — sem bloquetear interação
+  var reduzido = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var grupos = document.querySelectorAll('[data-grupo]');
+  grupos.forEach(function (grupo) {
+    var filhos = grupo.querySelectorAll('.revelar');
+    filhos.forEach(function (filho, i) {
+      filho.style.setProperty('--delay', Math.min(i * 70, 280) + 'ms');
+    });
+  });
+  var observador = new IntersectionObserver(function (entradas) {
+    entradas.forEach(function (entrada) {
+      if (entrada.isIntersecting) {
+        entrada.target.classList.add('visivel');
+        observador.unobserve(entrada.target);
+      }
+    });
+  }, { once: true, rootMargin: '-60px 0px' });
+  document.querySelectorAll('.revelar').forEach(function (el) {
+    if (reduzido) {
+      el.style.transition = 'opacity .3s ease';
+      el.classList.add('visivel'); // aparece, sem movimento
+    } else {
+      observador.observe(el);
+    }
+  });
 })();
 </script>
 </body>
