@@ -207,22 +207,6 @@
   .download .nota { margin-top: 16px; font-size: .9rem; color: #b9bec9; }
   .download .aviso-fallback { display: none; margin-top: 14px; font-size: .9rem; color: #f3c623; }
 
-  /* histórico */
-  .historico-lista { display: grid; gap: 12px; max-width: 660px; }
-  .versao-item {
-    background: var(--card); border: 1px solid var(--borda); border-radius: 14px;
-    padding: 18px 20px; display: flex; justify-content: space-between; align-items: center;
-    gap: 14px; transition: border-color 200ms ease;
-  }
-  .versao-item .nome { font-weight: 600; font-size: .98rem; }
-  .versao-item .data { color: var(--texto2); font-size: .88rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .versao-item a { color: var(--azul); font-weight: 600; text-decoration: none; white-space: nowrap; }
-  @media (hover: hover) and (pointer: fine) {
-    .versao-item:hover { border-color: rgba(20,24,34,.3); }
-  }
-  .historico-fallback { color: var(--texto2); }
-  .historico-fallback a { color: var(--azul); }
-
   /* rodapé */
   footer {
     background: var(--escuro-2); color: #8b919e; padding: 30px 0 calc(30px + env(safe-area-inset-bottom));
@@ -390,20 +374,6 @@
   </div>
 </section>
 
-<!-- histórico -->
-<section>
-  <div class="limite">
-    <div class="cabeca revelar" data-grupo>
-      <span class="rotulo">04 · Histórico</span>
-      <h2>Versões publicadas</h2>
-      <p class="secao-sub">Cada release, com data e detalhes no GitHub.</p>
-    </div>
-    <div class="historico-lista" id="historico">
-      <p class="historico-fallback">Carregando…</p>
-    </div>
-  </div>
-</section>
-
 <footer>
   <div class="limite">
     Controle de Escalas — app para transportadoras ·
@@ -414,8 +384,6 @@
 <script>
 (function () {
   var VERSAO_URL = 'https://raw.githubusercontent.com/michellcosta/controle-de-escalas/main/versao.json';
-  var RELEASES_URL = 'https://api.github.com/repos/michellcosta/controle-de-escalas/releases?per_page=10';
-  var RELEASES_PAGE = 'https://github.com/michellcosta/controle-de-escalas/releases';
 
   // Versão, novidades, APK e sha256 — a mesma fonte que o app lê
   fetch(VERSAO_URL, { cache: 'no-store' })
@@ -443,32 +411,6 @@
       document.getElementById('versao-num').textContent = '—';
       document.getElementById('versao-rotulo').textContent = 'não consegui consultar agora';
       document.getElementById('aviso-fallback').style.display = 'block';
-    });
-
-  // Histórico: últimas releases do GitHub (se a API estiver fora, fica só o link)
-  fetch(RELEASES_URL, { headers: { Accept: 'application/vnd.github+json' } })
-    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(function (releases) {
-      var box = document.getElementById('historico');
-      box.innerHTML = '';
-      if (!Array.isArray(releases) || releases.length === 0) {
-        box.innerHTML = '<p class="historico-fallback">Nenhuma release publicada ainda — <a href="' + RELEASES_PAGE + '">ver página de releases</a>.</p>';
-        return;
-      }
-      releases.forEach(function (rel) {
-        var linha = document.createElement('div');
-        linha.className = 'versao-item';
-        var data = rel.published_at ? new Date(rel.published_at).toLocaleDateString('pt-BR') : '';
-        linha.innerHTML =
-          '<span class="nome">' + (rel.name || rel.tag_name) + '</span>' +
-          '<span class="data">' + data + '</span>' +
-          '<a href="' + rel.html_url + '" target="_blank" rel="noopener">detalhes</a>';
-        box.appendChild(linha);
-      });
-    })
-    .catch(function () {
-      document.getElementById('historico').innerHTML =
-        '<p class="historico-fallback">Não consegui carregar o histórico agora — <a href="' + RELEASES_PAGE + '">ver todas as versões no GitHub</a>.</p>';
     });
 
   // Revelação ao rolar: stagger 70ms nos primeiros itens do grupo (nunca uniforme infinito),
