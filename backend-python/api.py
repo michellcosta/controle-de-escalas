@@ -750,6 +750,17 @@ _SYSTEM_PROMPT = (
     "NUNCA adicione motorista que já aparece em 'Motoristas já escalados' — nesse caso use update_in_scale. "
     "Vários motoristas (ex.: foto com 6 nomes) = uma chamada para CADA um, sem pular nenhum. "
     "Escala vazia/sem ondas? Adicione mesmo assim com ondaIndex 0 — o app cria a 1ª ONDA automaticamente. "
+    "\n\n# ESCALA COLADA (TEXTO)\n"
+    "Quando o usuário COLAR uma escala estruturada (texto com ondas, docas, vagas, volumosos ou lista numerada) "
+    "em vez de perguntar algo, chame definir_escala UMA vez, com TODAS as ondas e TODOS os itens na ordem do texto, "
+    "sem pular nenhum. Regras do texto colado: 'Doca x: ROTA, Nome' = item com vaga x; "
+    "'NN — ROTA — Nome' = item com vaga NN; um bloco 'Volumosos' lista os pacotes volumosos DE CADA ONDA já citada "
+    "('ONDA 1' na seção volumosos = itens da ONDA 1 normal — não crie onda nova); "
+    "linhas com ❌ não têm motorista definido — PULE a linha; "
+    "'(Saca)', '(VUC)', '(utilitário)', '(híbrida)' = observações no campo nota; "
+    "nomes conforme a lista 'Motoristas que podem ser escalados' (use o mais próximo se houver variação de acento/apelido); "
+    "se o texto citar horário de início ('Início 6:25h'), preencha inicio. "
+    "Depois de chamar, escreva um resumo curto: quantas ondas e quantos pacotes entendeu. "
     "\n\n# DATAS E TURNOS\n"
     "DATAS ATUAIS (no final dos dados) dizem que dia é hoje e amanhã — use-as para 'hoje', 'amanhã', dias da semana. "
     "Os dados trazem a escala de HOJE detalhada e a de AMANHÃ em resumo. "
@@ -804,14 +815,21 @@ _ASSISTENTE_TOOLS = [
             "ondaIndex": {"type": "integer", "minimum": 0, "description": "Onda em que o motorista está (0 = 1ª); omita se não souber"}
         }, "required": ["motoristaNome"]}}},
     {"type": "function", "function": {
-        "name": "send_notification",
-        "description": "Envia aviso push. Alvo: um motorista (motoristaNome), uma onda (ondaIndex) ou a base inteira (baseInteira=true).",
+        "name": "definir_escala",
+        "description": "Define a escala COMPLETA do turno a partir de um TEXTO COLADO pelo usuário (mensagem do WhatsApp com ondas, docas, vagas, volumosos ou lista numerada). Chame UMA vez, enumerando TODAS as ondas e TODOS os itens sem pular nenhum.",
         "parameters": {"type": "object", "properties": {
-            "body": {"type": "string", "description": "Texto do aviso para o motorista"},
-            "motoristaNome": {"type": "string", "description": "Nome do motorista (avisar só ele)"},
-            "ondaIndex": {"type": "integer", "minimum": 0, "description": "Índice da onda (avisar a onda toda)"},
-            "baseInteira": {"type": "boolean", "description": "true = avisar todos os motoristas da base"}
-        }, "required": ["body"]}}},
+            "turno": {"type": "string", "enum": ["AM", "PM"], "description": "Turno da escala colada"},
+            "inicio": {"type": "string", "description": "Horário de início do turno (ex.: 06:25), se o texto citar"},
+            "ondas": {"type": "array", "description": "Todas as ondas do texto, na ordem", "items": {"type": "object", "properties": {
+                "volumosos": {"type": "boolean", "description": "true se os itens vieram da seção Volumosos/VUC"},
+                "itens": {"type": "array", "description": "Todos os itens da onda, sem pular", "items": {"type": "object", "properties": {
+                    "vaga": {"type": "string", "description": "Vaga com 2 dígitos (ex.: 01); omita se o texto não citar"},
+                    "rota": {"type": "string", "description": "Rota em maiúsculas (ex.: J8_AM1)"},
+                    "motoristaNome": {"type": "string", "description": "Nome do motorista como está no texto"},
+                    "nota": {"type": "string", "description": "Observações entre parênteses (Saca, VUC, híbrida...)"}
+                }, "required": ["rota", "motoristaNome"]}}
+            }, "required": ["itens"]}}
+        }, "required": ["ondas"]}}},
 ]
 
 
@@ -825,7 +843,7 @@ def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Op
         print("OPENAI_API_KEY não configurada.")
         return None, []
 
-    client = openai.OpenAI(api_key=api_key)
+    client = openai.OpenAI(api_key=api_key, base_url=(os.getenv('OPENAI_BASE_URL') or None))
     model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
     prompt = text or "Descreva o que está nesta imagem. Se for uma escala (lista de nomes com vagas e rotas), extraia cada motorista com vaga e rota, agrupando por ondas se houver."
 
@@ -878,7 +896,7 @@ def _assistente_via_openai(text: str, image_b64: Optional[str], context_base: Op
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            max_tokens=1500,
+            max_tokens=3000,
             temperature=0.2,  # Mais determinístico para ações estruturadas
             tools=_ASSISTENTE_TOOLS,
             tool_choice="auto",
@@ -937,6 +955,24 @@ def _texto_confirmacao_acoes(acoes: list) -> str:
     return "Pronto, alterações aplicadas."
 
 
+def _resolver_motorista(nome: str, motoristas: dict, nomes_normalizados: list):
+    """
+    Resolve um nome de motorista para o registro da base
+    (normalizado sem acentos/caixa -> prefixo -> contido -> fuzzy).
+    """
+    chave = normalizar_nome(nome)
+    alvo = motoristas.get(chave)
+    if alvo is None and chave:
+        contendo = [k for k in nomes_normalizados if k.startswith(chave) or chave in k]
+        if len(contendo) == 1:
+            alvo = motoristas[contendo[0]]
+    if alvo is None:
+        proximos = difflib.get_close_matches(chave, nomes_normalizados, n=1, cutoff=0.55)
+        if proximos:
+            alvo = motoristas[proximos[0]]
+    return alvo
+
+
 def _resolver_acoes(acoes: list, estrutura: Optional[dict]) -> list:
     """
     Normaliza campos das ações e resolve motoristaNome -> motoristaId
@@ -950,6 +986,32 @@ def _resolver_acoes(acoes: list, estrutura: Optional[dict]) -> list:
     resolvidas = []
     for a in acoes:
         if not isinstance(a, dict):
+            continue
+
+        # definir_escala: escala completa colada — resolve cada item aninhado
+        if a.get("type") == "definir_escala":
+            turno = str(a.get("turno") or "").strip().upper()
+            a["turno"] = turno if turno in ("AM", "PM") else None
+            for onda in (a.get("ondas") or []):
+                if not isinstance(onda, dict):
+                    continue
+                for item in (onda.get("itens") or []):
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("vaga"):
+                        v = str(item["vaga"]).strip()
+                        item["vaga"] = v.zfill(2) if v.isdigit() else v.upper()
+                    if item.get("rota"):
+                        item["rota"] = str(item["rota"]).strip().upper()
+                    nome_item = (item.get("motoristaNome") or "").strip()
+                    item.pop("motoristaId", None)
+                    if nome_item and motoristas:
+                        alvo = _resolver_motorista(nome_item, motoristas, nomes_normalizados)
+                        if alvo:
+                            item["motoristaId"] = alvo["id"]
+                            item["motoristaNome"] = alvo["nome"]
+                            item["modalidade"] = alvo.get("modalidade", "FROTA")
+            resolvidas.append(a)
             continue
 
         # Normalizações de formato
@@ -978,16 +1040,7 @@ def _resolver_acoes(acoes: list, estrutura: Optional[dict]) -> list:
         # Resolver motoristaNome -> motoristaId
         nome = (a.get("motoristaNome") or "").strip()
         if nome and motoristas:
-            chave = normalizar_nome(nome)
-            alvo = motoristas.get(chave)
-            if alvo is None and chave:
-                contendo = [k for k in nomes_normalizados if k.startswith(chave) or chave in k]
-                if len(contendo) == 1:
-                    alvo = motoristas[contendo[0]]
-            if alvo is None:
-                proximos = difflib.get_close_matches(chave, nomes_normalizados, n=1, cutoff=0.55)
-                if proximos:
-                    alvo = motoristas[proximos[0]]
+            alvo = _resolver_motorista(nome, motoristas, nomes_normalizados)
             if alvo:
                 a["motoristaId"] = alvo["id"]
                 a["motoristaNome"] = alvo["nome"]  # nome canônico da base

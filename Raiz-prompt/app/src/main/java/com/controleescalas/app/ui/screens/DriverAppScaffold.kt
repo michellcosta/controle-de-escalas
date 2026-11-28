@@ -4,6 +4,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -144,7 +147,11 @@ fun DriverAppScaffold(
         NavHost(
             navController = navController,
             startDestination = DriverNavItem.Home.route,
-            modifier = Modifier.padding(top = paddingValues.calculateTopPadding())
+            modifier = Modifier.padding(top = paddingValues.calculateTopPadding()),
+            enterTransition = { fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut)) },
+            exitTransition = { fadeOut(tween(Duracao.Press, easing = MovEaseOut)) },
+            popEnterTransition = { fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut)) },
+            popExitTransition = { fadeOut(tween(Duracao.Press, easing = MovEaseOut)) }
         ) {
             composable(DriverNavItem.Home.route) {
                 DriverHomeContent(

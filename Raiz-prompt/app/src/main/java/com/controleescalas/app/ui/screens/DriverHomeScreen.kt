@@ -1,10 +1,12 @@
 package com.controleescalas.app.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +32,7 @@ import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.components.QuinzenaCard
 import com.controleescalas.app.ui.components.SectionHeader
+import com.controleescalas.app.ui.components.ShimmerEffect
 import com.controleescalas.app.ui.theme.*
 import com.controleescalas.app.ui.viewmodels.DisponibilidadeViewModel
 import com.controleescalas.app.ui.viewmodels.DriverViewModel
@@ -118,26 +122,49 @@ fun DriverHomeScreen(
                     verticalArrangement = Arrangement.spacedBy(SpacingMedium)
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.align(Alignment.CenterHorizontally),
-                            color = MeliBlue
-                        )
+                        // Skeleton no idioma do app (shimmer) em vez de spinner de página inteira
+                        Column(verticalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxSize()) {
+                            ShimmerEffect(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                            )
+                            ShimmerEffect(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                            )
+                            ShimmerEffect(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                            )
+                        }
                     } else {
                         Column(
                             verticalArrangement = Arrangement.spacedBy(20.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            var visible by remember { mutableStateOf(false) }
-                            LaunchedEffect(Unit) { 
-                                delay(100)
-                                visible = true 
+                            // Entrada em stagger real (0/90/180ms) — tela de primeira visita,
+                            // por isso o orçamento de deleite; com movimento reduzido, só fade
+                            var visivel by remember { mutableStateOf(false) }
+                            val movimentoLigado = rememberMovimentoLigado()
+                            LaunchedEffect(Unit) { visivel = true }
+
+                            fun entrada(escada: Int): EnterTransition {
+                                val atraso = if (movimentoLigado) escada * 90 else 0
+                                return if (movimentoLigado)
+                                    slideInVertically(
+                                        tween(Duracao.Conteudo, delayMillis = atraso, easing = MovEaseOut)
+                                    ) { it / 3 } + fadeIn(tween(Duracao.Conteudo, delayMillis = atraso, easing = MovEaseOut))
+                                else fadeIn(tween(Duracao.Conteudo, easing = MovEaseOut))
                             }
 
                             // DISPONIBILIDADE
-                            AnimatedVisibility(
-                                visible = visible,
-                                enter = slideInVertically { it / 2 } + fadeIn()
-                            ) {
+                            AnimatedVisibility(visible = visivel, enter = entrada(0)) {
                                 DisponibilidadeCard(
                                     data = disponibilidadeViewModel.disponibilidade.value?.data ?: "",
                                     turnos = turnosDaBase,
@@ -149,20 +176,14 @@ fun DriverHomeScreen(
                                     }
                                 )
                             }
-                            
+
                             // QUINZENA
-                            AnimatedVisibility(
-                                visible = visible,
-                                enter = slideInVertically { it / 2 } + fadeIn()
-                            ) {
+                            AnimatedVisibility(visible = visivel, enter = entrada(1)) {
                                 QuinzenaCard(quinzena = minhaQuinzena)
                             }
-                            
+
                             // STATUS/ESCALA
-                            AnimatedVisibility(
-                                visible = visible,
-                                enter = slideInVertically { it / 2 } + fadeIn()
-                            ) {
+                            AnimatedVisibility(visible = visivel, enter = entrada(2)) {
                                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                                     if (escalaInfo != null) {
                                         StatusCard(

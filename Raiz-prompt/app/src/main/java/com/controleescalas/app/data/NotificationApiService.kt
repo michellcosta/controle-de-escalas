@@ -232,7 +232,9 @@ class NotificationApiService {
         val addToScaleActions: List<AddToScaleAction> = emptyList(),
         val updateInScaleActions: List<UpdateInScaleAction> = emptyList(),
         val removeFromScaleActions: List<RemoveFromScaleAction> = emptyList(),
-        val sendNotificationActions: List<SendNotificationAction> = emptyList()
+        val sendNotificationActions: List<SendNotificationAction> = emptyList(),
+        // Escala completa entendida pela IA (texto colado) — o app mostra e confirma
+        val definirEscalaAction: DefinirEscalaAction? = null
     ) {
         /** Ação de adicionar (retrocompatibilidade). */
         val action: AddToScaleAction? get() = addToScaleAction
@@ -282,6 +284,30 @@ class NotificationApiService {
         val body: String,
         val baseInteira: Boolean = false,
         val motoristaId: String? = null
+    )
+
+    /**
+     * Escala COMPLETA entendida pela IA a partir do texto colado.
+     * Volumosos mesclados nas ondas citadas; itens sem motoristaId viram LIVRE.
+     */
+    data class DefinirEscalaAction(
+        val turno: String?,
+        val inicio: String?,
+        val ondas: List<OndaDef>
+    )
+
+    data class OndaDef(
+        val volumosos: Boolean,
+        val itens: List<ItemDef>
+    )
+
+    data class ItemDef(
+        val vaga: String?,
+        val rota: String?,
+        val motoristaNome: String?,
+        val motoristaId: String?,
+        val modalidade: String?,
+        val nota: String?
     )
 
     /**
@@ -338,6 +364,7 @@ class NotificationApiService {
                     val updateList = mutableListOf<UpdateInScaleAction>()
                     val removeList = mutableListOf<RemoveFromScaleAction>()
                     val notifyList = mutableListOf<SendNotificationAction>()
+                    var definirEscala: DefinirEscalaAction? = null
                     val actionsArray = json?.optJSONArray("actions")
                     if (actionsArray != null) {
                         for (i in 0 until actionsArray.length()) {
@@ -385,6 +412,43 @@ class NotificationApiService {
                                         motoristaId = motoristaId
                                     ))
                                 }
+                                "definir_escala" -> {
+                                    val ondasArray = a.optJSONArray("ondas") ?: continue
+                                    val ondasDef = mutableListOf<OndaDef>()
+                                    for (o in 0 until ondasArray.length()) {
+                                        val ondaJson = ondasArray.optJSONObject(o) ?: continue
+                                        val itensJson = ondaJson.optJSONArray("itens") ?: continue
+                                        val itens = mutableListOf<ItemDef>()
+                                        for (k in 0 until itensJson.length()) {
+                                            val i = itensJson.optJSONObject(k) ?: continue
+                                            val rota = i.optString("rota").trim().uppercase()
+                                            val nome = i.optString("motoristaNome").trim()
+                                            if (rota.isBlank() && nome.isBlank()) continue
+                                            itens.add(ItemDef(
+                                                vaga = i.optString("vaga").trim().takeIf { it.isNotBlank() }
+                                                    ?.let { v -> if (v.length == 1) "0$v" else v },
+                                                rota = rota.takeIf { it.isNotBlank() },
+                                                motoristaNome = nome.takeIf { it.isNotBlank() },
+                                                motoristaId = i.optString("motoristaId").trim().takeIf { it.isNotBlank() },
+                                                modalidade = i.optString("modalidade").trim().takeIf { it.isNotBlank() },
+                                                nota = i.optString("nota").trim().takeIf { it.isNotBlank() }
+                                            ))
+                                        }
+                                        if (itens.isNotEmpty()) {
+                                            ondasDef.add(OndaDef(
+                                                volumosos = ondaJson.optBoolean("volumosos", false),
+                                                itens = itens
+                                            ))
+                                        }
+                                    }
+                                    if (ondasDef.isNotEmpty()) {
+                                        definirEscala = DefinirEscalaAction(
+                                            turno = a.optString("turno").trim().takeIf { it.isNotBlank() },
+                                            inicio = a.optString("inicio").trim().takeIf { it.isNotBlank() },
+                                            ondas = ondasDef
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -420,7 +484,8 @@ class NotificationApiService {
                         addToScaleAction = addAction, updateInScaleAction = updateAction,
                         addToScaleActions = addList, updateInScaleActions = updateList,
                         removeFromScaleActions = removeList,
-                        sendNotificationActions = notifyList
+                        sendNotificationActions = notifyList,
+                        definirEscalaAction = definirEscala
                     )
                 }
                 else -> {

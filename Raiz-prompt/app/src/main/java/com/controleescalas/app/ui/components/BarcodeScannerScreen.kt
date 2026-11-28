@@ -2,8 +2,6 @@ package com.controleescalas.app.ui.components
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.media.AudioManager
-import android.media.ToneGenerator
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -30,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.controleescalas.app.ui.theme.NeonGreen
 import com.controleescalas.app.ui.theme.MeliBlue
 import androidx.core.content.ContextCompat
+import com.controleescalas.app.utils.SomScan
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -52,7 +51,8 @@ fun BarcodeScannerScreen(
     pacotesEscaneados: List<String> = emptyList(), // NOVO: lista de pacotes já escaneados
     onRegistrarTodos: (() -> Unit)? = null, // NOVO: callback para registrar todos
     onRemoverPacote: ((String) -> Unit)? = null, // NOVO: callback para remover pacote
-    aceitarJSONCompleto: Boolean = false // NOVO: se true, passa JSON completo sem processar
+    aceitarJSONCompleto: Boolean = false, // NOVO: se true, passa JSON completo sem processar
+    bipAoDetectar: Boolean = true // NOVO: quando false, quem chama cuida do som (ex.: devolução diferencia novo de repetido)
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -67,6 +67,7 @@ fun BarcodeScannerScreen(
     }
     
     var previewView: PreviewView? by remember { mutableStateOf(null) }
+
     
     // Variável para evitar processar o mesmo código válido múltiplas vezes
     var lastProcessedCode by remember { mutableStateOf<String?>(null) }
@@ -109,10 +110,9 @@ fun BarcodeScannerScreen(
         BarcodeScanning.getClient(options)
     }
     
-    // Gerador de som para feedback quando código for detectado
-    val toneGenerator = remember {
-        ToneGenerator(AudioManager.STREAM_NOTIFICATION, 80) // Volume 80%
-    }
+    // Som de bip ao detectar (canal de alarme — audível sem volume de mídia).
+    // Quem chama pode desligar e tocar o próprio som (ex.: devolução diferencia
+    // pacote novo de repetido via SomScan).
     
     // Inicializar câmera
     LaunchedEffect(hasPermission) {
@@ -145,11 +145,10 @@ fun BarcodeScannerScreen(
                                 android.os.Handler(android.os.Looper.getMainLooper()).post {
                                     println("📱 BarcodeScanner: Processando no thread principal: $barcode")
                                     // Tocar som de "bip" quando código válido for detectado
-                                    try {
-                                        toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 150) // Bip de 150ms
+                                    // (a menos que quem chama prefira tocar o próprio som)
+                                    if (bipAoDetectar) {
+                                        SomScan.sucesso(context)
                                         println("🔊 BarcodeScanner: Som de sucesso tocado")
-                                    } catch (e: Exception) {
-                                        println("⚠️ BarcodeScanner: Erro ao tocar som: ${e.message}")
                                     }
                                     
                                     lastProcessedCode = barcode
@@ -203,7 +202,6 @@ fun BarcodeScannerScreen(
                 e.printStackTrace()
             }
             scanner.close()
-            toneGenerator.release()
         }
     }
     
@@ -313,6 +311,12 @@ fun BarcodeScannerScreen(
                                             // Botão de delete
                                             IconButton(
                                                 onClick = {
+                                                    // Libera o código para poder ser bipado de novo:
+                                                    // sem isso, o anti-duplicado da sessão ignorava
+                                                    // o pacote recém-excluído ao reapontar a câmera
+                                                    if (lastProcessedCode == idPacote) {
+                                                        lastProcessedCode = null
+                                                    }
                                                     onRemoverPacote?.invoke(idPacote)
                                                 }
                                             ) {

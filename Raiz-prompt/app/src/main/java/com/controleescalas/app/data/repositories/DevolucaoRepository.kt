@@ -2,6 +2,7 @@ package com.controleescalas.app.data.repositories
 
 import com.controleescalas.app.data.FirebaseManager
 import com.controleescalas.app.data.models.Devolucao
+import com.controleescalas.app.utils.BrasilDate
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
@@ -29,33 +30,33 @@ class DevolucaoRepository {
     }
     
     /**
-     * Verificar se um ID de pacote já foi registrado (globalmente)
-     * Verifica tanto no formato antigo (idPacote) quanto no novo (idsPacotes)
+     * Verificar se um ID de pacote já foi registrado HOJE (mesmo dia).
+     * Devoluções de dias anteriores NÃO bloqueiam: o mesmo pacote pode voltar
+     * e precisar de nova devolução. A trava existe só contra bipe duplo no dia.
      */
     suspend fun verificarIdPacoteExiste(baseId: String, idPacote: String): Boolean {
         return try {
             ensureAuth()
+            val hoje = BrasilDate.formatDdMmYyyy()
             val devolucoes = firestore
                 .collection("bases")
                 .document(baseId)
                 .collection("devolucoes")
 
-            // Formato novo (idsPacotes é lista): array-contains traz no máximo o
-            // documento que contém o ID, em vez de ler a coleção inteira.
+            // Formato novo (idsPacotes é lista): array-contains traz no máximo os
+            // documentos que contêm o ID; o filtro de dia é feito aqui em cima.
             val porLista = devolucoes
                 .whereArrayContains("idsPacotes", idPacote)
-                .limit(1)
                 .get()
                 .await()
-            if (!porLista.isEmpty) return true
+            if (porLista.documents.any { it.getString("data") == hoje }) return true
 
             // Formato antigo (idPacote único) para compatibilidade
             val porCampo = devolucoes
                 .whereEqualTo("idPacote", idPacote)
-                .limit(1)
                 .get()
                 .await()
-            !porCampo.isEmpty
+            porCampo.documents.any { it.getString("data") == hoje }
         } catch (e: Exception) {
             println("❌ DevolucaoRepository: Erro ao verificar ID do pacote: ${e.message}")
             false
@@ -63,15 +64,17 @@ class DevolucaoRepository {
     }
 
     /**
-     * Verificar quais IDs de pacote já foram registrados com UMA única leitura
-     * da coleção (em vez de uma varredura completa por ID dentro do lote).
-     * Retorna o subconjunto de IDs que já existe.
+     * Verificar quais IDs de pacote já foram registrados HOJE (mesmo dia),
+     * com UMA única leitura da coleção. Devoluções de dias anteriores não
+     * bloqueiam: o mesmo pacote pode voltar e precisar de nova devolução.
+     * Retorna o subconjunto de IDs já devolvidos hoje.
      */
     suspend fun verificarIdsPacotesExistentes(baseId: String, idPacotes: List<String>): Set<String> {
         if (idPacotes.isEmpty()) return emptySet()
         return try {
             ensureAuth()
             val alvo = idPacotes.toSet()
+            val hoje = BrasilDate.formatDdMmYyyy()
             val encontrados = mutableSetOf<String>()
 
             val snapshot = firestore
@@ -83,6 +86,9 @@ class DevolucaoRepository {
 
             for (doc in snapshot.documents) {
                 val data = doc.data ?: continue
+
+                // Só bloqueia devolução do MESMO DIA; dias anteriores liberam
+                if (data["data"] != hoje) continue
 
                 // Formato novo (idsPacotes)
                 val idsPacotes = data["idsPacotes"] as? List<*>
@@ -149,7 +155,7 @@ class DevolucaoRepository {
             val idsExistentes = verificarIdsPacotesExistentes(baseId, idPacotes)
             for (idPacote in idPacotes) {
                 if (idPacote in idsExistentes) {
-                    erros.add("ID $idPacote já registrado")
+                    erros.add("ID $idPacote já devolvido hoje")
                 } else {
                     idsValidos.add(idPacote)
                 }

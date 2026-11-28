@@ -2,6 +2,7 @@ package com.controleescalas.app.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,6 +34,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.controleescalas.app.ui.theme.MeliBlue
 import com.controleescalas.app.ui.theme.CardBorderLight
+import com.controleescalas.app.ui.theme.pressionar
 import com.controleescalas.app.ui.theme.TextBlack
 import com.controleescalas.app.ui.theme.TextGray
 import com.controleescalas.app.ui.theme.TextGrayLightMode
@@ -83,9 +86,11 @@ fun AppCard(
         }
     }
     if (onClick != null) {
+        val interacao = remember { MutableInteractionSource() }
         Surface(
             onClick = onClick,
-            modifier = cardModifier,
+            interactionSource = interacao,
+            modifier = cardModifier.pressionar(interacao),
             shape = shape,
             color = containerColor,
             shadowElevation = 4.dp,
@@ -142,9 +147,11 @@ fun AppButton(
     enabled: Boolean = true,
     color: Color = MeliBlue
 ) {
+    val interacao = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(48.dp),
+        interactionSource = interacao,
+        modifier = modifier.fillMaxWidth().height(48.dp).pressionar(interacao, habilitado = enabled && !isLoading),
         enabled = enabled && !isLoading,
         shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(
@@ -194,9 +201,11 @@ fun AppTonalButton(
     icon: ImageVector? = null,
     enabled: Boolean = true
 ) {
+    val interacao = remember { MutableInteractionSource() }
     Button(
         onClick = onClick,
-        modifier = modifier.height(44.dp),
+        interactionSource = interacao,
+        modifier = modifier.height(44.dp).pressionar(interacao, habilitado = enabled),
         enabled = enabled,
         shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(

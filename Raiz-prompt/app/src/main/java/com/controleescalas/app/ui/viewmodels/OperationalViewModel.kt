@@ -1382,6 +1382,32 @@ class OperationalViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    /**
+     * Aplica as ondas montadas a partir do TEXTO colado (ParserEscalaTexto),
+     * substituindo as ondas do turno selecionado. Motoristas já vinculados
+     * pelo nome no parser; os sem vínculo entram como LIVRE.
+     */
+    fun aplicarEscalaTexto(ondasNovas: List<Onda>) {
+        if (ondasNovas.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val totalMotoristas = ondasNovas.sumOf { onda -> onda.itens.count { !it.motoristaId.startsWith("slot_") } }
+                escalaMutex.withLock {
+                    val turno = _turnoAtual.value
+                    val currentEscala = (_escalasPorTurno.value[turno] ?: null) ?: return@withLock
+                    val updatedEscala = currentEscala.copy(ondas = ondasNovas, data = BrasilDate.hoje())
+                    setEscalaDoTurno(turno, updatedEscala)
+                    updateOndasForCurrentTurno()
+                    escalaRepository.saveEscala(currentBaseId, updatedEscala)
+                }
+                _message.value = "Escala do texto aplicada: ${ondasNovas.size} ondas, $totalMotoristas motoristas"
+            } catch (e: Exception) {
+                Log.e("OperationalViewModel", "Erro ao aplicar escala do texto: ${e.message}", e)
+                _error.value = "Erro ao aplicar a escala do texto: ${e.message}"
+            }
+        }
+    }
+
     fun bulkApplyScaleActions(actions: List<BulkScaleAction>) {
         if (actions.isEmpty()) return
         viewModelScope.launch {

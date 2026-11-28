@@ -1,9 +1,20 @@
 package com.controleescalas.app.ui.screens
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,8 +36,11 @@ import com.controleescalas.app.ui.components.BarcodeScannerScreen
 import com.controleescalas.app.ui.components.AppCard
 import com.controleescalas.app.ui.components.AppButton
 import com.controleescalas.app.ui.components.AppTopBar
+import com.controleescalas.app.ui.components.AppTonalButton
 import com.controleescalas.app.ui.components.PremiumBackground
 import com.controleescalas.app.ui.theme.*
+import com.controleescalas.app.utils.SomScan
+import com.controleescalas.app.utils.Vibrar
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -52,7 +67,13 @@ fun DriverDevolucaoScreen(
     var modoMultiplosScans by remember { mutableStateOf(false) } // NOVO: modo de múltiplos scans
     var pacotesEscaneados by remember { mutableStateOf<List<String>>(emptyList()) } // NOVO: lista de pacotes escaneados
     val coroutineScope = rememberCoroutineScope()
-    
+
+    // Som do escaneamento via SomScan (canal de alarme — audível sem volume de
+    // mídia; o volume fino fica em Configurações → Som do Escaneamento).
+    // Bip para pacote novo, tom grave para repetido. Vibra junto: no galpão
+    // barulhento o toque confirma mesmo sem ouvir.
+
+
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -207,7 +228,11 @@ fun DriverDevolucaoScreen(
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("Escanear Pacotes", style = MaterialTheme.typography.bodyMedium)
                             }
-                            
+
+                            // Volume do bip do escaneamento (toca no canal de alarme;
+                            // este controle apenas atenua — padrão 100%, audível)
+                            CardSomEscaneamento(modifier = Modifier.fillMaxWidth())
+
                             // Botões
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -465,10 +490,17 @@ fun DriverDevolucaoScreen(
             onBarcodeScanned = { barcodeValue ->
                 if (modoMultiplosScans) {
                     if (!pacotesEscaneados.contains(barcodeValue)) {
+                        // Pacote novo entra na lista e confirma com bip + vibração
                         pacotesEscaneados = pacotesEscaneados + barcodeValue
+                        SomScan.sucesso(context)
+                        Vibrar.toque(context)
+                    } else {
+                        // Pacote já está na lista: tom grave de "negado"
+                        SomScan.repetido(context)
                     }
                 } else {
                     idPacote = barcodeValue
+                    Vibrar.toque(context)
                     coroutineScope.launch {
                         snackbarHostState.showSnackbar(
                             message = "Código escaneado com sucesso!",
@@ -495,6 +527,7 @@ fun DriverDevolucaoScreen(
             snackbarHostState = snackbarHostState,
             modoMultiplosScans = modoMultiplosScans,
             pacotesEscaneados = pacotesEscaneados,
+            bipAoDetectar = false, // o som é tocado aqui, diferenciando novo de repetido
             onRegistrarTodos = {
                 if (pacotesEscaneados.isNotEmpty()) {
                     viewModel.registrarDevolucoesEmLote(
@@ -517,6 +550,99 @@ fun DriverDevolucaoScreen(
         )
     }
     } // fecha Box externo
+}
+
+/**
+ * Volume do bip do escaneamento: escala própria do bip, de 0 a 10, com
+ * padrão 4. O som toca no canal de alarme e o app aplica este nível na
+ * hora, devolvendo o volume de antes logo em seguida. Vem FECHADO — o
+ * cabeçalho abre o ajuste fino.
+ */
+@Composable
+private fun CardSomEscaneamento(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var volume by remember { mutableStateOf(SomScan.volume(context)) }
+    var aberto by rememberSaveable { mutableStateOf(false) }
+    val interacaoCabeca = remember { MutableInteractionSource() }
+
+    AppCard(modifier = modifier) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Cabeçalho (clicável: abre/fecha o ajuste)
+            Row(
+                modifier = Modifier
+                    .pressionar(interacaoCabeca)
+                    .fillMaxWidth()
+                    .clickable(interactionSource = interacaoCabeca, indication = LocalIndication.current) {
+                        aberto = !aberto
+                    }
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.VolumeUp,
+                    contentDescription = null,
+                    tint = MeliBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    "Som do bip",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "volume $volume de ${SomScan.VOLUME_MAXIMO}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MeliBlue
+                )
+                Icon(
+                    if (aberto) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (aberto) "Recolher" else "Expandir",
+                    tint = TextGrayLightMode,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Ajuste fino (só quando aberto) — recolher mais rápido que expandir
+            AnimatedVisibility(
+                visible = aberto,
+                enter = fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut)) +
+                    expandVertically(tween(Duracao.Conteudo, easing = MovEaseOut)),
+                exit = fadeOut(tween(Duracao.Press)) +
+                    shrinkVertically(tween(220, easing = MovEaseInOut))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Slider(
+                        value = volume / SomScan.VOLUME_MAXIMO.toFloat(),
+                        onValueChange = {
+                            volume = (it * SomScan.VOLUME_MAXIMO).toInt()
+                            SomScan.salvarVolume(context, volume)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppTonalButton(
+                            text = "Testar som",
+                            onClick = { SomScan.sucesso(context) },
+                            icon = Icons.Default.VolumeUp
+                        )
+                        Text(
+                            "padrão 4 de 10 · vale também durante o escaneamento",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextGrayLightMode,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 

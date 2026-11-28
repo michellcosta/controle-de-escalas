@@ -4,10 +4,14 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -66,6 +70,7 @@ import com.controleescalas.app.data.models.isSlot
 import com.controleescalas.app.ui.viewmodels.BulkScaleAction
 import com.controleescalas.app.ui.viewmodels.OperationalViewModel
 import com.controleescalas.app.utils.BrasilDate
+import com.controleescalas.app.utils.Vibrar
 import com.controleescalas.app.utils.WhatsAppShare
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -165,6 +170,8 @@ fun OperationalDashboardScreen(
     
     var showAddDriverDialog by remember { mutableStateOf(false) }
     var selectedOndaIndex by remember { mutableIntStateOf(-1) }
+    var selectedMotoristaForOnda by remember { mutableStateOf<AdminMotoristaCardData?>(null) }
+    var showFillDetailsDialog by remember { mutableStateOf(false) }
     
     // Verificar se há escala válida para compartilhar (motoristas reais em ondas;
     // PRÉ-ESCALA e slots da importação não entram no compartilhamento)
@@ -287,7 +294,7 @@ fun OperationalDashboardScreen(
                             Icon(
                                 Icons.Default.Share,
                                 contentDescription = "Compartilhar escala no WhatsApp",
-                                tint = Color(0xFF25D366)
+                                tint = VerdeWhatsApp
                             )
                         }
                     }
@@ -297,18 +304,11 @@ fun OperationalDashboardScreen(
         floatingActionButton = {
             FloatingActionButton(
                 modifier = Modifier.padding(bottom = 104.dp),
-                onClick = {
-                    // "+" abre direto a montagem rápida de motoristas
-                    // (as ondas são criadas pelo próprio dialog, modo "ondas diferentes")
-                    selectedOndaIndex = ondas.indexOfFirst {
-                        !it.nome.equals("PRÉ-ESCALA", true)
-                    }.coerceAtLeast(0)
-                    showAddDriverDialog = true
-                },
+                onClick = { viewModel.addOnda() },
                 containerColor = MeliBlue,
                 contentColor = Color.White
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar Motoristas")
+                Icon(Icons.Default.Add, contentDescription = "Adicionar Onda")
             }
         }
     ) { paddingValues ->
@@ -323,26 +323,11 @@ fun OperationalDashboardScreen(
                         .fillMaxSize()
                         .padding(top = paddingValues.calculateTopPadding())
                 ) {
-                    // Importar a tabela de ondas do dia por foto (OCR) —
-                    // cria as ondas com slots (rota + vaga = doca) para o turno atual
-                    var showImportarRotas by remember { mutableStateOf(false) }
                     var showConfirmarLimpar by remember { mutableStateOf(false) }
+                    var showColarEscala by remember { mutableStateOf(false) }
                     // Long-press em motorista/rota → escolher a onda destino
                     var motoristaParaMover by remember { mutableStateOf<OndaItem?>(null) }
                     var ondaOrigemParaMover by remember { mutableIntStateOf(-1) }
-                    val preEscalaViewModel: com.controleescalas.app.ui.viewmodels.PreEscalaViewModel = viewModel()
-
-                    // Feedback do import (mensagem/erro do VM) no snackbar
-                    LaunchedEffect(Unit) {
-                        preEscalaViewModel.message.collect { msg ->
-                            msg?.let { snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Short) }
-                        }
-                    }
-                    LaunchedEffect(Unit) {
-                        preEscalaViewModel.error.collect { erro ->
-                            erro?.let { snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Long) }
-                        }
-                    }
 
                     Box(modifier = Modifier.fillMaxSize()) {
                         WavesContent(
@@ -352,7 +337,7 @@ fun OperationalDashboardScreen(
                             motoristasStatus = motoristasStatus,
                             motoristasDisponiveis = motoristasDisponiveis,
                             disponibilidadeMap = disponibilidadeMap,
-                            onImportarClick = { showImportarRotas = true },
+                            onColarEscalaClick = { showColarEscala = true },
                             onLimparClick = { showConfirmarLimpar = true },
                             onMoverParaOnda = { origem, item, destino ->
                                 viewModel.moverMotoristaEntreOndas(origem, destino, item)
@@ -397,16 +382,17 @@ fun OperationalDashboardScreen(
                         )
                     }
 
-                    // Import da tabela de ondas por foto: reorganiza as ondas do turno
-                    // atual pela tabela e coloca cada motorista já escalado (pré-escala)
-                    // na onda e na vaga da sua rota
-                    if (showImportarRotas) {
-                        ImportarRotasDialog(
+                    // Escala colada como texto: analisa os formatos do WhatsApp,
+                    // mostra a prévia e substitui as ondas do turno ao aplicar
+                    if (showColarEscala) {
+                        ColarEscalaDialog(
                             baseId = baseId,
-                            data = BrasilDate.hoje(),
                             turno = turnoAtual,
-                            viewModel = preEscalaViewModel,
-                            onDismiss = { showImportarRotas = false }
+                            motoristas = motoristasDisponiveis,
+                            onAplicar = { ondasNovas ->
+                                viewModel.aplicarEscalaTexto(ondasNovas)
+                            },
+                            onDismiss = { showColarEscala = false }
                         )
                     }
 
@@ -526,49 +512,44 @@ fun OperationalDashboardScreen(
                 }
             }
 
+            // ETAPA 1: escolher o motorista da onda (busca + filtro de modalidade)
             if (showAddDriverDialog && selectedOndaIndex >= 0) {
-                val jaEscalados = ondas
-                    .flatMap { it.itens }
-                    .map { it.motoristaId }
-                    .toSet()
-                AddDriversMultiSelectDialog(
-                    motoristas = motoristasDisponiveis.filter { it.papel != "admin" },
-                    disponibilidadeMap = disponibilidadeMap,
-                    ondaAtualIndex = selectedOndaIndex,
-                    ondaAtualNome = ondas.getOrNull(selectedOndaIndex)?.nome ?: "Onda",
-                    motoristasJaEscalados = jaEscalados,
-                    modalidadeFiltroHabilitada = true,
-                    ondasExistentes = ondas.map { it.nome },
-                    rotasAtuais = ondas.flatMap { it.itens }
-                        .filter { it.rota.isNotBlank() }
-                        .associate { it.motoristaId to it.rota },
-                    onDismiss = { showAddDriverDialog = false },
-                    onConfirm = { selecionados, destinoOndaIndex, distribuirEm, rotas, destinosPorMotorista ->
-                        // Montagem rápida em lote: vaga fica vazia (preenchida depois).
-                        // O bulkApply remove duplicatas e preserva rota/sacas quando a
-                        // ação não informa (ex.: mover da pré-escala mantém a rota).
-                        // destinosPorMotorista usa índice no espaço de ondas REAIS
-                        // (sem PRÉ-ESCALA) — converter para índice posicional
-                        val primeiraNova = ondas.size
-                        val acoes = selecionados.mapIndexed { i, motorista ->
-                            val ondaIndex = destinosPorMotorista[motorista.id]?.let { ondas.indicePosicional(it) }
-                                ?: if (distribuirEm != null && distribuirEm > 0) {
-                                    primeiraNova + (i % distribuirEm)
-                                } else {
-                                    destinoOndaIndex
-                                }
-                            BulkScaleAction(
-                                isAdd = true,
-                                motoristaId = motorista.id,
-                                nome = motorista.nome,
-                                ondaIndex = ondaIndex,
-                                vaga = "",
-                                rota = rotas[motorista.id], // null = preservar rota anterior
-                                sacas = null
-                            )
-                        }
-                        viewModel.bulkApplyScaleActions(acoes)
+                AddDriverDialog(
+                    motoristas = motoristasDisponiveis,
+                    targetName = ondas.getOrNull(selectedOndaIndex)?.nome ?: "Onda",
+                    onDismiss = {
                         showAddDriverDialog = false
+                        selectedMotoristaForOnda = null
+                    },
+                    onSelect = { motorista ->
+                        selectedMotoristaForOnda = motorista
+                        showAddDriverDialog = false
+                        showFillDetailsDialog = true
+                    }
+                )
+            }
+
+            // ETAPA 2: preencher Vaga, Rota e Sacas do motorista escolhido
+            if (showFillDetailsDialog && selectedMotoristaForOnda != null) {
+                FillDriverDetailsDialog(
+                    motorista = selectedMotoristaForOnda!!,
+                    targetName = ondas.getOrNull(selectedOndaIndex)?.nome ?: "Onda",
+                    ondas = ondas,
+                    ondaIndex = selectedOndaIndex,
+                    onDismiss = {
+                        showFillDetailsDialog = false
+                        selectedMotoristaForOnda = null
+                    },
+                    onConfirm = { vaga, rota, sacas ->
+                        viewModel.addMotoristaToOndaWithDetails(
+                            ondaIndex = selectedOndaIndex,
+                            motorista = selectedMotoristaForOnda!!,
+                            vaga = vaga,
+                            rota = rota,
+                            sacas = sacas
+                        )
+                        showFillDetailsDialog = false
+                        selectedMotoristaForOnda = null
                     }
                 )
             }
@@ -595,7 +576,7 @@ fun OperationalDashboardScreen(
                     val isError = messageText.contains("erro", ignoreCase = true)
                     Snackbar(
                         snackbarData = snackbarData,
-                        containerColor = if (isError) Color(0xFFEF4444) else MeliBlue,
+                        containerColor = if (isError) StatusError else MeliBlue,
                         contentColor = TextWhite
                     )
                 }
@@ -612,7 +593,7 @@ fun WavesContent(
     motoristasStatus: Map<String, StatusMotorista>,
     motoristasDisponiveis: List<AdminMotoristaCardData>,
     disponibilidadeMap: Map<String, Boolean?>,
-    onImportarClick: () -> Unit,
+    onColarEscalaClick: () -> Unit,
     onLimparClick: () -> Unit,
     onMoverParaOnda: (Int, OndaItem, Int) -> Unit,
     onMoverSlot: (Int, OndaItem, Int) -> Unit,
@@ -647,18 +628,14 @@ fun WavesContent(
                 onTurnoChange = onTurnoChange
             )
 
-            // Ações do turno (rolam junto com o conteúdo)
-            Button(
-                onClick = onImportarClick,
+            // Colar a escala como texto (mensagem do WhatsApp) e montar as ondas
+            TextButton(
+                onClick = onColarEscalaClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MeliBlue,
-                    contentColor = Color.White
-                )
+                    .padding(top = 2.dp)
             ) {
-                Text("📥 Importar ondas", fontWeight = FontWeight.Bold)
+                Text("📋 Colar escala (texto)", fontWeight = FontWeight.SemiBold, color = MeliBlue)
             }
 
             if (ondas.isNotEmpty()) {
@@ -879,12 +856,21 @@ fun EmptyStateMessage(text: String) {
         modifier = Modifier.fillMaxWidth().padding(32.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text,
-            color = TextGrayLightMode,
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.Inbox,
+                contentDescription = null,
+                tint = TextGrayLightMode,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text,
+                color = TextGrayLightMode,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
@@ -945,20 +931,20 @@ fun WaveOperationCard(
     onRemoveDriver: (String) -> Unit,
     onRemoveWave: (Int) -> Unit
 ) {
+    val context = LocalContext.current
     var showEditWaveDialog by remember { mutableStateOf(false) }
-    var showConfirmDeleteDialog by remember { mutableStateOf(false) }
     var showConfirmDeleteWaveDialog by remember { mutableStateOf(false) }
-    var motoristaPendingRemoval by remember { mutableStateOf<String?>(null) }
-    // ✅ Estado persistido: mantém expansão/colapso mesmo após navegação
+    // Estado persistido: mantém expansão/colapso mesmo após navegação
     var isExpanded by rememberSaveable(
         key = "wave_expanded_${turnoAtual}_${ondaIndex}"
     ) { mutableStateOf(true) }
-    
-    // ✅ Flag para rastrear se já foi auto-compactado (evita re-colapsar ao voltar)
-    var jaFoiAutoCompactado by rememberSaveable(
-        key = "wave_auto_compactado_${turnoAtual}_${ondaIndex}"
+
+    // Expansão manual vence o recolher automático: se o admin abriu à mão,
+    // o card permanece aberto até o próximo ciclo de conclusão
+    var expansaoManual by rememberSaveable(
+        key = "wave_expansao_manual_${turnoAtual}_${ondaIndex}"
     ) { mutableStateOf(false) }
-    
+
     // Verificar se todos os motoristas estão concluídos
     val todosConcluidos = remember(onda.itens, motoristasStatus) {
         onda.itens.isNotEmpty() && onda.itens.all { motorista ->
@@ -966,104 +952,29 @@ fun WaveOperationCard(
             status?.estado == "CONCLUIDO"
         }
     }
-    
-    // ✅ Flag para rastrear se o usuário expandiu manualmente (permite expansão manual mesmo após auto-compactação)
-    var expansaoManual by rememberSaveable(
-        key = "wave_expansao_manual_${turnoAtual}_${ondaIndex}"
-    ) { mutableStateOf(false) }
-    
-    // ✅ CORREÇÃO IMEDIATA: Se todos estão concluídos e o card está fechado, marcar como auto-compactado
-    // Isso garante que o card permanece fechado mesmo após navegação
-    if (todosConcluidos && !isExpanded && !jaFoiAutoCompactado) {
-        Log.d("WaveCard", "🔧 CORREÇÃO IMEDIATA: Todos concluídos e card está fechado. Marcando como auto-compactado.")
-        jaFoiAutoCompactado = true
-    }
-    
-    // ✅ CORREÇÃO IMEDIATA PRINCIPAL: Se todos estão concluídos e o card está expandido,
-    // mas NÃO foi expansão manual, então deve estar fechado (foi auto-compactado anteriormente)
-    // Isso resolve o problema quando o rememberSaveable é resetado
-    if (todosConcluidos && isExpanded && !expansaoManual) {
-        Log.d("WaveCard", "🔧 CORREÇÃO IMEDIATA PRINCIPAL: Todos concluídos e card está expandido, mas não foi expansão manual. Forçando fechamento e marcando como auto-compactado.")
-        isExpanded = false
-        jaFoiAutoCompactado = true
-    }
-    
-    // ✅ CORREÇÃO IMEDIATA: Se todos estão concluídos e já foi auto-compactado, garantir que está fechado
-    // Isso evita que o card abra quando o rememberSaveable é resetado
-    if (todosConcluidos && jaFoiAutoCompactado && isExpanded && !expansaoManual) {
-        Log.d("WaveCard", "🔧 CORREÇÃO IMEDIATA: Todos concluídos e já foi auto-compactado, mas card está expandido. Forçando fechamento.")
-        isExpanded = false
-    }
-    
-    // ✅ CORREÇÃO PRINCIPAL: Usar LaunchedEffect para verificar após a composição inicial
-    // Isso garante que o expansaoManual foi restaurado pelo rememberSaveable antes de fazer qualquer correção
-    LaunchedEffect(Unit) {
-        // Aguardar um frame para garantir que o rememberSaveable foi restaurado
-        kotlinx.coroutines.delay(1)
-        
-        // ✅ DETECÇÃO DE EXPANSÃO MANUAL: Se isExpanded=true foi salvo pelo rememberSaveable
-        // e todos estão concluídos e NÃO foi auto-compactado, então foi expansão manual
-        // Isso detecta quando o usuário expandiu manualmente e o estado foi salvo
-        if (todosConcluidos && isExpanded && !jaFoiAutoCompactado && !expansaoManual) {
-            // Se o card está expandido e foi salvo como expandido, assumir que foi expansão manual
-            Log.d("WaveCard", "🔍 DETECÇÃO: Card está expandido (salvo pelo rememberSaveable) e todos estão concluídos. Assumindo expansão manual.")
-            expansaoManual = true // Marcar como expansão manual para evitar colapso
-            return@LaunchedEffect // Não executar a correção abaixo
-        }
-        
-        // Se todos estão concluídos e já foi auto-compactado, garantir que está fechado
-        if (todosConcluidos && jaFoiAutoCompactado && isExpanded && !expansaoManual) {
-            Log.d("WaveCard", "🔧 CORREÇÃO (LaunchedEffect): Todos concluídos e já foi auto-compactado, mas card está expandido. Forçando fechamento.")
-            isExpanded = false
+
+    // Recolher automaticamente quando todos concluírem — 2s para o motorista
+    // terminar de ler, e apenas uma vez por ciclo de conclusão (a chave do
+    // efeito muda de false para true num novo ciclo)
+    LaunchedEffect(todosConcluidos) {
+        if (todosConcluidos && !expansaoManual) {
+            kotlinx.coroutines.delay(2000)
+            if (!expansaoManual) isExpanded = false
         }
     }
-    
-    // ✅ LOG: Estado inicial ao criar/restaurado o card (com chaves para debug)
-    LaunchedEffect(Unit) {
-        Log.d("WaveCard", "🔄 Card criado/restaurado - Onda: ${onda.nome}, Turno: $turnoAtual, Index: $ondaIndex")
-        Log.d("WaveCard", "   Chave isExpanded: wave_expanded_${turnoAtual}_${ondaIndex}")
-        Log.d("WaveCard", "   Chave jaFoiAutoCompactado: wave_auto_compactado_${turnoAtual}_${ondaIndex}")
-        Log.d("WaveCard", "   Chave expansaoManual: wave_expansao_manual_${turnoAtual}_${ondaIndex}")
-        Log.d("WaveCard", "   Estado: isExpanded=$isExpanded, jaFoiAutoCompactado=$jaFoiAutoCompactado, expansaoManual=$expansaoManual, todosConcluidos=$todosConcluidos")
-    }
-    
-    // Auto-compactar APENAS UMA VEZ quando todos ficarem concluídos (com delay de 2 segundos)
-    // MAS: não auto-compactar se foi expansão manual ou se já foi auto-compactado
-    LaunchedEffect(todosConcluidos, isExpanded) {
-        // Só executa se todos estão concluídos, card está expandido, não foi auto-compactado ainda, e não foi expansão manual
-        if (todosConcluidos && isExpanded && !jaFoiAutoCompactado && !expansaoManual) {
-            Log.d("WaveCard", "⚡ LaunchedEffect: Auto-compactando em 2 segundos...")
-            kotlinx.coroutines.delay(2000) // Delay de 2 segundos
-            Log.d("WaveCard", "✅ Auto-compactando agora! isExpanded: $isExpanded -> false")
-            isExpanded = false
-            jaFoiAutoCompactado = true // Marca que já foi auto-compactado
-            Log.d("WaveCard", "   Estado após auto-compactação: isExpanded: $isExpanded, jaFoiAutoCompactado: $jaFoiAutoCompactado")
-        }
-    }
-    
-    // ✅ LOG: Quando o estado isExpanded muda manualmente
-    LaunchedEffect(isExpanded) {
-        Log.d("WaveCard", "📝 Estado isExpanded mudou para: $isExpanded (Onda: ${onda.nome}, Turno: $turnoAtual)")
-    }
-    
+
     AppCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             // Header da Onda (clicável para expandir/colapsar)
+            val interacaoCabeca = remember { MutableInteractionSource() }
             Row(
                 modifier = Modifier
+                    .pressionar(interacaoCabeca)
                     .fillMaxWidth()
-                    .clickable {
-                        val novoEstado = !isExpanded
-                        isExpanded = novoEstado
-                        // Se o usuário expandir manualmente, marcar como expansão manual
-                        if (novoEstado) {
-                            expansaoManual = true
-                            Log.d("WaveCard", "👆 Expansão manual detectada - Onda: ${onda.nome}, expansaoManual=true")
-                        } else {
-                            // Se o usuário colapsar manualmente, não resetar expansaoManual
-                            // (mantém o estado para que possa expandir novamente se quiser)
-                            Log.d("WaveCard", "👆 Colapso manual detectado - Onda: ${onda.nome}, mantendo expansaoManual=$expansaoManual")
-                        }
+                    .clickable(interactionSource = interacaoCabeca, indication = LocalIndication.current) {
+                        isExpanded = !isExpanded
+                        // Se o usuário expandir manualmente, vence o recolher automático
+                        if (isExpanded) expansaoManual = true
                     }
                     .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1144,7 +1055,7 @@ fun WaveOperationCard(
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
                                         contentDescription = "Todos concluídos",
-                                        tint = Color(0xFF10B981),
+                                        tint = NeonGreen,
                                         modifier = Modifier.size(16.dp)
                                     )
                                 }
@@ -1155,7 +1066,7 @@ fun WaveOperationCard(
                                         "$concluidos/$totalMotoristas concluídos"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = if (todosConcluidos) Color(0xFF10B981) else TextGrayLightMode
+                                    color = if (todosConcluidos) NeonGreen else TextGrayLightMode
                                 )
                             }
                         }
@@ -1183,7 +1094,7 @@ fun WaveOperationCard(
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "Excluir Onda",
-                            tint = Color(0xFFEF4444),
+                            tint = StatusError,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1202,11 +1113,14 @@ fun WaveOperationCard(
                 }
             }
             
-            // Lista de Motoristas (animada)
+            // Lista de Motoristas (animada) — expandir mais lento que recolher,
+            // com fade junto (referência: emilkowalski/skills)
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically(),
-                exit = shrinkVertically()
+                enter = fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut)) +
+                    expandVertically(tween(Duracao.Conteudo, easing = MovEaseOut)),
+                exit = fadeOut(tween(Duracao.Press)) +
+                    shrinkVertically(tween(220, easing = MovEaseInOut))
             ) {
                 Column {
                     HorizontalDivider(
@@ -1376,46 +1290,7 @@ fun WaveOperationCard(
             }
         )
     }
-    
-    // Dialog de confirmação de remoção
-    if (showConfirmDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showConfirmDeleteDialog = false },
-            containerColor = Color.White,
-            title = {
-                Text("Remover Motorista", color = TextBlack, fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Text(
-                    "Tem certeza que deseja remover este motorista da onda?",
-                    color = TextGrayLightMode
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        motoristaPendingRemoval?.let { onRemoveDriver(it) }
-                        showConfirmDeleteDialog = false
-                        motoristaPendingRemoval = null
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFEF4444),
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Remover", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showConfirmDeleteDialog = false
-                    motoristaPendingRemoval = null
-                }) {
-                    Text("Cancelar", color = TextGrayLightMode)
-                }
-            }
-        )
-    }
+
     
     // Dialog de confirmação de exclusão de onda
     if (showConfirmDeleteWaveDialog) {
@@ -1434,11 +1309,12 @@ fun WaveOperationCard(
             confirmButton = {
                 Button(
                     onClick = {
+                        Vibrar.impacto(context)
                         onRemoveWave(ondaIndex)
                         showConfirmDeleteWaveDialog = false
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFEF4444),
+                        containerColor = StatusError,
                         contentColor = Color.White
                     )
                 ) {
@@ -1462,12 +1338,14 @@ fun DriverOperationRow(
 ) {
     // Slot da importação (rota sem motorista): visual próprio, toque escolhe o motorista
     if (motorista.isSlot) {
+        val interacaoSlot = remember { MutableInteractionSource() }
         Surface(
             color = LightSurfaceVariant,
             shape = MaterialTheme.shapes.small,
             modifier = Modifier
+                .pressionar(interacaoSlot)
                 .fillMaxWidth()
-                .clickable { onCardClick() }
+                .clickable(interactionSource = interacaoSlot, indication = LocalIndication.current) { onCardClick() }
         ) {
             Row(
                 modifier = Modifier
@@ -1480,15 +1358,13 @@ fun DriverOperationRow(
                         text = "Rota livre: ${motorista.rota}",
                         color = TextBlack,
                         fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontSize = 14.sp
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     if (motorista.vaga.isNotBlank()) {
                         Text(
                             text = "Vaga ${motorista.vaga}",
                             color = MeliBlue,
                             style = MaterialTheme.typography.bodySmall,
-                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -1508,7 +1384,6 @@ fun DriverOperationRow(
                         color = NeonOrange,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     )
                 }
@@ -1519,18 +1394,20 @@ fun DriverOperationRow(
 
     val estadoAtual = status?.estado?.takeIf { it.isNotBlank() } ?: "A_CAMINHO"
     val isConcluido = estadoAtual == "CONCLUIDO"
-    
+
     val corStatus = statusColor(estadoAtual)
-    
+
     val corModalidade = modalidadeColor(motorista.modalidade)
-    
+
+    val interacaoLinha = remember { MutableInteractionSource() }
     Surface(
         color = LightSurfaceVariant,
         shape = MaterialTheme.shapes.small,
         modifier = Modifier
+            .pressionar(interacaoLinha)
             .fillMaxWidth()
             .alpha(if (isConcluido) 0.5f else 1f) // Opacidade reduzida quando concluido
-            .clickable { onCardClick() }
+            .clickable(interactionSource = interacaoLinha, indication = LocalIndication.current) { onCardClick() }
     ) {
         Column(
             modifier = Modifier
@@ -1552,7 +1429,6 @@ fun DriverOperationRow(
                     color = TextBlack,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp,
                     textDecoration = if (isConcluido) TextDecoration.LineThrough else null,
                     modifier = Modifier.alpha(if (isConcluido) 0.6f else 1f) // Opacidade extra no nome quando concluído
                 )
@@ -1582,7 +1458,6 @@ fun DriverOperationRow(
                             color = corStatus,
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         )
                     }
@@ -1592,7 +1467,7 @@ fun DriverOperationRow(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Confirmado",
-                            tint = Color(0xFF4CAF50), // Verde
+                            tint = NeonGreen, // Verde: confirmado
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1617,31 +1492,28 @@ fun DriverOperationRow(
                         text = "Vaga ${motorista.vaga}",
                         color = MeliBlue,
                         style = MaterialTheme.typography.bodySmall,
-                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    
+
                     // Rota
                     Text(
                         text = if (motorista.rota.isBlank()) "--" else motorista.rota,
                         color = if (motorista.rota.isBlank()) TextGrayLightMode else MeliBlue,
                         style = MaterialTheme.typography.bodySmall,
-                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    
+
                     // Sacas
                     motorista.sacas?.let { quantidade ->
                         Text(
                             text = "$quantidade sacas",
                             color = NeonOrange,
                             style = MaterialTheme.typography.bodySmall,
-                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
-                
+
                 // Modalidade
                 Surface(
                     color = corModalidade.copy(alpha = 0.2f),
@@ -1652,7 +1524,6 @@ fun DriverOperationRow(
                         color = corModalidade,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     )
                 }
@@ -1743,10 +1614,12 @@ fun EscolherMotoristaSlotDialog(
                     items(lista.size) { index ->
                         val m = lista[index]
                         val disponibilidade = disponibilidadeMap[m.id]
+                        val interacao = remember { MutableInteractionSource() }
                         Row(
                             modifier = Modifier
+                                .pressionar(interacao)
                                 .fillMaxWidth()
-                                .clickable { onConfirm(m) }
+                                .clickable(interactionSource = interacao, indication = LocalIndication.current) { onConfirm(m) }
                                 .padding(vertical = 6.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -2027,12 +1900,13 @@ fun DriverActionsDialog(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        Vibrar.impacto(context)
                         showConfirmDelete = false
                         onRemove()
                         onDismiss()
                     }
                 ) {
-                    Text("EXCLUIR", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold)
+                    Text("EXCLUIR", color = StatusError, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -2190,8 +2064,8 @@ fun DriverActionsDialog(
                                 unfocusedTextColor = TextBlack,
                                 focusedContainerColor = Color.White,
                                 unfocusedContainerColor = Color.White,
-                                focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else MeliBlue,
-                                unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else CardBorderLight
+                                focusedBorderColor = if (erroVaga != null) StatusError else MeliBlue,
+                                unfocusedBorderColor = if (erroVaga != null) StatusError else CardBorderLight
                             ),
                             modifier = Modifier.weight(1f)
                         )
@@ -2224,8 +2098,8 @@ fun DriverActionsDialog(
                                 unfocusedTextColor = TextBlack,
                                 focusedContainerColor = Color.White,
                                 unfocusedContainerColor = Color.White,
-                                focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else MeliBlue,
-                                unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else CardBorderLight
+                                focusedBorderColor = if (erroRota != null) StatusError else MeliBlue,
+                                unfocusedBorderColor = if (erroRota != null) StatusError else CardBorderLight
                             ),
                             modifier = Modifier.weight(1.4f)
                         )
@@ -2257,10 +2131,10 @@ fun DriverActionsDialog(
                     if (erroVaga != null || erroRota != null) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             erroVaga?.let {
-                                Text(it, color = Color(0xFFEF4444), style = MaterialTheme.typography.labelSmall)
+                                Text(it, color = StatusError, style = MaterialTheme.typography.labelSmall)
                             }
                             erroRota?.let {
-                                Text(it, color = Color(0xFFEF4444), style = MaterialTheme.typography.labelSmall)
+                                Text(it, color = StatusError, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -2299,6 +2173,7 @@ fun DriverActionsDialog(
                             onClick = {
                                 val (vagaFormatada, rotaFormatada) = validarCampos()
                                 if (vagaFormatada.isNotEmpty() && rotaFormatada.isNotEmpty()) {
+                                    Vibrar.impacto(context)
                                     onChamarParaVaga(vagaFormatada, rotaFormatada)
                                     onDismiss()
                                 }
@@ -2318,6 +2193,7 @@ fun DriverActionsDialog(
                         // Botão: Chamar para Estacionamento
                         Button(
                             onClick = {
+                                Vibrar.impacto(context)
                                 onChamarParaEstacionamento()
                                 onDismiss()
                             },
@@ -2340,7 +2216,7 @@ fun DriverActionsDialog(
                             Button(
                                 onClick = { abrirWhatsApp(tel) },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF25D366), // Cor verde do WhatsApp
+                                    containerColor = VerdeWhatsApp, // Cor verde do WhatsApp
                                     contentColor = Color.White
                                 ),
                                 modifier = Modifier.fillMaxWidth()
@@ -2356,6 +2232,7 @@ fun DriverActionsDialog(
                         // Botão: Marcar como Concluído
                         TextButton(
                             onClick = {
+                                Vibrar.sucesso(context)
                                 onMarcarComoConcluido()
                                 onDismiss()
                             },
@@ -2373,6 +2250,7 @@ fun DriverActionsDialog(
                         // Botão: Resetar Status
                         TextButton(
                             onClick = {
+                                Vibrar.toque(context)
                                 onResetarStatus()
                                 onDismiss()
                             },
@@ -2459,16 +2337,473 @@ fun DriverActionsDialog(
                 Icon(
                     Icons.Default.Delete,
                     contentDescription = null,
-                    tint = Color(0xFFEF4444),
+                    tint = StatusError,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     "Excluir da onda",
                     style = MaterialTheme.typography.labelLarge,
-                    color = Color(0xFFEF4444)
+                    color = StatusError
                 )
             }
         }
     }
 }
+@Composable
+fun FillDriverDetailsDialog(
+    motorista: AdminMotoristaCardData,
+    targetName: String,
+    ondas: List<Onda>,
+    ondaIndex: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (vaga: String, rota: String, sacas: Int?) -> Unit
+) {
+    var vaga by remember { mutableStateOf("") }
+    var rota by remember { mutableStateOf("") }
+    var sacas by remember { mutableStateOf("") }
+    var erroVaga by remember { mutableStateOf<String?>(null) }
+    var erroRota by remember { mutableStateOf<String?>(null) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Color.White,
+        title = {
+            Column {
+                Text(
+                    "Adicionar ${motorista.nome} à $targetName",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Surface(
+                    color = when(motorista.modalidade) {
+                        "DEDICADO" -> NeonPurple.copy(alpha = 0.2f)
+                        "UTILITARIO" -> Color(0xFF00BCD4).copy(alpha = 0.2f)
+                        "PASSEIO" -> NeonOrange.copy(alpha = 0.2f)
+                        else -> NeonBlue.copy(alpha = 0.2f)
+                    },
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text(
+                        text = motorista.modalidade,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = when(motorista.modalidade) {
+                            "DEDICADO" -> NeonPurple
+                            "UTILITARIO" -> Color(0xFF00BCD4)
+                            "PASSEIO" -> NeonOrange
+                            else -> NeonBlue
+                        },
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Campo Vaga (obrigatório com formatação automática ao perder foco)
+                val vagaInteractionSource = remember { MutableInteractionSource() }
+                val vagaFocused by vagaInteractionSource.collectIsFocusedAsState()
+                
+                // Aplicar formatação quando perde o foco
+                LaunchedEffect(vagaFocused) {
+                    if (!vagaFocused && vaga.isNotBlank()) {
+                        val vagaFormatada = formatarVaga(vaga)
+                        if (vagaFormatada != vaga) {
+                            vaga = vagaFormatada
+                        }
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = if (vagaFocused) vaga else formatarVaga(vaga),
+                    onValueChange = { newValue ->
+                        // Permitir apenas números
+                        if (newValue.isEmpty() || newValue.all { it.isDigit() }) {
+                            vaga = newValue
+                            // Validar vaga em tempo real
+                            val (valida, mensagem) = validarVagaNaOnda(ondas, ondaIndex, newValue)
+                            erroVaga = mensagem
+                        }
+                    },
+                    interactionSource = vagaInteractionSource,
+                    label = { Text("Vaga *", color = TextGrayLightMode) },
+                    leadingIcon = {
+                        Icon(Icons.Default.LocationOn, null, tint = MeliBlue)
+                    },
+                    placeholder = { Text("Ex: 01", color = TextGrayLightMode.copy(alpha = 0.5f)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = erroVaga != null,
+                    supportingText = erroVaga?.let { { Text(it, color = Color(0xFFEF4444)) } },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else MeliBlue,
+                        unfocusedBorderColor = if (erroVaga != null) Color(0xFFEF4444) else CardBorderLight
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                // Campo Rota (obrigatório com formatação automática ao perder foco)
+                val rotaInteractionSource = remember { MutableInteractionSource() }
+                val rotaFocused by rotaInteractionSource.collectIsFocusedAsState()
+                
+                // Aplicar formatação e validação quando perde o foco
+                LaunchedEffect(rotaFocused) {
+                    if (!rotaFocused && rota.isNotBlank()) {
+                        val rotaFormatada = formatarRota(rota)
+                        rota = rotaFormatada
+                        // Validar rota após formatação
+                        val (valida, mensagem) = validarRotaNoTurno(ondas, rotaFormatada)
+                        erroRota = mensagem
+                    }
+                }
+                
+                OutlinedTextField(
+                    value = if (rotaFocused) rota else formatarRota(rota),
+                    onValueChange = { newValue ->
+                        rota = newValue // Permite digitar livremente enquanto focado
+                        // Validar rota em tempo real (após formatação)
+                        if (!rotaFocused && newValue.isNotBlank()) {
+                            val rotaFormatada = formatarRota(newValue)
+                            val (valida, mensagem) = validarRotaNoTurno(ondas, rotaFormatada)
+                            erroRota = mensagem
+                        }
+                    },
+                    interactionSource = rotaInteractionSource,
+                    label = { Text("Rota *", color = TextGrayLightMode) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Place, null, tint = MeliBlue)
+                    },
+                    placeholder = { Text("Ex: T-15", color = TextGrayLightMode.copy(alpha = 0.5f)) },
+                    isError = erroRota != null,
+                    supportingText = erroRota?.let { { Text(it, color = Color(0xFFEF4444)) } },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else MeliBlue,
+                        unfocusedBorderColor = if (erroRota != null) Color(0xFFEF4444) else CardBorderLight
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                // Campo Sacas (opcional)
+                OutlinedTextField(
+                    value = sacas,
+                    onValueChange = { if (it.isEmpty() || it.all { char -> char.isDigit() }) sacas = it },
+                    label = { Text("Sacas (opcional)", color = TextGrayLightMode) },
+                    leadingIcon = {
+                        Icon(Icons.Default.ShoppingCart, null, tint = NeonOrange)
+                    },
+                    placeholder = { Text("Ex: 12", color = TextGrayLightMode.copy(alpha = 0.5f)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedBorderColor = NeonOrange,
+                        unfocusedBorderColor = CardBorderLight
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Text(
+                    "* Campos obrigatórios",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextGrayLightMode,
+                    fontSize = 11.sp
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    // Validar antes de salvar
+                    val vagaFormatada = formatarVaga(vaga)
+                    val rotaFormatada = formatarRota(rota)
+                    val (vagaValida, mensagemVaga) = validarVagaNaOnda(ondas, ondaIndex, vagaFormatada)
+                    val (rotaValida, mensagemRota) = validarRotaNoTurno(ondas, rotaFormatada)
+                    
+                    erroVaga = mensagemVaga
+                    erroRota = mensagemRota
+                    
+                    if (vagaFormatada.isNotBlank() && rota.isNotBlank() && vagaValida && rotaValida) {
+                        val sacasInt = sacas.toIntOrNull()
+                        onConfirm(vagaFormatada, rotaFormatada, sacasInt)
+                    }
+                },
+                enabled = vaga.isNotBlank() && rota.isNotBlank() && erroVaga == null && erroRota == null,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MeliBlue,
+                    contentColor = Color.White,
+                    disabledContainerColor = TextDisabled.copy(alpha = 0.3f)
+                )
+            ) {
+                Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("ADICIONAR", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CANCELAR", color = TextGrayLightMode)
+            }
+        }
+    )
+}
+
+@Composable
+fun AddDriverDialog(
+    motoristas: List<AdminMotoristaCardData>,
+    targetName: String,
+    onDismiss: () -> Unit,
+    onSelect: (AdminMotoristaCardData) -> Unit
+) {
+    var selectedModalidade by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showInfoDialog by remember { mutableStateOf(false) }
+    
+    // ✅ NOVO: Filtrar admins e ordenar alfabeticamente
+    val motoristasFiltrados = remember(motoristas) {
+        motoristas
+            .filter { it.papel != "admin" } // Não mostrar admins
+            .sortedBy { it.nome.uppercase() } // Ordenar alfabeticamente
+    }
+    
+    // ✅ NOVO: Filtro combinado (pesquisa + modalidade)
+    val filteredMotoristas = remember(motoristasFiltrados, searchQuery, selectedModalidade) {
+        motoristasFiltrados.filter { motorista ->
+            val matchesSearch = searchQuery.isBlank() || 
+                motorista.nome.lowercase().contains(searchQuery.lowercase().trim()) ||
+                motorista.telefone.contains(searchQuery.trim())
+            
+            // Se "Todos" estiver selecionado (selectedModalidade == null), mostrar todos
+            val matchesModalidade = selectedModalidade == null || 
+                motorista.modalidade == selectedModalidade
+            
+            matchesSearch && matchesModalidade
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Adicionar Motorista à $targetName", 
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = { showInfoDialog = true },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = "Informações",
+                        tint = MeliBlue,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Campo de pesquisa (sem placeholder para ser mais compacto)
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Search,
+                            contentDescription = "Pesquisar",
+                            tint = MeliBlue
+                        )
+                    },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedBorderColor = MeliBlue,
+                        unfocusedBorderColor = CardBorderLight,
+                        focusedLabelColor = MeliBlue,
+                        unfocusedLabelColor = TextGrayLightMode
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                
+                // Filtro de Modalidade (organizado com opção "Todos")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                        .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Opção "Todos" primeiro
+                    FilterChip(
+                        selected = selectedModalidade == null,
+                        onClick = { selectedModalidade = null },
+                        label = { Text("TODOS") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MeliBlue,
+                            selectedLabelColor = Color.White
+                        )
+                    )
+                    
+                    // Modalidades organizadas
+                    listOf("FROTA", "PASSEIO", "DEDICADO", "UTILITARIO").forEach { modalidade ->
+                        FilterChip(
+                            selected = selectedModalidade == modalidade,
+                            onClick = { 
+                                selectedModalidade = if (selectedModalidade == modalidade) null else modalidade 
+                            },
+                            label = { Text(modalidade) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = when(modalidade) {
+                                    "DEDICADO" -> NeonPurple
+                                    "UTILITARIO" -> NeonBlue
+                                    "PASSEIO" -> NeonOrange
+                                    else -> NeonGreen
+                                },
+                                selectedLabelColor = if (modalidade == "DEDICADO") TextWhite else Color.Black
+                            )
+                        )
+                    }
+                }
+                
+                if (filteredMotoristas.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                        Text("Nenhum motorista disponível", color = TextGrayLightMode)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.height(300.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredMotoristas) { motorista ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = LightSurfaceVariant),
+                                onClick = { onSelect(motorista) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.Person, null, tint = MeliBlue)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(motorista.nome, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                                        Text(motorista.telefone, color = TextGrayLightMode, style = MaterialTheme.typography.bodySmall)
+                                        // Badge Modalidade
+                                        Surface(
+                                            color = when(motorista.modalidade) {
+                                                "DEDICADO" -> Color(0xFFE65100)
+                                                "UTILITARIO" -> Color(0xFF00ACC1)
+                                                "PASSEIO" -> Color(0xFF7CB342)
+                                                else -> Color(0xFF3949AB)
+                                            },
+                                            shape = RoundedCornerShape(4.dp),
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = motorista.modalidade,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("FECHAR", color = MeliBlue) }
+        }
+    )
+    
+    // Diálogo de informações
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            containerColor = Color.White,
+            title = { 
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MeliBlue,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text("Como usar", color = TextBlack)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "• Use o campo de pesquisa para buscar por nome ou telefone",
+                        color = TextGrayLightMode,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "• Selecione uma modalidade para filtrar (FROTA, PASSEIO, DEDICADO, UTILITÁRIO)",
+                        color = TextGrayLightMode,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "• Use 'TODOS' para ver todos os motoristas",
+                        color = TextGrayLightMode,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "• Clique em um motorista para adicioná-lo à onda",
+                        color = TextGrayLightMode,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        "• Apenas motoristas e auxiliares são exibidos (admins não aparecem)",
+                        color = TextGrayLightMode,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showInfoDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = MeliBlue)
+                ) {
+                    Text("ENTENDI", color = Color.White)
+                }
+            }
+        )
+    }
+}
+

@@ -487,12 +487,13 @@ fun AvatarIcon(icon: ImageVector, color: Color) {
 @Composable
 fun TypingIndicator() {
     val infiniteTransition = rememberInfiniteTransition(label = "typing")
-    
+    val movimentoLigado = rememberMovimentoLigado()
+
     @Composable
     fun animateDot(delay: Int): Float {
         return infiniteTransition.animateFloat(
             initialValue = 0f,
-            targetValue = -10f,
+            targetValue = if (movimentoLigado) -10f else 0f,
             animationSpec = infiniteRepeatable(
                 animation = tween(600, delayMillis = delay, easing = FastOutSlowInEasing),
                 repeatMode = RepeatMode.Reverse

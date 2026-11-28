@@ -4,6 +4,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -121,15 +126,34 @@ fun MainAppScaffold(
                 }
             }
             PremiumBackground(modifier = Modifier.weight(1f)) {
+                // Abas são pares (100+ por dia): só fade rápido. Telas empurradas
+                // (Assistente) deslizam da direita. Referência: emilkowalski/skills
+                val movimentoLigado = rememberMovimentoLigado()
+                val fadeAba = tween<Float>(Duracao.Pequeno, easing = MovEaseOut)
                 NavHost(
                     navController = navController,
                     startDestination = BottomNavItem.Operation.route,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    enterTransition = { fadeIn(fadeAba) },
+                    exitTransition = { fadeOut(tween(Duracao.Press, easing = MovEaseOut)) },
+                    popEnterTransition = { fadeIn(fadeAba) },
+                    popExitTransition = { fadeOut(tween(Duracao.Press, easing = MovEaseOut)) }
                 ) {
-                    // Log quando o NavHost é criado
-                    println("🔵 MainAppScaffold: NavHost criado, startDestination: ${BottomNavItem.Operation.route}")
-                    android.util.Log.e("DEBUG", "🔵 MainAppScaffold: NavHost criado")
-                    composable(BottomNavItem.Assistente.route) {
+                    composable(
+                        BottomNavItem.Assistente.route,
+                        enterTransition = {
+                            if (movimentoLigado)
+                                slideInHorizontally(tween(Duracao.Painel, easing = MovEaseInOut)) { it } +
+                                    fadeIn(tween(Duracao.Press))
+                            else fadeIn(fadeAba)
+                        },
+                        popExitTransition = {
+                            if (movimentoLigado)
+                                slideOutHorizontally(tween(Duracao.Painel, easing = MovEaseInOut)) { it } +
+                                    fadeOut(tween(Duracao.Press))
+                            else fadeOut(tween(Duracao.Press))
+                        }
+                    ) {
                         val operationEntry = navController.getBackStackEntry(BottomNavItem.Operation.route)
                         val operationalViewModel: OperationalViewModel = viewModel(operationEntry!!)
                         val currentTurno by operationalViewModel.turnoAtual.collectAsState()

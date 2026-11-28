@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fundo do splash do sistema (Android 12+): o amarelo do ícone, no lugar do cinza padrão -->
+    <style name="Theme.ControleEscalas" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">#3483FA</item>
+        <item name="android:colorPrimaryDark">#FFE600</item>
+        <item name="android:colorAccent">#3483FA</item>
+        <item name="android:windowSplashScreenBackground">#FDD703</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+    </style>
+</resources>

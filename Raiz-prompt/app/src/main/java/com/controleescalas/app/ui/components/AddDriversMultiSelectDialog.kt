@@ -1,7 +1,9 @@
 package com.controleescalas.app.ui.components
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -547,10 +549,12 @@ private fun MotoristaSelecaoRow(
     ondaAtribuida: String?,
     onToggle: () -> Unit
 ) {
+    val interacaoLinha = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
+            .pressionar(interacaoLinha)
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
+            .clickable(interactionSource = interacaoLinha, indication = LocalIndication.current, onClick = onToggle)
             .padding(vertical = 4.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

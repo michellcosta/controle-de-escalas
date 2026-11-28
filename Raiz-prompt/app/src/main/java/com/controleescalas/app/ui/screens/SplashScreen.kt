@@ -30,17 +30,23 @@ fun SplashScreen(
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
     
-    // Animação de fade e escala
-    val infiniteTransition = rememberInfiniteTransition(label = "splash_animation")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 0.9f,
-        targetValue = 1.1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale_animation"
-    )
+    // Pulso discreto do logo (respiração) — parado quando o sistema pede menos movimento
+    val movimentoLigado = rememberMovimentoLigado()
+    val scale: Float = if (movimentoLigado) {
+        val infiniteTransition = rememberInfiniteTransition(label = "splash_animation")
+        val animado by infiniteTransition.animateFloat(
+            initialValue = 0.98f,
+            targetValue = 1.04f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(900, easing = MovEaseInOut),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "scale_animation"
+        )
+        animado
+    } else {
+        1f
+    }
     
     // Verificar sessão ativa
     LaunchedEffect(Unit) {

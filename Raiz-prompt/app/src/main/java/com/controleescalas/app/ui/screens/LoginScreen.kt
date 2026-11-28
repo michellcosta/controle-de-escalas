@@ -48,16 +48,22 @@ fun LoginExistingScreen(
     val sessionManager = remember { SessionManager(context) }
     val scope = rememberCoroutineScope()
     
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val logoScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "logoScale"
-    )
+    // Pulso discreto do logo — respiração, não pulo; para com animação reduzida
+    val logoScale: Float = if (rememberMovimentoLigado()) {
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        val animado by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.03f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = MovEaseInOut),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "logoScale"
+        )
+        animado
+    } else {
+        1f
+    }
     
     var telefone by remember { mutableStateOf("") }
     var pin by remember { mutableStateOf("") }

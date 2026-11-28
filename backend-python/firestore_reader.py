@@ -329,7 +329,11 @@ class FirestoreReader:
                     modalidade = m_data.get('modalidade', 'FROTA').upper()
                     if nome:
                         motoristas_nomes.append(nome)
-                        estrutura["motoristas"][normalizar_nome(nome)] = {"id": d.id, "nome": nome}
+                        estrutura["motoristas"][normalizar_nome(nome)] = {
+                            "id": d.id,
+                            "nome": nome,
+                            "modalidade": modalidade
+                        }
                         contagem_modalidade[modalidade] += 1
             
             motoristas_nomes.sort()

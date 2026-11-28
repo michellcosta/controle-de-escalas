@@ -1,14 +1,15 @@
 {
-  "versaoCodigo": 19,
-  "versaoNome": "1.8.0-beta",
-  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.8.0-beta/controle-de-escalas-1.8.0-beta.apk",
-  "sha256": "2e1050d0b3d84f6916948323588b15017a690f328e6a511f67e46976461cccc4",
+  "versaoCodigo": 20,
+  "versaoNome": "1.9.0-beta",
+  "apkUrl": "https://github.com/michellcosta/controle-de-escalas/releases/download/v1.9.0-beta/controle-de-escalas-1.9.0-beta.apk",
+  "sha256": "PENDENTE",
   "novidades": [
-    "Importar ondas por foto em Operações do Dia: cada rota da tabela já entra na onda e na vaga (doca)",
-    "A foto da tabela de ondas aproveita a pré-escala: quem já tinha rota vai direto para a onda e a vaga; só rota sem motorista fica livre",
-    "Rota livre aparece como LIVRE e recebe o motorista com um toque",
-    "Escala rápida: os chips de rota voltam ao reabrir e a próxima rota livre já fica selecionada (1 toque por motorista)",
-    "Escala rápida só compartilha no WhatsApp depois de salvar",
-    "Correções: a escala fica no turno selecionado (o sufixo da rota não cria mais um turno sem chip); rota da planilha não é alterada no painel do motorista; NOTIFICAR TODOS conta só motoristas escalados"
+    "Identidade visual nova: ícone, tela de abertura e notificações no estilo amarelo com pin, estrada e check",
+    "Colar escala por texto: cole a mensagem do WhatsApp e o app monta as ondas — com Análise por IA para entender qualquer formato",
+    "Volumosos no lugar certo: os pacotes VUC/Saca entram dentro das ondas 1, 2 e 3, sem virar onda separada",
+    "Operação do Dia de volta ao fluxo simples: + cria ondas na hora e cada onda recebe motoristas com vaga, rota e sacas",
+    "Som do bip na devolução: volume ajustável (padrão audível, independente do volume de mídia) e vibração a cada pacote",
+    "Devolução: pacote pode ser devolvido novamente em outro dia e re-bipado após excluir da lista",
+    "Motion: feedback de toque nos botões e cards, transições entre telas e escala colada com confirmação antes de aplicar"
   ]
 }

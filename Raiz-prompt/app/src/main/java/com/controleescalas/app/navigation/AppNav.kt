@@ -4,6 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.compose.NavHost
@@ -17,6 +22,10 @@ import com.controleescalas.app.ui.screens.*
 import com.controleescalas.app.ui.screens.DriverAppScaffold
 import com.controleescalas.app.ui.viewmodels.DevolucaoViewModel
 import com.controleescalas.app.ui.theme.ControleEscalasTheme
+import com.controleescalas.app.ui.theme.Duracao
+import com.controleescalas.app.ui.theme.MovEaseInOut
+import com.controleescalas.app.ui.theme.MovEaseOut
+import com.controleescalas.app.ui.theme.Movimento
 import com.controleescalas.app.ui.viewmodels.AdminViewModel
 import com.controleescalas.app.ui.viewmodels.CreateBaseViewModel
 import com.google.firebase.auth.FirebaseAuth
@@ -75,7 +84,21 @@ fun AppNavHost() {
 
     NavHost(
         navController = navController,
-        startDestination = Routes.Splash.route
+        startDestination = Routes.Splash.route,
+        // Telas empurradas deslizam da direita (300ms, ease-in-out); pop desliza de volta.
+        // O splash aparece em fade e, com "remover animações" do sistema, tudo é fade.
+        enterTransition = {
+            if (Movimento.ligado(context) && initialState.destination.route != Routes.Splash.route)
+                slideInHorizontally(tween(Duracao.Painel, easing = MovEaseInOut)) { it } + fadeIn(tween(Duracao.Press))
+            else fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut))
+        },
+        exitTransition = { fadeOut(tween(Duracao.Press, easing = MovEaseOut)) },
+        popEnterTransition = { fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut)) },
+        popExitTransition = {
+            if (Movimento.ligado(context) && targetState.destination.route != Routes.Splash.route)
+                slideOutHorizontally(tween(Duracao.Painel, easing = MovEaseInOut)) { it } + fadeOut(tween(Duracao.Press))
+            else fadeOut(tween(Duracao.Press, easing = MovEaseOut))
+        }
     ) {
 
             // Splash Screen com auto-login

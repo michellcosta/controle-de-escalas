@@ -92,6 +92,19 @@ fun AdminPanelScreen(
                     .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 180.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Carregamento discreto no topo (não empurra o menu para baixo)
+                if (isLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = MeliBlue,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+
                 SectionHeader(title = "Geral")
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -165,12 +178,6 @@ fun AdminPanelScreen(
                     textColor = Color(0xFFEF4444)
                 )
 
-                if (isLoading) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = MeliBlue)
-                    }
-                }
-                
                 // Feedback Message
                 message?.let { msg ->
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {

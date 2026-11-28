@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 val MeliYellow = Color(0xFFFFE600)      // Topo / status bar / destaque
 val MeliYellowDark = Color(0xFFE6CF00)  // Detalhes e hover
 val MeliBlue = Color(0xFF3483FA)        // Ações primárias, links, seleção
+val VerdeWhatsApp = Color(0xFF25D366)   // Botões de compartilhar no WhatsApp
 val CardBorderLight = Color(0xFFE6E6E6) // Borda de card
 val TextDisabled = Color(0xFF9E9E9E)    // Placeholder / desabilitado
 

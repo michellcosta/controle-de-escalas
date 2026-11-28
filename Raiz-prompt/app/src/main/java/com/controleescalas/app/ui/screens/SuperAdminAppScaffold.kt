@@ -1,6 +1,9 @@
 package com.controleescalas.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -414,7 +417,11 @@ fun SuperAdminAppScaffold(
             NavHost(
                 navController = navController,
                 startDestination = SuperAdminNavItem.Dashboard.route,
-                modifier = Modifier.padding(paddingValues)
+                modifier = Modifier.padding(paddingValues),
+                enterTransition = { fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut)) },
+                exitTransition = { fadeOut(tween(Duracao.Press, easing = MovEaseOut)) },
+                popEnterTransition = { fadeIn(tween(Duracao.Pequeno, easing = MovEaseOut)) },
+                popExitTransition = { fadeOut(tween(Duracao.Press, easing = MovEaseOut)) }
             ) {
                 composable(SuperAdminNavItem.Dashboard.route) {
                     SuperAdminDashboardScreen(
